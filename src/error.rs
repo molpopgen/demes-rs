@@ -8,4 +8,6 @@ pub enum DemesError {
     EndTimeError(f64),
     #[error("deme sizes must be 0 <= d < Infinity, got: {0:?}")]
     DemeSizeError(f64),
+    #[error("proportions must be 0.0 < p <= 1.0, got: {0:?}")]
+    ProportionError(f64),
 }

@@ -20,6 +20,12 @@ impl TryFrom<f64> for StartTime {
     }
 }
 
+impl Default for StartTime {
+    fn default() -> Self {
+        Self(f64::INFINITY)
+    }
+}
+
 impl_deserialize_for_try_from_f64!(StartTime);
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -60,6 +66,24 @@ impl TryFrom<f64> for DemeSize {
 
 impl_deserialize_for_try_from_f64!(DemeSize);
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[repr(transparent)]
+pub struct Proportion(f64);
+
+impl TryFrom<f64> for Proportion {
+    type Error = DemesError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() || value <= 0.0 || value > 1.0 {
+            Err(DemesError::DemeSizeError(value))
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl_deserialize_for_try_from_f64!(Proportion);
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TimeInterval {
     start_time: StartTime,
@@ -67,19 +91,43 @@ pub struct TimeInterval {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct Epoch {
-    #[serde(flatten)]
-    time_interval: TimeInterval,
+pub enum SizeFunction {
+    #[serde(rename = "constant")]
+    CONSTANT,
+    #[serde(rename = "exponential")]
+    EXPONENTIAL,
 }
 
-impl Epoch {
-    pub fn start_time(&self) -> StartTime {
-        self.time_interval.start_time
+impl Default for SizeFunction {
+    fn default() -> Self {
+        Self::EXPONENTIAL
     }
+}
 
-    pub fn end_time(&self) -> EndTime {
-        self.time_interval.end_time
-    }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Epoch {
+    end_time: EndTime,
+    start_size: DemeSize,
+    end_size: DemeSize,
+    #[serde(default = "SizeFunction::default")]
+    size_function: SizeFunction,
+    cloning_rate: f64,
+    selfing_rate: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Deme {
+    name: String,
+    #[serde(default = "String::default")]
+    description: String,
+    #[serde(default = "Vec::<String>::default")]
+    ancestors: Vec<String>,
+    #[serde(default = "Vec::<Proportion>::default")]
+    proportions: Vec<Proportion>,
+    #[serde(default = "StartTime::default")]
+    start_time: StartTime,
+    #[serde(default = "Vec::<Epoch>::default")]
+    epochs: Vec<Epoch>,
 }
 
 #[cfg(test)]
@@ -145,17 +193,25 @@ mod tests {
     }
 
     #[test]
-    fn test_epoch() {
-        let yaml = "---\nstart_time: 1.0\nend_time: 1.1\n".to_string();
-        let epoch: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(epoch.time_interval.start_time.0, 1.0);
-        assert_eq!(epoch.time_interval.end_time.0, 1.1);
-    }
-
-    #[test]
     #[should_panic]
     fn test_deme_size_zero() {
         let yaml = "---\n0.0\n".to_string();
         let _: DemeSize = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    fn test_size_function() {
+        let yaml = "---\nexponential\n".to_string();
+        let sf: SizeFunction = serde_yaml::from_str(&yaml).unwrap();
+        match sf {
+            SizeFunction::EXPONENTIAL => (),
+            SizeFunction::CONSTANT => panic!("expected SizeFunction::Exponential"),
+        }
+        let yaml = "---\nconstant\n".to_string();
+        let sf: SizeFunction = serde_yaml::from_str(&yaml).unwrap();
+        match sf {
+            SizeFunction::EXPONENTIAL => panic!("expected SizeFunction::Constant"),
+            SizeFunction::CONSTANT => (),
+        }
     }
 }

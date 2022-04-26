@@ -1,0 +1,18 @@
+[package]
+name = "demes-derive"
+version = "0.1.0"
+edition = "2021"
+authors = ["Kevin Thornton <krthornt@uci.edu>"]
+description = "Procedural derive macros for demes-rs"
+license = "MIT"
+homepage = "https://github.com/molpopgen/demes-rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "~1", features = ["derive"] }
+quote = "~1"
+proc-macro2 = "~1.0"
+proc-macro-error = "~1.0"

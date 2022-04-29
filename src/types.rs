@@ -104,6 +104,54 @@ impl Default for SizeFunction {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[repr(transparent)]
+pub struct CloningRate(f64);
+
+impl TryFrom<f64> for CloningRate {
+    type Error = DemesError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
+            Err(DemesError::CloningRateError(value))
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl Default for CloningRate {
+    fn default() -> Self {
+        Self::try_from(0.0).unwrap()
+    }
+}
+
+impl_deserialize_for_try_from_f64!(CloningRate);
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[repr(transparent)]
+pub struct SelfingRate(f64);
+
+impl TryFrom<f64> for SelfingRate {
+    type Error = DemesError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
+            Err(DemesError::SelfingRateError(value))
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl Default for SelfingRate {
+    fn default() -> Self {
+        Self::try_from(0.0).unwrap()
+    }
+}
+
+impl_deserialize_for_try_from_f64!(SelfingRate);
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Epoch {
     end_time: EndTime,
@@ -111,8 +159,10 @@ pub struct Epoch {
     end_size: DemeSize,
     #[serde(default = "SizeFunction::default")]
     size_function: SizeFunction,
-    cloning_rate: f64,
-    selfing_rate: f64,
+    #[serde(default = "CloningRate::default")]
+    cloning_rate: CloningRate,
+    #[serde(default = "SelfingRate::default")]
+    selfing_rate: SelfingRate,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -213,5 +263,53 @@ mod tests {
             SizeFunction::EXPONENTIAL => panic!("expected SizeFunction::Constant"),
             SizeFunction::CONSTANT => (),
         }
+    }
+
+    #[test]
+    fn test_valid_cloning_rate() {
+        let yaml = "---\n0.0\n".to_string();
+        let cr: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(cr.0, 0.0);
+        let yaml = "---\n1.0\n".to_string();
+        let cr: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(cr.0, 1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_negative_cloning_rate() {
+        let yaml = "---\n-0.0\n".to_string();
+        let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_selfing_rates_above_one() {
+        let yaml = "---\n1.1\n".to_string();
+        let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    fn test_valid_selfing_rate() {
+        let yaml = "---\n0.0\n".to_string();
+        let cr: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(cr.0, 0.0);
+        let yaml = "---\n1.0\n".to_string();
+        let cr: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(cr.0, 1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_negative_selfing_rate() {
+        let yaml = "---\n-0.0\n".to_string();
+        let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_cloning_rates_above_one() {
+        let yaml = "---\n1.1\n".to_string();
+        let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
     }
 }

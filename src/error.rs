@@ -10,4 +10,8 @@ pub enum DemesError {
     DemeSizeError(f64),
     #[error("proportions must be 0.0 < p <= 1.0, got: {0:?}")]
     ProportionError(f64),
+    #[error("cloning rate must be 0.0 <= C <= 1.0, got: {0:?}")]
+    CloningRateError(f64),
+    #[error("selfing rate must be 0.0 <= S <= 1.0, got: {0:?}")]
+    SelfingRateError(f64),
 }

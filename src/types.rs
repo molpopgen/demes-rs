@@ -44,6 +44,12 @@ impl TryFrom<f64> for EndTime {
     }
 }
 
+impl Default for EndTime {
+    fn default() -> Self {
+        Self(0.0)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
 #[repr(transparent)]
@@ -63,7 +69,7 @@ impl TryFrom<f64> for DemeSize {
     }
 }
 
-fn default_start_size() -> Option<DemeSize> {
+fn default_deme_size() -> Option<DemeSize> {
     None
 }
 
@@ -77,7 +83,7 @@ impl TryFrom<f64> for Proportion {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if !value.is_finite() || value <= 0.0 || value > 1.0 {
-            Err(DemesError::DemeSizeError(value))
+            Err(DemesError::ProportionError(value))
         } else {
             Ok(Self(value))
         }
@@ -152,11 +158,14 @@ impl Default for SelfingRate {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Epoch {
+    #[serde(default = "EndTime::default")]
     end_time: EndTime,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
-    #[serde(default = "default_start_size")]
+    #[serde(default = "default_deme_size")]
     start_size: Option<DemeSize>,
-    end_size: DemeSize,
+    // NOTE: the Option is for input. An actual value must be put in via resolution.
+    #[serde(default = "default_deme_size")]
+    end_size: Option<DemeSize>,
     #[serde(default = "SizeFunction::default")]
     size_function: SizeFunction,
     #[serde(default = "CloningRate::default")]
@@ -317,7 +326,7 @@ mod tests {
     fn test_epoch_using_defaults() {
         let yaml = "---\nend_time: 1000\nend_size: 100\n".to_string();
         let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(e.end_size.0, 100.0);
+        assert_eq!(e.end_size.as_ref().unwrap().0, 100.0);
         assert_eq!(e.end_time.0, 1000.0);
         assert!(e.start_size.is_none());
     }
@@ -359,5 +368,52 @@ mod tests {
             "---\nend_time: 100.3\nend_size: 250\nsize_function: constant\nselfing_rate: .1.01"
                 .to_string();
         let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    fn load_deme_with_two_epochs() {
+        let yaml = "---\nname: A great deme!\nepochs:\n - start_size: 500\n   end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
+        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(d.name, "A great deme!".to_string());
+        assert!(d.description.is_empty());
+        assert_eq!(d.epochs.len(), 2);
+    }
+
+    #[test]
+    fn load_deme_with_two_epochs_no_start_size() {
+        let yaml = "---\nname: A great deme!\nepochs:\n - end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
+        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(d.name, "A great deme!".to_string());
+        assert!(d.description.is_empty());
+        assert_eq!(d.epochs.len(), 2);
+    }
+
+    #[test]
+    fn load_deme_with_two_ancestors() {
+        let yaml = "---\nname: A great deme!\nancestors: [11, Apple Pie]".to_string();
+        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(d.name, "A great deme!".to_string());
+        assert_eq!(d.ancestors.len(), 2);
+        assert_eq!(d.ancestors[0], "11".to_string());
+        assert_eq!(d.ancestors[1], "Apple Pie".to_string());
+    }
+
+    #[test]
+    fn load_deme_with_two_proportions() {
+        let yaml = "---\nname: A great deme!\nproportions: [0.5, 0.5]".to_string();
+        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(d.name, "A great deme!".to_string());
+        assert_eq!(d.proportions.len(), 2);
+        assert!(d.proportions.iter().all(|p| p.0 == 0.5));
+    }
+
+    #[test]
+    #[should_panic]
+    fn load_deme_with_invalid_proportions() {
+        let yaml = "---\nname: A great deme!\nproportions: [0.0, 0.5]".to_string();
+        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(d.name, "A great deme!".to_string());
+        assert_eq!(d.proportions.len(), 2);
+        assert!(d.proportions.iter().all(|p| p.0 == 0.5));
     }
 }

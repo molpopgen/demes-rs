@@ -1,3 +1,5 @@
+mod macros;
+
 mod error;
 mod types;
 

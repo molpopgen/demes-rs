@@ -27,6 +27,8 @@ impl Default for StartTime {
     }
 }
 
+impl_newtype_traits!(StartTime);
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -49,6 +51,8 @@ impl Default for EndTime {
         Self(0.0)
     }
 }
+
+impl_newtype_traits!(EndTime);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
@@ -73,6 +77,8 @@ fn default_deme_size() -> Option<DemeSize> {
     None
 }
 
+impl_newtype_traits!(DemeSize);
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -89,6 +95,8 @@ impl TryFrom<f64> for Proportion {
         }
     }
 }
+
+impl_newtype_traits!(Proportion);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TimeInterval {
@@ -133,6 +141,8 @@ impl Default for CloningRate {
     }
 }
 
+impl_newtype_traits!(CloningRate);
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -155,6 +165,8 @@ impl Default for SelfingRate {
         Self::try_from(0.0).unwrap()
     }
 }
+
+impl_newtype_traits!(SelfingRate);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Epoch {
@@ -415,5 +427,25 @@ mod tests {
         assert_eq!(d.name, "A great deme!".to_string());
         assert_eq!(d.proportions.len(), 2);
         assert!(d.proportions.iter().all(|p| p.0 == 0.5));
+    }
+}
+
+#[cfg(test)]
+mod test_newtype_ordering {
+    use super::*;
+
+    #[test]
+    fn test_start_time() {
+        let s = StartTime::try_from(1e-3).unwrap();
+        let sd = StartTime::default();
+        assert!(s < sd);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fraud_with_start_time() {
+        let s = StartTime::try_from(1e-3).unwrap();
+        let sd = StartTime(f64::NAN);
+        let _ = s < sd;
     }
 }

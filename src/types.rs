@@ -4,8 +4,9 @@ use std::convert::TryFrom;
 
 use crate::DemesError;
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(try_from = "f64")]
 pub struct StartTime(f64);
 
 impl TryFrom<f64> for StartTime {
@@ -26,10 +27,9 @@ impl Default for StartTime {
     }
 }
 
-impl_deserialize_for_try_from_f64!(StartTime);
-
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(try_from = "f64")]
 pub struct EndTime(f64);
 
 impl TryFrom<f64> for EndTime {
@@ -44,9 +44,8 @@ impl TryFrom<f64> for EndTime {
     }
 }
 
-impl_deserialize_for_try_from_f64!(EndTime);
-
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(try_from = "f64")]
 #[repr(transparent)]
 /// Representation of deme sizes.
 /// The underlying `f64` must be non-negative, non-NaN.
@@ -64,10 +63,9 @@ impl TryFrom<f64> for DemeSize {
     }
 }
 
-impl_deserialize_for_try_from_f64!(DemeSize);
-
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(try_from = "f64")]
 pub struct Proportion(f64);
 
 impl TryFrom<f64> for Proportion {
@@ -81,8 +79,6 @@ impl TryFrom<f64> for Proportion {
         }
     }
 }
-
-impl_deserialize_for_try_from_f64!(Proportion);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TimeInterval {
@@ -104,8 +100,9 @@ impl Default for SizeFunction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(try_from = "f64")]
 pub struct CloningRate(f64);
 
 impl TryFrom<f64> for CloningRate {
@@ -126,10 +123,9 @@ impl Default for CloningRate {
     }
 }
 
-impl_deserialize_for_try_from_f64!(CloningRate);
-
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(try_from = "f64")]
 pub struct SelfingRate(f64);
 
 impl TryFrom<f64> for SelfingRate {
@@ -149,8 +145,6 @@ impl Default for SelfingRate {
         Self::try_from(0.0).unwrap()
     }
 }
-
-impl_deserialize_for_try_from_f64!(SelfingRate);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Epoch {

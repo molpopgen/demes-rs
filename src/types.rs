@@ -63,6 +63,10 @@ impl TryFrom<f64> for DemeSize {
     }
 }
 
+fn default_start_size() -> Option<DemeSize> {
+    None
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -149,7 +153,9 @@ impl Default for SelfingRate {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Epoch {
     end_time: EndTime,
-    start_size: DemeSize,
+    // NOTE: the Option is for input. An actual value must be put in via resolution.
+    #[serde(default = "default_start_size")]
+    start_size: Option<DemeSize>,
     end_size: DemeSize,
     #[serde(default = "SizeFunction::default")]
     size_function: SizeFunction,
@@ -305,5 +311,53 @@ mod tests {
     fn test_cloning_rates_above_one() {
         let yaml = "---\n1.1\n".to_string();
         let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    fn test_epoch_using_defaults() {
+        let yaml = "---\nend_time: 1000\nend_size: 100\n".to_string();
+        let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(e.end_size.0, 100.0);
+        assert_eq!(e.end_time.0, 1000.0);
+        assert!(e.start_size.is_none());
+    }
+
+    #[test]
+    #[should_panic]
+    fn epoch_infinite_end_time() {
+        let yaml = "---\nend_time: .inf\nend_size: 100\n".to_string();
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn epoch_infinite_end_size() {
+        let yaml = "---\nend_time: 100.3\nend_size: .inf\n".to_string();
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn epoch_bad_size_function() {
+        let yaml = "---\nend_time: 100.3\nend_size: 250\nsize_function: ice cream".to_string();
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn epoch_bad_cloning_rate() {
+        let yaml =
+            "---\nend_time: 100.3\nend_size: 250\nsize_function: exponential\ncloning_rate: -0.0"
+                .to_string();
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn epoch_bad_selfing_rate() {
+        let yaml =
+            "---\nend_time: 100.3\nend_size: 250\nsize_function: constant\nselfing_rate: .1.01"
+                .to_string();
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
     }
 }

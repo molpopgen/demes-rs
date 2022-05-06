@@ -542,29 +542,32 @@ type DemeMap = HashMap<String, Deme>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(from = "String")]
+#[serde(into = "String")]
 pub enum TimeUnits {
     GENERATIONS,
-    CUSTOM(CustomTimeUnits),
+    YEARS,
+    CUSTOM(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[repr(transparent)]
-#[serde(into = "String")]
 pub struct CustomTimeUnits(String);
 
 impl From<String> for TimeUnits {
     fn from(value: String) -> Self {
         if &value == "generations" {
             Self::GENERATIONS
+        } else if &value == "years" {
+            Self::YEARS
         } else {
-            Self::CUSTOM(CustomTimeUnits(value))
+            Self::CUSTOM(value)
         }
     }
 }
 
-impl From<CustomTimeUnits> for String {
-    fn from(value: CustomTimeUnits) -> Self {
-        value.0
+impl From<TimeUnits> for String {
+    fn from(value: TimeUnits) -> Self {
+        value.to_string()
     }
 }
 
@@ -572,7 +575,8 @@ impl std::fmt::Display for TimeUnits {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TimeUnits::GENERATIONS => write!(f, "generations"),
-            TimeUnits::CUSTOM(custom) => write!(f, "{}", &custom.0),
+            TimeUnits::YEARS => write!(f, "years"),
+            TimeUnits::CUSTOM(custom) => write!(f, "{}", &custom),
         }
     }
 }
@@ -644,6 +648,7 @@ impl Graph {
     pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut graph = Self::new_from_str(yaml)?;
         graph.resolve()?;
+        graph.validate()?;
         Ok(graph)
     }
 
@@ -673,6 +678,16 @@ impl Graph {
         Ok(())
     }
 
+    pub(crate) fn validate(&self) -> Result<(), DemesError> {
+        if !matches!(&self.time_units, TimeUnits::GENERATIONS) && self.generation_time.is_none() {
+            return Err(DemesError::TopLevelError(
+                "missing generation_time".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
     pub fn num_demes(&self) -> usize {
         self.demes.len()
     }
@@ -693,8 +708,8 @@ impl Graph {
         self.generation_time
     }
 
-    pub fn time_units(&self) -> String {
-        self.time_units.to_string()
+    pub fn time_units(&self) -> TimeUnits {
+        self.time_units.clone()
     }
 }
 
@@ -974,5 +989,23 @@ demes:
 
         let g2 = Graph::new_resolved_from_str(&y).unwrap();
         assert!(g2.defaults.is_none());
+    }
+
+    #[test]
+    fn custom_time_unit_serialization() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  epoch:
+    start_size: 1000
+demes:
+  - name: A
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.num_demes(), 1);
+
+        let y = serde_yaml::to_string(&g).unwrap();
+        let _ = Graph::new_resolved_from_str(&y).unwrap();
     }
 }

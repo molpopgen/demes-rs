@@ -76,6 +76,9 @@ demes:
 #[test]
 fn tutorial_example_21() {
     let yaml = "
+description: The Gutenkunst et al. (2009) OOA model.
+doi:
+- https://doi.org/10.1371/journal.pgen.1000695
 time_units: years
 generation_time: 25
 
@@ -109,19 +112,6 @@ demes:
   ancestors: [OOA]
   epochs:
   - {start_size: 510, end_size: 54090}
-";
-
-    // TODO: put this in back at the very top
-    // in order to test this feature
-    let _description = "
-description: The Gutenkunst et al. (2009) OOA model.
-";
-
-    // TODO: put this in back under description
-    // in order to test this feature
-    let _doi = "
-doi:
-- https://doi.org/10.1371/journal.pgen.1000695
 ";
 
     // TODO: put this in back at the end

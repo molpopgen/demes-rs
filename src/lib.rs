@@ -1,11 +1,10 @@
 mod macros;
 
 mod error;
-mod types;
+pub mod specification;
 
 pub use error::DemesError;
-pub use types::*;
 
-pub fn loads(yaml: &str) -> Result<Graph, Box<dyn std::error::Error>> {
-    Graph::new_resolved_from_str(yaml)
+pub fn loads(yaml: &str) -> Result<specification::Graph, Box<dyn std::error::Error>> {
+    specification::Graph::new_resolved_from_str(yaml)
 }

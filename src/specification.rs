@@ -1,3 +1,7 @@
+//! Implement the demes technical
+//! [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html)
+//! in terms of rust structs.
+
 use crate::DemesError;
 use serde::{Deserialize, Serialize};
 use std::cell::{Ref, RefCell};

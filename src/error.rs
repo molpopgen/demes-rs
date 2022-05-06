@@ -14,4 +14,12 @@ pub enum DemesError {
     CloningRateError(f64),
     #[error("selfing rate must be 0.0 <= S <= 1.0, got: {0:?}")]
     SelfingRateError(f64),
+    #[error("{0:?}")]
+    DemeError(String),
+    #[error("{0:?}")]
+    EpochError(String),
+    #[error("{0:?}")]
+    AncestorError(String),
+    #[error("{0:?}")]
+    TopLevelError(String),
 }

@@ -46,3 +46,16 @@ demes:
     let g = demes::loads(yaml).unwrap();
     assert_eq!(g.num_demes(), 2);
 }
+
+#[test]
+#[should_panic]
+fn missing_generation_time() {
+    let yaml = "
+time_units: years
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+";
+    let _ = demes::loads(yaml).unwrap();
+}

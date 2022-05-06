@@ -16,6 +16,21 @@ demes:
 }
 
 #[test]
+fn tutorial_example_03_with_default_time_units() {
+    let yaml = "
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+";
+    let g = demes::loads(yaml).unwrap();
+    assert!(matches!(
+        g.time_units(),
+        demes::specification::TimeUnits::GENERATIONS
+    ));
+}
+
+#[test]
 fn replacement_with_size_change() {
     let yaml = "
 time_units: generations
@@ -127,5 +142,12 @@ migrations:
     let g = demes::loads(yaml).unwrap();
     let generation_time: f64 = g.generation_time().unwrap().into();
     assert_eq!(generation_time, 25.0);
-    assert_eq!(g.time_units(), "years".to_string());
+    assert!(matches!(
+        g.time_units(),
+        demes::specification::TimeUnits::YEARS,
+    ));
+    assert_eq!(g.time_units().to_string(), "years".to_string());
+
+    let output = serde_yaml::to_string(&g).unwrap();
+    let _ = demes::loads(&output).unwrap();
 }

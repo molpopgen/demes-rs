@@ -540,10 +540,41 @@ impl Deme {
 
 type DemeMap = HashMap<String, Deme>;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(from = "String")]
 pub enum TimeUnits {
-    #[serde(rename = "generations")]
     GENERATIONS,
+    CUSTOM(CustomTimeUnits),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[repr(transparent)]
+#[serde(into = "String")]
+pub struct CustomTimeUnits(String);
+
+impl From<String> for TimeUnits {
+    fn from(value: String) -> Self {
+        if &value == "generations" {
+            Self::GENERATIONS
+        } else {
+            Self::CUSTOM(CustomTimeUnits(value))
+        }
+    }
+}
+
+impl From<CustomTimeUnits> for String {
+    fn from(value: CustomTimeUnits) -> Self {
+        value.0
+    }
+}
+
+impl std::fmt::Display for TimeUnits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimeUnits::GENERATIONS => write!(f, "generations"),
+            TimeUnits::CUSTOM(custom) => write!(f, "{}", &custom.0),
+        }
+    }
 }
 
 impl Default for TimeUnits {
@@ -551,6 +582,25 @@ impl Default for TimeUnits {
         TimeUnits::GENERATIONS
     }
 }
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(try_from = "f64")]
+pub struct GenerationTime(f64);
+
+impl TryFrom<f64> for GenerationTime {
+    type Error = DemesError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() || !value.is_sign_positive() {
+            Err(DemesError::GenerationTimeError(value))
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl_newtype_traits!(GenerationTime);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct EpochDefaults {
@@ -571,6 +621,9 @@ pub struct Graph {
     defaults: Option<GraphDefaults>,
     #[serde(default = "TimeUnits::default")]
     time_units: TimeUnits,
+    #[serde(default = "default_none_for::<GenerationTime>")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generation_time: Option<GenerationTime>,
     demes: Vec<Deme>,
     #[serde(skip)]
     deme_map: DemeMap,
@@ -628,6 +681,14 @@ impl Graph {
 
     pub fn demes(&self) -> &[Deme] {
         &self.demes
+    }
+
+    pub fn generation_time(&self) -> Option<GenerationTime> {
+        self.generation_time
+    }
+
+    pub fn time_units(&self) -> String {
+        self.time_units.to_string()
     }
 }
 

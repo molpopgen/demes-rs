@@ -616,6 +616,12 @@ struct GraphDefaults {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Graph {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_none_for::<String>")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_none_for::<Vec<String>>")]
+    doi: Option<Vec<String>>,
     #[serde(default = "default_none_for::<GraphDefaults>")]
     #[serde(skip_serializing)]
     defaults: Option<GraphDefaults>,

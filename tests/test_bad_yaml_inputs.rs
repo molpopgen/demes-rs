@@ -59,3 +59,44 @@ demes:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+#[should_panic]
+fn ancestors_and_proportions_different_lengths() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+        end_time: 1000
+  - name: B
+    proportions: [1.0]
+    epochs:
+      - start_size: 2000
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn invalid_proportion_sum() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+        end_time: 1000
+  - name: B
+    epochs:
+      - start_size: 2000
+  - name: C
+    ancestors: [A, B]
+    proportions: [0.25, 0.5]
+    start_time: 1000
+    epochs:
+      - start_size: 50
+";
+    let _ = demes::loads(yaml).unwrap();
+}

@@ -399,6 +399,22 @@ impl Deme {
         Ok(())
     }
 
+    fn resolve_proportions(&mut self) -> Result<(), DemesError> {
+        let mut borrowed_self = self.0.borrow_mut();
+
+        if borrowed_self.proportions.is_empty() && borrowed_self.ancestors.len() == 1 {
+            borrowed_self.proportions.push(Proportion(1.0));
+        }
+
+        if borrowed_self.ancestors.len() != borrowed_self.proportions.len() {
+            return Err(DemesError::DemeError(format!(
+                "deme {} ancestors and proportions have different lengths",
+                borrowed_self.name
+            )));
+        }
+        Ok(())
+    }
+
     fn check_empty_epochs(&mut self, defaults: &Option<GraphDefaults>) -> Result<(), DemesError> {
         if !self.0.borrow().epochs.is_empty() {
             return Ok(());
@@ -444,6 +460,7 @@ impl Deme {
             .epochs
             .iter_mut()
             .try_for_each(|e| e.resolve())?;
+        self.resolve_proportions()?;
 
         let mut ancestor_map = DemeMap::default();
         let mut mut_self_borrow = self.0.borrow_mut();
@@ -455,17 +472,26 @@ impl Deme {
     }
 
     fn validate(&self) -> Result<(), DemesError> {
-        if self.0.borrow().epochs.is_empty() {
+        let self_borrow = self.0.borrow();
+        if self_borrow.epochs.is_empty() {
             return Err(DemesError::DemeError(format!(
                 "no epochs for deme {}",
                 self.name()
             )));
         }
-        self.0
-            .borrow()
-            .epochs
-            .iter()
-            .try_for_each(|e| e.validate())?;
+
+        self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
+
+        if !self_borrow.proportions.is_empty() {
+            let sum_proportions: f64 = self_borrow.proportions.iter().map(|p| f64::from(*p)).sum();
+            // NOTE: this is same default as Python's math.isclose().
+            if (sum_proportions - 1.0).abs() > 1e-9 {
+                return Err(DemesError::DemeError(format!(
+                    "proportions for deme {} should sum to ~1.0, got: {}",
+                    self_borrow.name, sum_proportions
+                )));
+            }
+        }
 
         Ok(())
     }

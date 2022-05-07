@@ -66,6 +66,11 @@ demes:
 
             // Iterate ignoring the names
             assert!(d.ancestors().values().all(|deme| *deme.name() == "A"));
+
+            // With only 1 ancestor, there is exactly 1 proportion
+            // represeting 100% ancestry
+            assert_eq!(d.proportions().len(), 1);
+            assert_eq!(f64::from(d.proportions()[0]), 1.0);
         }
     }
 }
@@ -150,4 +155,26 @@ migrations:
 
     let output = serde_yaml::to_string(&g).unwrap();
     let _ = demes::loads(&output).unwrap();
+}
+
+#[test]
+fn test_size_propagation() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+        end_time: 1000
+  - name: B
+    epochs:
+      - start_size: 2000
+  - name: C
+    ancestors: [A, B]
+    proportions: [0.5, 0.5]
+    start_time: 1000
+    epochs:
+      - start_size: 503
+";
+    let _ = demes::loads(yaml).unwrap();
 }

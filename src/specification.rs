@@ -9,10 +9,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::rc::Rc;
 
-fn default_none_for<T>() -> Option<T> {
-    None
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -132,14 +128,12 @@ impl TimeInterval {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
     #[serde(skip)]
     NONE,
-    #[serde(rename = "constant")]
     CONSTANT,
-    #[serde(rename = "exponential")]
     EXPONENTIAL,
-    #[serde(rename = "linear")]
     LINEAR,
 }
 
@@ -199,16 +193,13 @@ impl Default for SelfingRate {
 
 impl_newtype_traits!(SelfingRate);
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
-    #[serde(default = "default_none_for::<EndTime>")]
     end_time: Option<EndTime>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
-    #[serde(default = "default_none_for::<DemeSize>")]
     start_size: Option<DemeSize>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
-    #[serde(default = "default_none_for::<DemeSize>")]
     end_size: Option<DemeSize>,
     #[serde(default = "SizeFunction::default")]
     size_function: SizeFunction,
@@ -216,19 +207,6 @@ pub struct Epoch {
     cloning_rate: CloningRate,
     #[serde(default = "SelfingRate::default")]
     selfing_rate: SelfingRate,
-}
-
-impl Default for Epoch {
-    fn default() -> Self {
-        Self {
-            end_time: default_none_for::<EndTime>(),
-            start_size: default_none_for::<DemeSize>(),
-            end_size: default_none_for::<DemeSize>(),
-            size_function: SizeFunction::default(),
-            cloning_rate: CloningRate::default(),
-            selfing_rate: SelfingRate::default(),
-        }
-    }
 }
 
 impl Epoch {
@@ -613,7 +591,6 @@ struct EpochDefaults {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct GraphDefaults {
-    #[serde(default = "default_none_for::<EpochDefaults>")]
     epoch: Option<EpochDefaults>,
 }
 
@@ -621,17 +598,13 @@ struct GraphDefaults {
 #[serde(deny_unknown_fields)]
 pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_none_for::<String>")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_none_for::<Vec<String>>")]
     doi: Option<Vec<String>>,
-    #[serde(default = "default_none_for::<GraphDefaults>")]
     #[serde(skip_serializing)]
     defaults: Option<GraphDefaults>,
     #[serde(default = "TimeUnits::default")]
     time_units: TimeUnits,
-    #[serde(default = "default_none_for::<GenerationTime>")]
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
     demes: Vec<Deme>,

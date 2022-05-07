@@ -21,9 +21,6 @@ demes:
         end_time: 500
       - start_size: 400
         end_size: 10000
-";
-
-    let _migrations = "
 migrations:
   - source: A
     dest: B
@@ -152,11 +149,7 @@ demes:
   ancestors: [OOA]
   epochs:
   - {start_size: 510, end_size: 54090}
-";
 
-    // TODO: put this in back at the end
-    // in order to test this feature
-    let _migrations = "
 migrations:
 - {demes: [YRI, OOA], rate: 25e-5}
 - {demes: [YRI, CEU], rate: 3e-5}
@@ -172,9 +165,12 @@ migrations:
         demes::specification::TimeUnits::YEARS,
     ));
     assert_eq!(g.time_units().to_string(), "years".to_string());
+    assert_eq!(g.migrations().len(), 8);
 
     let output = serde_yaml::to_string(&g).unwrap();
+    // TODO: replace this with an explicit graph equality comparison
     let _ = demes::loads(&output).unwrap();
+
 }
 
 #[test]

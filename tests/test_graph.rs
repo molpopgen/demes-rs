@@ -16,21 +16,6 @@ demes:
 }
 
 #[test]
-fn tutorial_example_03_with_default_time_units() {
-    let yaml = "
-demes:
-  - name: A
-    epochs:
-      - start_size: 1000
-";
-    let g = demes::loads(yaml).unwrap();
-    assert!(matches!(
-        g.time_units(),
-        demes::specification::TimeUnits::GENERATIONS
-    ));
-}
-
-#[test]
 fn replacement_with_size_change() {
     let yaml = "
 time_units: generations

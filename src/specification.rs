@@ -585,12 +585,6 @@ impl std::fmt::Display for TimeUnits {
     }
 }
 
-impl Default for TimeUnits {
-    fn default() -> Self {
-        TimeUnits::GENERATIONS
-    }
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -629,7 +623,6 @@ pub struct Graph {
     doi: Option<Vec<String>>,
     #[serde(skip_serializing)]
     defaults: Option<GraphDefaults>,
-    #[serde(default = "TimeUnits::default")]
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,

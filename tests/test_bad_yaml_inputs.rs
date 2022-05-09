@@ -100,3 +100,19 @@ demes:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+#[should_panic]
+fn missing_time_units() {
+    let yaml = "
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+";
+    let g = demes::loads(yaml).unwrap();
+    assert!(matches!(
+        g.time_units(),
+        demes::specification::TimeUnits::GENERATIONS
+    ));
+}

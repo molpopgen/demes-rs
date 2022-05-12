@@ -366,7 +366,7 @@ impl Deme {
 
             match defaults {
                 Some(d) => {
-                    d.apply_epoch_defaults(&mut temp_epoch);
+                    d.apply_epoch_defaults(temp_epoch);
                 }
                 None => (),
             }

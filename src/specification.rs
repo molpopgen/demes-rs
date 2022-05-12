@@ -363,7 +363,7 @@ impl Deme {
             if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
-                    self.name()
+                    self_borrow.name
                 )));
             }
             if temp_epoch.start_size.is_none() {
@@ -378,7 +378,7 @@ impl Deme {
         if self_borrow.start_time == StartTime::default() && epoch_sizes.0 != epoch_sizes.1 {
             let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
-                    self.name(), f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
+                    self_borrow.name, f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
                 );
             return Err(DemesError::EpochError(msg));
         }

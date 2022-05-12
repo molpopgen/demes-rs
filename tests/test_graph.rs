@@ -1,4 +1,39 @@
 #[test]
+fn test_tutorial_example_01() {
+    let yaml = "
+# Comments start with a hash.
+description:
+  Asymmetric migration between two extant demes.
+time_units: generations
+defaults:
+  epoch:
+    start_size: 5000
+demes:
+  - name: X
+    epochs:
+      - end_time: 1000
+  - name: A
+    ancestors: [X]
+  - name: B
+    ancestors: [X]
+    epochs:
+      - start_size: 2000
+        end_time: 500
+      - start_size: 400
+        end_size: 10000
+";
+
+    let _migrations = "
+migrations:
+  - source: A
+    dest: B
+    rate: 1e-4
+";
+    let g = demes::loads(yaml).unwrap();
+    let _ = serde_yaml::to_string(&g).unwrap();
+}
+
+#[test]
 fn tutorial_example_03() {
     let yaml = "
 time_units: generations

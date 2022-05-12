@@ -415,34 +415,10 @@ impl Deme {
         Ok(())
     }
 
-    fn check_empty_epochs(&mut self, defaults: &Option<GraphDefaults>) -> Result<(), DemesError> {
-        if !self.0.borrow().epochs.is_empty() {
-            return Ok(());
+    fn check_empty_epochs(&mut self) {
+        if self.0.borrow().epochs.is_empty() {
+            self.0.borrow_mut().epochs.push(Epoch::default());
         }
-
-        match defaults.as_ref() {
-            Some(&graph_defaults) => match graph_defaults.epoch.as_ref() {
-                Some(&epoch_defaults) => {
-                    let e = Epoch {
-                        start_size: Some(epoch_defaults.start_size),
-                        ..Default::default()
-                    };
-                    self.0.borrow_mut().epochs.push(e);
-                }
-                None => {
-                    return Err(DemesError::TopLevelError(
-                        "missing default start_size for epoch".to_string(),
-                    ));
-                }
-            },
-            None => {
-                return Err(DemesError::TopLevelError(
-                    "missing top-level defaults".to_string(),
-                ));
-            }
-        }
-
-        Ok(())
     }
 
     // Make the internal data match the MDM spec
@@ -451,7 +427,7 @@ impl Deme {
         deme_map: &DemeMap,
         defaults: Option<GraphDefaults>,
     ) -> Result<(), DemesError> {
-        self.check_empty_epochs(&defaults)?;
+        self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map)?;
         self.resolve_sizes()?;

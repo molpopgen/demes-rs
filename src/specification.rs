@@ -362,11 +362,11 @@ impl Deme {
     ) -> Result<Option<DemeSize>, DemesError> {
         let mut self_borrow = self.0.borrow_mut();
         let epoch_sizes = {
-            let temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
+            let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
+
             match defaults {
                 Some(d) => {
-                    temp_epoch.start_size = d.apply_default_epoch_start_size(temp_epoch.start_size);
-                    temp_epoch.end_size = d.apply_default_epoch_end_size(temp_epoch.end_size);
+                    d.apply_epoch_defaults(&mut temp_epoch);
                 }
                 None => (),
             }
@@ -398,24 +398,11 @@ impl Deme {
     fn resolve_sizes(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
-            if epoch.start_size.is_none() {
-                if defaults.is_some() {
-                    epoch.start_size = defaults
-                        .as_ref()
-                        .unwrap()
-                        .apply_default_epoch_start_size(epoch.start_size);
-                } else {
+            match defaults {
+                Some(d) => d.apply_epoch_defaults(epoch),
+                None => {
                     epoch.start_size = last_end_size;
-                }
-            }
-            if epoch.end_size.is_none() {
-                if defaults.is_some() {
-                    epoch.end_size = defaults
-                        .as_ref()
-                        .unwrap()
-                        .apply_default_epoch_end_size(epoch.end_size);
-                } else {
-                    epoch.end_size = epoch.start_size
+                    epoch.end_size = epoch.start_size;
                 }
             }
             last_end_size = epoch.end_size;
@@ -639,6 +626,11 @@ impl GraphDefaults {
             Some(epoch_defaults) => epoch_defaults.end_size,
             None => None,
         }
+    }
+
+    fn apply_epoch_defaults(&self, epoch: &mut Epoch) {
+        epoch.start_size = self.apply_default_epoch_start_size(epoch.start_size);
+        epoch.end_size = self.apply_default_epoch_end_size(epoch.end_size);
     }
 }
 

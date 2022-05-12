@@ -356,10 +356,20 @@ impl Deme {
         Ok(())
     }
 
-    fn resolve_first_epoch_sizes(&mut self) -> Result<Option<DemeSize>, DemesError> {
+    fn resolve_first_epoch_sizes(
+        &mut self,
+        defaults: Option<GraphDefaults>,
+    ) -> Result<Option<DemeSize>, DemesError> {
         let mut self_borrow = self.0.borrow_mut();
         let epoch_sizes = {
             let temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
+            match defaults {
+                Some(d) => {
+                    temp_epoch.start_size = d.apply_default_epoch_start_size(temp_epoch.start_size);
+                    temp_epoch.end_size = d.apply_default_epoch_end_size(temp_epoch.end_size);
+                }
+                None => (),
+            }
             if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
@@ -385,14 +395,28 @@ impl Deme {
         Ok(epoch_sizes.1)
     }
 
-    fn resolve_sizes(&mut self) -> Result<(), DemesError> {
-        let mut last_end_size = self.resolve_first_epoch_sizes()?;
+    fn resolve_sizes(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
+        let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
             if epoch.start_size.is_none() {
-                epoch.start_size = last_end_size;
+                if defaults.is_some() {
+                    epoch.start_size = defaults
+                        .as_ref()
+                        .unwrap()
+                        .apply_default_epoch_start_size(epoch.start_size);
+                } else {
+                    epoch.start_size = last_end_size;
+                }
             }
             if epoch.end_size.is_none() {
-                epoch.end_size = epoch.start_size;
+                if defaults.is_some() {
+                    epoch.end_size = defaults
+                        .as_ref()
+                        .unwrap()
+                        .apply_default_epoch_end_size(epoch.end_size);
+                } else {
+                    epoch.end_size = epoch.start_size
+                }
             }
             last_end_size = epoch.end_size;
         }
@@ -430,7 +454,7 @@ impl Deme {
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map)?;
-        self.resolve_sizes()?;
+        self.resolve_sizes(defaults)?;
         self.0
             .borrow_mut()
             .epochs
@@ -582,12 +606,40 @@ impl_newtype_traits!(GenerationTime);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct EpochDefaults {
-    start_size: DemeSize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_size: Option<DemeSize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_size: Option<DemeSize>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct GraphDefaults {
+    #[serde(skip_serializing_if = "Option::is_none")]
     epoch: Option<EpochDefaults>,
+}
+
+impl GraphDefaults {
+    fn apply_default_epoch_start_size(&self, start_size: Option<DemeSize>) -> Option<DemeSize> {
+        if start_size.is_some() {
+            return start_size;
+        }
+
+        match self.epoch {
+            Some(epoch_defaults) => epoch_defaults.start_size,
+            None => None,
+        }
+    }
+
+    fn apply_default_epoch_end_size(&self, end_size: Option<DemeSize>) -> Option<DemeSize> {
+        if end_size.is_some() {
+            return end_size;
+        }
+
+        match self.epoch {
+            Some(epoch_defaults) => epoch_defaults.end_size,
+            None => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]

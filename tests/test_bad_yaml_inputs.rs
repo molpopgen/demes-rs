@@ -116,3 +116,130 @@ demes:
         demes::specification::TimeUnits::GENERATIONS
     ));
 }
+
+#[test]
+#[should_panic]
+fn too_few_demes_symmetric_migration() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    epochs:
+      - start_size: 1000
+migrations:
+  - demes: [A]
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn deme_listed_more_than_once_symmetric_migration() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    epochs:
+      - start_size: 1000
+migrations:
+  - demes: [A, A]
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn deme_does_not_exist_symmetric_migration() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    epochs:
+      - start_size: 1000
+migrations:
+  - demes: [A, C]
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn dest_deme_does_not_exist_asymmetric_migration() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    epochs:
+      - start_size: 1000
+migrations:
+  - source: A
+    dest: C
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn source_deme_does_not_exist_asymmetric_migration() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    epochs:
+      - start_size: 1000
+migrations:
+  - source: C
+    dest: A
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn demes_do_not_overlap_in_time_asymmetric_migration() {
+    let yaml = "
+time_units: generations
+description: demes B and C do not co-exist, so how can they migrate?
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    ancestors: [A]
+    start_time: 200
+    epochs:
+      - start_size: 1000
+        end_time: 150
+  - name: C
+    ancestors: [A]
+    start_time: 100
+    epochs:
+      - start_size: 1000
+        end_time: 50
+migrations:
+  - source: C
+    dest: B
+    rate: 0.125
+";
+    let _ = demes::loads(yaml).unwrap();
+}

@@ -3,9 +3,10 @@
 //! in terms of rust structs.
 
 use crate::DemesError;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::cell::{Ref, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::rc::Rc;
 
@@ -122,6 +123,14 @@ impl TimeInterval {
         self.start_time.0 > time && time >= self.end_time.0
     }
 
+    fn contains_inclusive<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+        self.start_time.0 >= time && time >= self.end_time.0
+    }
+
     fn contains_start_time(&self, other: StartTime) -> bool {
         self.contains(other)
     }
@@ -192,6 +201,168 @@ impl Default for SelfingRate {
 }
 
 impl_newtype_traits!(SelfingRate);
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(try_from = "f64")]
+pub struct MigrationRate(f64);
+
+impl TryFrom<f64> for MigrationRate {
+    type Error = DemesError;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
+            Err(DemesError::MigrationRateError(value))
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl Default for MigrationRate {
+    fn default() -> Self {
+        Self::try_from(0.0).unwrap()
+    }
+}
+
+impl_newtype_traits!(MigrationRate);
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UnresolvedMigration {
+    demes: Option<Vec<String>>,
+    source: Option<String>,
+    dest: Option<String>,
+    start_time: Option<StartTime>,
+    end_time: Option<EndTime>,
+    rate: MigrationRate,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AsymmetricMigration {
+    source: String,
+    dest: String,
+    rate: MigrationRate,
+    start_time: Option<StartTime>,
+    end_time: Option<EndTime>,
+}
+
+impl AsymmetricMigration {
+    fn validate_deme_exists(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
+        if !deme_map.contains_key(&self.source) {
+            return Err(DemesError::MigrationError(format!(
+                "source deme {} is not defined in the graph",
+                &self.source
+            )));
+        }
+        if !deme_map.contains_key(&self.dest) {
+            return Err(DemesError::MigrationError(format!(
+                "dest deme {} is not defined in the graph",
+                &self.dest
+            )));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SymmetricMigration {
+    demes: Vec<String>,
+    rate: MigrationRate,
+    start_time: Option<StartTime>,
+    end_time: Option<EndTime>,
+}
+
+impl SymmetricMigration {
+    fn validate_demes_exists_and_are_unique(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
+        if self.demes.len() < 2 {
+            return Err(DemesError::MigrationError(
+                "the demes field of a migration mut contain at least two demes".to_string(),
+            ));
+        }
+        let mut s = HashSet::<String>::default();
+        for name in &self.demes {
+            if s.contains(name) {
+                return Err(DemesError::MigrationError(format!(
+                    "deme name {} present multiple times",
+                    name
+                )));
+            }
+            s.insert(name.to_string());
+            if !deme_map.contains_key(name) {
+                return Err(DemesError::MigrationError(format!(
+                    "deme name {} is not defined in the graph",
+                    name
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(try_from = "UnresolvedMigration")]
+#[serde(into = "UnresolvedMigration")]
+pub enum Migration {
+    ASYMMETRIC(AsymmetricMigration),
+    SYMMETRIC(SymmetricMigration),
+}
+
+impl TryFrom<UnresolvedMigration> for Migration {
+    type Error = DemesError;
+
+    fn try_from(value: UnresolvedMigration) -> Result<Self, Self::Error> {
+        if value.demes.is_none() {
+            if value.source.is_none() || value.dest.is_none() {
+                Err(DemesError::MigrationError(
+                    "a migration must specify either demes or source and dest".to_string(),
+                ))
+            } else {
+                Ok(Migration::ASYMMETRIC(AsymmetricMigration {
+                    source: value.source.unwrap(),
+                    dest: value.dest.unwrap(),
+                    rate: value.rate,
+                    start_time: value.start_time,
+                    end_time: value.end_time,
+                }))
+            }
+        } else if value.source.is_some() || value.dest.is_some() {
+            Err(DemesError::MigrationError(
+                "a migration must specify either demes or source and dest, but not both"
+                    .to_string(),
+            ))
+        } else {
+            Ok(Migration::SYMMETRIC(SymmetricMigration {
+                demes: value.demes.unwrap(),
+                rate: value.rate,
+                start_time: value.start_time,
+                end_time: value.end_time,
+            }))
+        }
+    }
+}
+
+impl From<Migration> for UnresolvedMigration {
+    fn from(value: Migration) -> Self {
+        match value {
+            Migration::SYMMETRIC(s) => UnresolvedMigration {
+                demes: Some(s.demes),
+                rate: s.rate,
+                start_time: s.start_time,
+                end_time: s.end_time,
+                source: None,
+                dest: None,
+            },
+            Migration::ASYMMETRIC(a) => UnresolvedMigration {
+                demes: None,
+                source: Some(a.source),
+                dest: Some(a.dest),
+                rate: a.rate,
+                start_time: a.start_time,
+                end_time: a.end_time,
+            },
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -659,6 +830,15 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
     demes: Vec<Deme>,
+    #[serde(default = "Vec::<Migration>::default")]
+    #[serde(rename = "migrations")]
+    #[serde(skip_serializing)]
+    input_migrations: Vec<Migration>,
+    #[serde(default = "Vec::<AsymmetricMigration>::default")]
+    #[serde(rename = "migrations")]
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Vec::<AsymmetricMigration>::is_empty")]
+    resolved_migrations: Vec<AsymmetricMigration>,
     #[serde(skip)]
     deme_map: DemeMap,
 }
@@ -692,6 +872,154 @@ impl Graph {
         Ok(rv)
     }
 
+    fn resolve_asymmetric_migration(&mut self, a: AsymmetricMigration) -> Result<(), DemesError> {
+        let mut ac = a;
+
+        let source = self.get_deme_from_name(&ac.source).unwrap();
+        let dest = self.get_deme_from_name(&ac.dest).unwrap();
+        match ac.start_time {
+            Some(_) => (),
+            None => {
+                ac.start_time = Some(std::cmp::min(source.start_time(), dest.start_time()));
+            }
+        }
+
+        match ac.end_time {
+            Some(_) => (),
+            None => {
+                ac.end_time = Some(std::cmp::max(source.end_time(), dest.end_time()));
+            }
+        }
+
+        self.resolved_migrations.push(ac);
+
+        Ok(())
+    }
+
+    fn process_input_asymmetric_migration(
+        &mut self,
+        a: &AsymmetricMigration,
+    ) -> Result<(), DemesError> {
+        a.validate_deme_exists(&self.deme_map)?;
+        self.resolve_asymmetric_migration(a.clone())
+    }
+
+    fn process_input_symmetric_migration(
+        &mut self,
+        s: &SymmetricMigration,
+    ) -> Result<(), DemesError> {
+        s.validate_demes_exists_and_are_unique(&self.deme_map)?;
+
+        // Each input SymmetricMigration becomes two AsymmetricMigration instances
+        for (source_name, dest_name) in s.demes.iter().tuple_combinations() {
+            assert_ne!(source_name, dest_name);
+
+            let a = AsymmetricMigration {
+                source: source_name.to_string(),
+                dest: dest_name.to_string(),
+                rate: s.rate,
+                start_time: None,
+                end_time: None,
+            };
+            self.resolve_asymmetric_migration(a)?;
+            let a = AsymmetricMigration {
+                source: dest_name.to_string(),
+                dest: source_name.to_string(),
+                rate: s.rate,
+                start_time: None,
+                end_time: None,
+            };
+            self.resolve_asymmetric_migration(a)?;
+        }
+
+        Ok(())
+    }
+
+    fn resolve_migrations(&mut self) -> Result<(), DemesError> {
+        // NOTE: due to the borrow checker not trusting us, we
+        // do the old "swap it out" trick to demonstrate
+        // that we are not doing bad things.
+        // This object is only mut b/c we need to swap it
+        let mut input_migrations: Vec<Migration> = vec![];
+        std::mem::swap(&mut input_migrations, &mut self.input_migrations);
+        for m in &input_migrations {
+            match m {
+                Migration::ASYMMETRIC(a) => self.process_input_asymmetric_migration(a)?,
+                Migration::SYMMETRIC(s) => self.process_input_symmetric_migration(s)?,
+            }
+        }
+
+        // The spec states that we can discard the unresolved migration stuff,
+        // but we'll swap it back. It does no harm to do so.
+        std::mem::swap(&mut input_migrations, &mut self.input_migrations);
+        Ok(())
+    }
+
+    fn validate_migrations(&self) -> Result<(), DemesError> {
+        for m in &self.resolved_migrations {
+            let source = self.get_deme_from_name(&m.source).unwrap();
+            let dest = self.get_deme_from_name(&m.dest).unwrap();
+
+            match m.start_time {
+                None => {
+                    return Err(DemesError::MigrationError(format!(
+                        "invalid start_time: {:?} for migration between source: {} and dest: {}",
+                        m.start_time,
+                        source.name(),
+                        dest.name()
+                    )))
+                }
+                Some(start_time) => {
+                    let interval = source.time_interval();
+                    if !interval.contains_inclusive(start_time) {
+                        return Err(DemesError::MigrationError(format!(
+                            "migration start_time: {:?} does not overlap with existence of source deme {}",
+                            start_time,
+                            source.name()
+                        )));
+                    }
+                    let interval = dest.time_interval();
+                    if !interval.contains_inclusive(start_time) {
+                        return Err(DemesError::MigrationError(format!(
+                            "migration start_time: {:?} does not overlap with existence of dest deme {}",
+                            start_time,
+                            dest.name()
+                        )));
+                    }
+                }
+            }
+            match m.end_time {
+                None => {
+                    return Err(DemesError::MigrationError(format!(
+                        "invalid end_time: {:?} for migration between source: {} and dest: {}",
+                        m.end_time,
+                        source.name(),
+                        dest.name()
+                    )))
+                }
+                Some(end_time) => {
+                    let interval = source.time_interval();
+                    if !interval.contains_inclusive(end_time) {
+                        return Err(DemesError::MigrationError(format!(
+                            "migration end_time: {:?} does not overlap with existence of source deme {}",
+                            end_time,
+                            source.name()
+                        )));
+                    }
+                    let interval = dest.time_interval();
+                    if !interval.contains_inclusive(end_time) {
+                        return Err(DemesError::MigrationError(format!(
+                            "migration end_time: {:?} does not overlap with existence of dest deme {}",
+                            end_time,
+                            dest.name()
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn resolve(&mut self) -> Result<(), DemesError> {
         self.deme_map = self.build_deme_map()?;
 
@@ -699,6 +1027,8 @@ impl Graph {
             .iter_mut()
             .try_for_each(|deme| deme.resolve(&self.deme_map, self.defaults))?;
         self.demes.iter().try_for_each(|deme| deme.validate())?;
+        self.resolve_migrations()?;
+        self.validate_migrations()?;
         Ok(())
     }
 
@@ -734,6 +1064,9 @@ impl Graph {
 
     pub fn time_units(&self) -> TimeUnits {
         self.time_units.clone()
+    }
+    pub fn migrations(&self) -> &[AsymmetricMigration] {
+        &self.resolved_migrations
     }
 }
 

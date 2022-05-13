@@ -262,6 +262,22 @@ impl AsymmetricMigration {
         }
         Ok(())
     }
+
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+    pub fn dest(&self) -> &str {
+        &self.dest
+    }
+    pub fn rate(&self) -> MigrationRate {
+        self.rate
+    }
+    pub fn start_time(&self) -> StartTime {
+        self.start_time.unwrap()
+    }
+    pub fn end_time(&self) -> EndTime {
+        self.end_time.unwrap()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

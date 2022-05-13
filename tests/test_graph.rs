@@ -1,3 +1,52 @@
+use demes::specification::{AsymmetricMigration, EndTime, MigrationRate, StartTime};
+
+#[derive(Eq, PartialEq)]
+struct ExpectedMigration {
+    source: String,
+    dest: String,
+    rate: MigrationRate,
+    start_time: StartTime,
+    end_time: EndTime,
+}
+
+impl ExpectedMigration {
+    fn new<
+        N: ToString,
+        M: TryInto<MigrationRate, Error = demes::DemesError>,
+        S: TryInto<StartTime, Error = demes::DemesError>,
+        E: TryInto<EndTime, Error = demes::DemesError>,
+    >(
+        source: N,
+        dest: N,
+        rate: M,
+        start_time: S,
+        end_time: E,
+    ) -> Result<Self, demes::DemesError> {
+        let rate = rate.try_into()?;
+        let start_time = start_time.try_into()?;
+        let end_time = end_time.try_into()?;
+        Ok(Self {
+            source: source.to_string(),
+            dest: dest.to_string(),
+            rate,
+            start_time,
+            end_time,
+        })
+    }
+}
+
+impl From<AsymmetricMigration> for ExpectedMigration {
+    fn from(value: AsymmetricMigration) -> Self {
+        Self {
+            source: value.source().to_string(),
+            dest: value.dest().to_string(),
+            rate: value.rate(),
+            start_time: value.start_time(),
+            end_time: value.end_time(),
+        }
+    }
+}
+
 #[test]
 fn test_tutorial_example_01() {
     let yaml = "
@@ -167,10 +216,29 @@ migrations:
     assert_eq!(g.time_units().to_string(), "years".to_string());
     assert_eq!(g.migrations().len(), 8);
 
+    let expected_resolved_migrations = vec![
+        ExpectedMigration::new("YRI", "OOA", 25e-5, 140e3, 21.2e3).unwrap(),
+        ExpectedMigration::new("OOA", "YRI", 25e-5, 140e3, 21.2e3).unwrap(),
+        ExpectedMigration::new("YRI", "CEU", 3e-5, 21.2e3, 0.0).unwrap(),
+        ExpectedMigration::new("CEU", "YRI", 3e-5, 21.2e3, 0.0).unwrap(),
+        ExpectedMigration::new("YRI", "CHB", 1.9e-5, 21.2e3, 0.0).unwrap(),
+        ExpectedMigration::new("CHB", "YRI", 1.9e-5, 21.2e3, 0.0).unwrap(),
+        ExpectedMigration::new("CEU", "CHB", 9.6e-5, 21.2e3, 0.0).unwrap(),
+        ExpectedMigration::new("CHB", "CEU", 9.6e-5, 21.2e3, 0.0).unwrap(),
+    ];
+
+    assert!(g
+        .migrations()
+        .iter()
+        .all(|m| expected_resolved_migrations.contains(&ExpectedMigration::from(m.clone()))));
+
     let output = serde_yaml::to_string(&g).unwrap();
     // TODO: replace this with an explicit graph equality comparison
-    let _ = demes::loads(&output).unwrap();
-
+    let round_trip = demes::loads(&output).unwrap();
+    assert!(round_trip
+        .migrations()
+        .iter()
+        .all(|m| expected_resolved_migrations.contains(&ExpectedMigration::from(m.clone()))));
 }
 
 #[test]

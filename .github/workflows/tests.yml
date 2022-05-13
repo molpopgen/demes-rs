@@ -26,6 +26,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           submodules: recursive
+      - uses: Swatinem/rust-cache@v1
       - run: sudo apt-get update -y
         if: matrix.os == 'ubuntu-latest'
       - uses: actions-rs/toolchain@v1
@@ -76,6 +77,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
       - run: rustup component add clippy
       - name: clippy (all targets)
         run: cargo clippy --all-targets --all-features -- -D warnings

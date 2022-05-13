@@ -1,20 +1,20 @@
-use demes::specification::{AsymmetricMigration, EndTime, MigrationRate, StartTime};
+use demes::specification::{AsymmetricMigration, Time, MigrationRate};
 
 #[derive(Eq, PartialEq)]
 struct ExpectedMigration {
     source: String,
     dest: String,
     rate: MigrationRate,
-    start_time: StartTime,
-    end_time: EndTime,
+    start_time: Time,
+    end_time: Time,
 }
 
 impl ExpectedMigration {
     fn new<
         N: ToString,
         M: TryInto<MigrationRate, Error = demes::DemesError>,
-        S: TryInto<StartTime, Error = demes::DemesError>,
-        E: TryInto<EndTime, Error = demes::DemesError>,
+        S: TryInto<Time, Error = demes::DemesError>,
+        E: TryInto<Time, Error = demes::DemesError>,
     >(
         source: N,
         dest: N,

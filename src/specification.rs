@@ -302,18 +302,30 @@ impl Deme {
 
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
-            mut_borrowed_self.start_time = StartTime::try_from(
-                deme_map
-                    .get(mut_borrowed_self.ancestors.get(0).unwrap())
-                    .unwrap()
-                    .0
-                    .borrow() // panic if deme_map doesn't contain name
-                    .epochs
-                    .last()
-                    .unwrap() // panic if ancestor epochs are empty
-                    .end_time
-                    .unwrap(), // panic if end_time is None
-            )?; // Err if cannot convert
+
+            if mut_borrowed_self.start_time == StartTime::default() {
+                mut_borrowed_self.start_time = match StartTime::try_from(
+                    deme_map
+                        .get(mut_borrowed_self.ancestors.get(0).unwrap())
+                        .unwrap()
+                        .0
+                        .borrow() // panic if deme_map doesn't contain name
+                        .epochs
+                        .last()
+                        .unwrap() // panic if ancestor epochs are empty
+                        .end_time
+                        .unwrap(), // panic if end_time is None
+                ) {
+                    Ok(start_time) => start_time,
+                    // Err if cannot convert
+                    Err(_) => {
+                        return Err(DemesError::DemeError(format!(
+                            "could not resolve start_time for deme {}",
+                            mut_borrowed_self.name
+                        )))
+                    }
+                };
+            }
         }
 
         for ancestor in &self.0.borrow().ancestors {

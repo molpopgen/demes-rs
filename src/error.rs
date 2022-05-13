@@ -30,4 +30,6 @@ pub enum DemesError {
     GenerationTimeError(f64),
     #[error("{0:?}")]
     MigrationError(String),
+    #[error("{0:?}")]
+    PulseError(String),
 }

@@ -198,3 +198,20 @@ demes:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+fn test_start_time_handling() {
+    let yaml = "
+time_units: generations
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    ancestors: [A]
+    start_time: 100
+    epochs:
+      - start_size: 1000
+";
+    let _ = demes::loads(yaml).unwrap();
+}

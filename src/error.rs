@@ -14,6 +14,8 @@ pub enum DemesError {
     CloningRateError(f64),
     #[error("selfing rate must be 0.0 <= S <= 1.0, got: {0:?}")]
     SelfingRateError(f64),
+    #[error("migration rate must be 0.0 <= m <= 1.0, got: {0:?}")]
+    MigrationRateError(f64),
     #[error("{0:?}")]
     DemeError(String),
     #[error("{0:?}")]
@@ -24,4 +26,6 @@ pub enum DemesError {
     TopLevelError(String),
     #[error("generation time must be > 0.0, got: {0:?}")]
     GenerationTimeError(f64),
+    #[error("{0:?}")]
+    MigrationError(String),
 }

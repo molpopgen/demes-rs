@@ -600,8 +600,14 @@ impl Deme {
             match defaults {
                 Some(d) => d.apply_epoch_defaults(epoch),
                 None => {
-                    epoch.start_size = last_end_size;
-                    epoch.end_size = epoch.start_size;
+                    match epoch.start_size {
+                        Some(_) => (),
+                        None => epoch.start_size = last_end_size,
+                    }
+                    match epoch.end_size {
+                        Some(_) => (),
+                        None => epoch.end_size = epoch.start_size,
+                    }
                 }
             }
             last_end_size = epoch.end_size;

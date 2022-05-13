@@ -15,60 +15,55 @@ use std::rc::Rc;
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
-pub struct StartTime(f64);
+pub struct Time(f64);
 
-impl TryFrom<f64> for StartTime {
+impl TryFrom<f64> for Time {
     type Error = DemesError;
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_nan() || value <= 0.0 {
-            Err(DemesError::StartTimeError(value))
+        if value.is_nan() || value.is_sign_negative() {
+            Err(DemesError::TimeError(value))
         } else {
             Ok(Self(value))
         }
     }
 }
 
-impl TryFrom<EndTime> for StartTime {
-    type Error = DemesError;
-
-    fn try_from(value: EndTime) -> Result<Self, Self::Error> {
-        Self::try_from(f64::from(value))
-    }
-}
-
-impl Default for StartTime {
-    fn default() -> Self {
+impl Time {
+    fn default_start_time() -> Self {
         Self(f64::INFINITY)
     }
-}
 
-impl_newtype_traits!(StartTime);
+    fn default_end_time() -> Self {
+        Self(0.0)
+    }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[repr(transparent)]
-#[serde(try_from = "f64")]
-pub struct EndTime(f64);
+    fn is_valid_epoch_start_time(&self) -> bool {
+        self.0 > 0.0
+    }
 
-impl TryFrom<f64> for EndTime {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_nan() || value.is_infinite() || value < 0.0 {
-            Err(DemesError::EndTimeError(value))
+    fn err_if_not_valid_epoch_start_time(&self) -> Result<(), DemesError> {
+        if self.is_valid_epoch_start_time() {
+            Ok(())
         } else {
-            Ok(Self(value))
+            Err(DemesError::StartTimeError(self.0))
+        }
+    }
+
+    fn is_valid_epoch_end_time(&self) -> bool {
+        self.0.is_finite()
+    }
+
+    fn err_if_not_valid_epoch_end_time(&self) -> Result<(), DemesError> {
+        if self.is_valid_epoch_end_time() {
+            Ok(())
+        } else {
+            Err(DemesError::EndTimeError(self.0))
         }
     }
 }
 
-impl Default for EndTime {
-    fn default() -> Self {
-        Self(0.0)
-    }
-}
-
-impl_newtype_traits!(EndTime);
+impl_newtype_traits!(Time);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
@@ -112,8 +107,8 @@ impl_newtype_traits!(Proportion);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct TimeInterval {
-    start_time: StartTime,
-    end_time: EndTime,
+    start_time: Time,
+    end_time: Time,
 }
 
 impl TimeInterval {
@@ -133,7 +128,8 @@ impl TimeInterval {
         self.start_time.0 >= time && time >= self.end_time.0
     }
 
-    fn contains_start_time(&self, other: StartTime) -> bool {
+    fn contains_start_time(&self, other: Time) -> bool {
+        assert!(other.is_valid_epoch_start_time());
         self.contains(other)
     }
 }
@@ -246,8 +242,8 @@ pub struct UnresolvedMigration {
     demes: Option<Vec<String>>,
     source: Option<String>,
     dest: Option<String>,
-    start_time: Option<StartTime>,
-    end_time: Option<EndTime>,
+    start_time: Option<Time>,
+    end_time: Option<Time>,
     rate: MigrationRate,
 }
 
@@ -256,8 +252,8 @@ pub struct AsymmetricMigration {
     source: String,
     dest: String,
     rate: MigrationRate,
-    start_time: Option<StartTime>,
-    end_time: Option<EndTime>,
+    start_time: Option<Time>,
+    end_time: Option<Time>,
 }
 
 impl AsymmetricMigration {
@@ -286,10 +282,10 @@ impl AsymmetricMigration {
     pub fn rate(&self) -> MigrationRate {
         self.rate
     }
-    pub fn start_time(&self) -> StartTime {
+    pub fn start_time(&self) -> Time {
         self.start_time.unwrap()
     }
-    pub fn end_time(&self) -> EndTime {
+    pub fn end_time(&self) -> Time {
         self.end_time.unwrap()
     }
 }
@@ -298,8 +294,8 @@ impl AsymmetricMigration {
 pub struct SymmetricMigration {
     demes: Vec<String>,
     rate: MigrationRate,
-    start_time: Option<StartTime>,
-    end_time: Option<EndTime>,
+    start_time: Option<Time>,
+    end_time: Option<Time>,
 }
 
 impl SymmetricMigration {
@@ -397,7 +393,7 @@ impl From<Migration> for UnresolvedMigration {
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
-    end_time: Option<EndTime>,
+    end_time: Option<Time>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
     start_size: Option<DemeSize>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
@@ -433,7 +429,16 @@ impl Epoch {
         }
     }
 
+    fn validate_end_time(&self) -> Result<(), DemesError> {
+        match self.end_time {
+            Some(time) => time.err_if_not_valid_epoch_end_time(),
+            None => Err(DemesError::EpochError("end time is None".to_string())),
+        }
+    }
+
     fn validate(&self) -> Result<(), DemesError> {
+        self.validate_end_time()?;
+
         if !matches!(
             self.size_function,
             SizeFunction::CONSTANT | SizeFunction::EXPONENTIAL | SizeFunction::LINEAR
@@ -467,8 +472,8 @@ pub struct DemeData {
     ancestors: Vec<String>,
     #[serde(default = "Vec::<Proportion>::default")]
     proportions: Vec<Proportion>,
-    #[serde(default = "StartTime::default")]
-    start_time: StartTime,
+    #[serde(default = "Time::default_start_time")]
+    start_time: Time,
     #[serde(default = "Vec::<Epoch>::default")]
     epochs: Vec<Epoch>,
     #[serde(skip)]
@@ -496,7 +501,7 @@ pub struct Deme(DemePtr);
 
 impl Deme {
     // Will panic! if the deme is not properly resolved
-    fn end_time(&self) -> EndTime {
+    fn end_time(&self) -> Time {
         self.0
             .borrow()
             .epochs
@@ -508,7 +513,7 @@ impl Deme {
     }
 
     fn resolve_times(&mut self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        if self.0.borrow().ancestors.is_empty() && self.start_time() != StartTime::default() {
+        if self.0.borrow().ancestors.is_empty() && self.start_time() != Time::default_start_time() {
             return Err(DemesError::DemeError(format!(
                 "deme {} has finite start time but no ancestors",
                 self.name()
@@ -518,28 +523,29 @@ impl Deme {
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
 
-            if mut_borrowed_self.start_time == StartTime::default() {
-                mut_borrowed_self.start_time = match StartTime::try_from(
-                    deme_map
-                        .get(mut_borrowed_self.ancestors.get(0).unwrap())
-                        .unwrap()
-                        .0
-                        .borrow() // panic if deme_map doesn't contain name
-                        .epochs
-                        .last()
-                        .unwrap() // panic if ancestor epochs are empty
-                        .end_time
-                        .unwrap(), // panic if end_time is None
-                ) {
-                    Ok(start_time) => start_time,
-                    // Err if cannot convert
+            if mut_borrowed_self.start_time == Time::default_start_time() {
+                mut_borrowed_self.start_time = deme_map
+                    .get(mut_borrowed_self.ancestors.get(0).unwrap())
+                    .unwrap()
+                    .0
+                    .borrow() // panic if deme_map doesn't contain name
+                    .epochs
+                    .last()
+                    .unwrap() // panic if ancestor epochs are empty
+                    .end_time
+                    .unwrap();
+                match mut_borrowed_self
+                    .start_time
+                    .err_if_not_valid_epoch_start_time()
+                {
+                    Ok(_) => (),
                     Err(_) => {
                         return Err(DemesError::DemeError(format!(
                             "could not resolve start_time for deme {}",
                             mut_borrowed_self.name
                         )))
                     }
-                };
+                }
             }
         }
 
@@ -560,7 +566,7 @@ impl Deme {
             let mut self_borrow = self.0.borrow_mut();
             let last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = Some(EndTime::default());
+                last_epoch_ref.end_time = Some(Time::default_end_time());
             }
         }
 
@@ -612,7 +618,7 @@ impl Deme {
             // temp_epoch.clone()
             (temp_epoch.start_size, temp_epoch.end_size)
         };
-        if self_borrow.start_time == StartTime::default() && epoch_sizes.0 != epoch_sizes.1 {
+        if self_borrow.start_time == Time::default_start_time() && epoch_sizes.0 != epoch_sizes.1 {
             let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
                     self_borrow.name, f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
@@ -691,7 +697,15 @@ impl Deme {
         Ok(())
     }
 
+    fn validate_start_time(&self) -> Result<(), DemesError> {
+        self.0
+            .borrow()
+            .start_time
+            .err_if_not_valid_epoch_start_time()
+    }
+
     fn validate(&self) -> Result<(), DemesError> {
+        self.validate_start_time()?;
         let self_borrow = self.0.borrow();
         if self_borrow.epochs.is_empty() {
             return Err(DemesError::DemeError(format!(
@@ -725,7 +739,7 @@ impl Deme {
         }
     }
 
-    pub fn start_time(&self) -> StartTime {
+    pub fn start_time(&self) -> Time {
         self.0.borrow().start_time
     }
 
@@ -1177,7 +1191,8 @@ mod tests {
     #[should_panic]
     fn test_zero_start_time() {
         let yaml = "---\nstart_time: 0.0\nend_time: 1.1\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
+        let t: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
+        t.start_time.err_if_not_valid_epoch_start_time().unwrap();
     }
 
     #[test]
@@ -1191,7 +1206,8 @@ mod tests {
     #[should_panic]
     fn test_infinite_end_time() {
         let yaml = "---\nstart_time: 1.0\nend_time: .Inf\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
+        let t: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
+        t.end_time.err_if_not_valid_epoch_end_time().unwrap();
     }
 
     #[test]
@@ -1288,7 +1304,8 @@ mod tests {
     #[should_panic]
     fn epoch_infinite_end_time() {
         let yaml = "---\nend_time: .inf\nend_size: 100\n".to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+        let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
+        e.validate_end_time().unwrap();
     }
 
     #[test]
@@ -1384,16 +1401,16 @@ mod test_newtype_ordering {
 
     #[test]
     fn test_start_time() {
-        let s = StartTime::try_from(1e-3).unwrap();
-        let sd = StartTime::default();
+        let s = Time::try_from(1e-3).unwrap();
+        let sd = Time::default_start_time();
         assert!(s < sd);
     }
 
     #[test]
     #[should_panic]
     fn test_fraud_with_start_time() {
-        let s = StartTime::try_from(1e-3).unwrap();
-        let sd = StartTime(f64::NAN);
+        let s = Time::try_from(1e-3).unwrap();
+        let sd = Time(f64::NAN);
         let _ = s < sd;
     }
 }

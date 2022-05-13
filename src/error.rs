@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DemesError {
+    #[error("times must be >= 0.0, got: {0:?}")]
+    TimeError(f64),
     #[error("start_time must be > 0.0, got: {0:?}")]
     StartTimeError(f64),
     #[error("end_time must be <= t < Infinity, got: {0:?}")]

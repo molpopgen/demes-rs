@@ -47,6 +47,23 @@ impl From<AsymmetricMigration> for ExpectedMigration {
     }
 }
 
+fn test_graph_equality_after_round_trip(
+    graph: &demes::specification::Graph,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let yaml = serde_yaml::to_string(graph)?;
+    let round_trip = demes::loads(&yaml)?;
+    Ok(*graph == round_trip)
+}
+
+macro_rules! assert_graph_equality_after_round_trip {
+    ($graph: ident) => {
+        match test_graph_equality_after_round_trip(&$graph) {
+            Ok(b) => assert!(b),
+            Err(e) => panic!("{}", e.to_string()),
+        }
+    };
+}
+
 #[test]
 fn test_tutorial_example_01() {
     let yaml = "
@@ -76,8 +93,7 @@ migrations:
     rate: 1e-4
 ";
     let g = demes::loads(yaml).unwrap();
-    let s = serde_yaml::to_string(&g).unwrap();
-    let _ = demes::loads(&s).unwrap();
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -95,6 +111,7 @@ demes:
         f64::from(g.get_deme_from_name("A").unwrap().start_time()),
         f64::INFINITY,
     );
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -140,6 +157,7 @@ demes:
             assert_eq!(f64::from(d.proportions()[0]), 1.0);
         }
     }
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -158,6 +176,7 @@ demes:
     // .deme(at) returns a strong reference,
     // thus increasing the reference count
     assert_eq!(*g.deme(0).name(), "A");
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -233,13 +252,7 @@ migrations:
         .iter()
         .all(|m| expected_resolved_migrations.contains(&ExpectedMigration::from(m.clone()))));
 
-    let output = serde_yaml::to_string(&g).unwrap();
-    // TODO: replace this with an explicit graph equality comparison
-    let round_trip = demes::loads(&output).unwrap();
-    assert!(round_trip
-        .migrations()
-        .iter()
-        .all(|m| expected_resolved_migrations.contains(&ExpectedMigration::from(m.clone()))));
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -261,7 +274,8 @@ demes:
     epochs:
       - start_size: 503
 ";
-    let _ = demes::loads(yaml).unwrap();
+    let g = demes::loads(yaml).unwrap();
+    assert_graph_equality_after_round_trip!(g);
 }
 
 #[test]
@@ -278,5 +292,6 @@ demes:
     epochs:
       - start_size: 1000
 ";
-    let _ = demes::loads(yaml).unwrap();
+    let g = demes::loads(yaml).unwrap();
+    assert_graph_equality_after_round_trip!(g);
 }

@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+use std::fmt::Display;
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -136,7 +138,7 @@ impl TimeInterval {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
     #[serde(skip)]
@@ -149,6 +151,18 @@ pub enum SizeFunction {
 impl Default for SizeFunction {
     fn default() -> Self {
         Self::NONE
+    }
+}
+
+impl Display for SizeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            SizeFunction::NONE => "none",
+            SizeFunction::CONSTANT => "constant",
+            SizeFunction::LINEAR => "linear",
+            SizeFunction::EXPONENTIAL => "exponential",
+        };
+        write!(f, "{}", value)
     }
 }
 
@@ -237,7 +251,7 @@ pub struct UnresolvedMigration {
     rate: MigrationRate,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct AsymmetricMigration {
     source: String,
     dest: String,
@@ -380,7 +394,7 @@ impl From<Migration> for UnresolvedMigration {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
     end_time: Option<EndTime>,
@@ -431,8 +445,8 @@ impl Epoch {
         } else if self.start_size.as_ref().unwrap() == self.end_size.as_ref().unwrap() {
             if !matches!(self.size_function, SizeFunction::CONSTANT) {
                 Err(DemesError::EpochError(format!(
-                    "start_size == end_size paired with invalid size_function {:?}",
-                    self.size_function
+                    "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
+                    self.start_size, self.end_size, self.size_function
                 )))
             } else {
                 Ok(())
@@ -460,6 +474,20 @@ pub struct DemeData {
     #[serde(skip)]
     ancestor_map: DemeMap,
 }
+
+impl PartialEq for DemeData {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.description == other.description
+            && self.ancestors == other.ancestors
+            && self.proportions == other.proportions
+            && self.start_time == other.start_time
+            && self.epochs == other.epochs
+            && self.ancestor_map == other.ancestor_map
+    }
+}
+
+impl Eq for DemeData {}
 
 type DemePtr = Rc<RefCell<DemeData>>;
 
@@ -734,9 +762,19 @@ impl Deme {
     }
 }
 
+impl PartialEq for Deme {
+    fn eq(&self, other: &Self) -> bool {
+        let sborrow = self.0.borrow();
+        let oborrow = other.0.borrow();
+        (*sborrow.deref()).eq(oborrow.deref())
+    }
+}
+
+impl Eq for Deme {}
+
 type DemeMap = HashMap<String, Deme>;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(from = "String")]
 #[serde(into = "String")]
 pub enum TimeUnits {
@@ -796,7 +834,7 @@ impl TryFrom<f64> for GenerationTime {
 
 impl_newtype_traits!(GenerationTime);
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 struct EpochDefaults {
     #[serde(skip_serializing_if = "Option::is_none")]
     start_size: Option<DemeSize>,
@@ -839,7 +877,7 @@ impl GraphDefaults {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -864,6 +902,23 @@ pub struct Graph {
     #[serde(skip)]
     deme_map: DemeMap,
 }
+
+// NOTE: the manual implementation
+// skips over stuff that's only used by the HDM.
+// We are testing equality of the MDM only.
+impl PartialEq for Graph {
+    fn eq(&self, other: &Self) -> bool {
+        self.description == other.description
+            && self.doi == other.doi
+            && self.time_units == other.time_units
+            && self.generation_time == other.generation_time
+            && self.demes == other.demes
+            && self.resolved_migrations == other.resolved_migrations
+            && self.deme_map == other.deme_map
+    }
+}
+
+impl Eq for Graph {}
 
 impl Graph {
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, Box<dyn std::error::Error>> {

@@ -76,7 +76,8 @@ migrations:
     rate: 1e-4
 ";
     let g = demes::loads(yaml).unwrap();
-    let _ = serde_yaml::to_string(&g).unwrap();
+    let s = serde_yaml::to_string(&g).unwrap();
+    let _ = demes::loads(&s).unwrap();
 }
 
 #[test]

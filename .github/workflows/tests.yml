@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         rust:
           - stable
-          - beta
+
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.6.0
@@ -26,8 +26,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           submodules: recursive
-      - run: sudo apt-get update -y
-        if: matrix.os == 'ubuntu-latest'
+      - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -76,6 +75,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
       - run: rustup component add clippy
       - name: clippy (all targets)
         run: cargo clippy --all-targets --all-features -- -D warnings

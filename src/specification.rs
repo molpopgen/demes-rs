@@ -61,6 +61,10 @@ impl Time {
             Err(DemesError::EndTimeError(self.0))
         }
     }
+
+    fn is_valid_pulse_time(&self) -> bool {
+        self.0.is_sign_positive() && !self.0.is_infinite()
+    }
 }
 
 impl_newtype_traits!(Time);
@@ -387,6 +391,79 @@ impl From<Migration> for UnresolvedMigration {
                 end_time: a.end_time,
             },
         }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct Pulse {
+    sources: Vec<String>,
+    dest: String,
+    time: Time,
+    proportions: Vec<Proportion>,
+}
+
+impl Pulse {
+    fn validate_deme_existence(&self, deme: &str, deme_map: &DemeMap) -> Result<(), DemesError> {
+        match deme_map.get(deme) {
+            Some(d) => {
+                let t = d.time_interval();
+                if !t.contains_start_time(self.time) {
+                    return Err(DemesError::PulseError(format!(
+                        "deme {} does not exist at time of pulse",
+                        deme,
+                    )));
+                }
+                Ok(())
+            }
+            None => Err(DemesError::PulseError(format!(
+                "pulse deme {} is invalid",
+                deme
+            ))),
+        }
+    }
+
+    fn validate_pulse_time(&self) -> Result<(), DemesError> {
+        if self.time.is_valid_pulse_time() {
+            Ok(())
+        } else {
+            Err(DemesError::PulseError(format!(
+                "invalid pulse time: {}",
+                self.time.0
+            )))
+        }
+    }
+
+    fn validate_proportions(&self) -> Result<(), DemesError> {
+        if self.proportions.len() != self.sources.len() {
+            return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", self.sources.len(), self.proportions.len())));
+        }
+
+        let sum_proportions = self
+            .proportions
+            .iter()
+            .fold(0.0, |sum, &proportion| sum + proportion.0);
+
+        if !(1e-9..1.0 + 1e-9).contains(&sum_proportions) {
+            return Err(DemesError::PulseError(format!(
+                "pulse proportions must sum to 0.0 < p < 1.0, got: {}",
+                sum_proportions
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn validate(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
+        self.validate_pulse_time()?;
+        self.validate_proportions()?;
+        self.sources
+            .iter()
+            .try_for_each(|source| self.validate_deme_existence(source, deme_map))?;
+        self.validate_deme_existence(&self.dest, deme_map)
+    }
+
+    fn resolve(&mut self) -> Result<(), DemesError> {
+        Ok(())
     }
 }
 
@@ -913,6 +990,8 @@ pub struct Graph {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Vec::<AsymmetricMigration>::is_empty")]
     resolved_migrations: Vec<AsymmetricMigration>,
+    #[serde(default = "Vec::<Pulse>::default")]
+    pulses: Vec<Pulse>,
     #[serde(skip)]
     deme_map: DemeMap,
 }
@@ -1111,6 +1190,15 @@ impl Graph {
         Ok(())
     }
 
+    fn resolve_pulses(&mut self) -> Result<(), DemesError> {
+        self.pulses
+            .iter_mut()
+            .try_for_each(|pulse| pulse.resolve())?;
+        self.pulses
+            .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+        Ok(())
+    }
+
     pub(crate) fn resolve(&mut self) -> Result<(), DemesError> {
         self.deme_map = self.build_deme_map()?;
 
@@ -1119,6 +1207,7 @@ impl Graph {
             .try_for_each(|deme| deme.resolve(&self.deme_map, self.defaults))?;
         self.demes.iter().try_for_each(|deme| deme.validate())?;
         self.resolve_migrations()?;
+        self.resolve_pulses()?;
         self.validate_migrations()?;
         Ok(())
     }
@@ -1129,6 +1218,10 @@ impl Graph {
                 "missing generation_time".to_string(),
             ));
         }
+
+        self.pulses
+            .iter()
+            .try_for_each(|pulse| pulse.validate(&self.deme_map))?;
 
         Ok(())
     }

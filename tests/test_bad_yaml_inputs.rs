@@ -243,3 +243,63 @@ migrations:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+#[should_panic]
+fn demes_do_not_overlap_in_time_pulses() {
+    let yaml = "
+time_units: generations
+description: The pulse is at time 125 from B to C. Neither deme exists then.
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    ancestors: [A]
+    start_time: 200
+    epochs:
+      - start_size: 1000
+        end_time: 150
+  - name: C
+    ancestors: [A]
+    start_time: 100
+    epochs:
+      - start_size: 1000
+        end_time: 50
+pulses:
+  - sources: [B]
+    dest: C
+    proportions: [0.125]
+    time: 125
+";
+    let _ = demes::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn pulses_proportions_zero() {
+    let yaml = "
+time_units: generations
+description: The pulse is at time 125 from B to C. Neither deme exists then.
+demes:
+  - name: A
+    epochs:
+      - start_size: 1000
+  - name: B
+    ancestors: [A]
+    start_time: 200
+    epochs:
+      - start_size: 1000
+  - name: C
+    ancestors: [A]
+    start_time: 200
+    epochs:
+      - start_size: 1000
+pulses:
+  - sources: [B]
+    dest: C
+    proportions: [0.0]
+    time: 125
+";
+    let _ = demes::loads(yaml).unwrap();
+}

@@ -30,11 +30,11 @@ impl TryFrom<f64> for Time {
 }
 
 impl Time {
-    fn default_start_time() -> Self {
+    fn default_deme_start_time() -> Self {
         Self(f64::INFINITY)
     }
 
-    fn default_end_time() -> Self {
+    fn default_epoch_end_time() -> Self {
         Self(0.0)
     }
 
@@ -549,7 +549,7 @@ pub struct DemeData {
     ancestors: Vec<String>,
     #[serde(default = "Vec::<Proportion>::default")]
     proportions: Vec<Proportion>,
-    #[serde(default = "Time::default_start_time")]
+    #[serde(default = "Time::default_deme_start_time")]
     start_time: Time,
     #[serde(default = "Vec::<Epoch>::default")]
     epochs: Vec<Epoch>,
@@ -590,7 +590,9 @@ impl Deme {
     }
 
     fn resolve_times(&mut self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        if self.0.borrow().ancestors.is_empty() && self.start_time() != Time::default_start_time() {
+        if self.0.borrow().ancestors.is_empty()
+            && self.start_time() != Time::default_deme_start_time()
+        {
             return Err(DemesError::DemeError(format!(
                 "deme {} has finite start time but no ancestors",
                 self.name()
@@ -600,7 +602,7 @@ impl Deme {
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
 
-            if mut_borrowed_self.start_time == Time::default_start_time() {
+            if mut_borrowed_self.start_time == Time::default_deme_start_time() {
                 mut_borrowed_self.start_time = deme_map
                     .get(mut_borrowed_self.ancestors.get(0).unwrap())
                     .unwrap()
@@ -643,7 +645,7 @@ impl Deme {
             let mut self_borrow = self.0.borrow_mut();
             let last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = Some(Time::default_end_time());
+                last_epoch_ref.end_time = Some(Time::default_epoch_end_time());
             }
         }
 
@@ -695,7 +697,9 @@ impl Deme {
             // temp_epoch.clone()
             (temp_epoch.start_size, temp_epoch.end_size)
         };
-        if self_borrow.start_time == Time::default_start_time() && epoch_sizes.0 != epoch_sizes.1 {
+        if self_borrow.start_time == Time::default_deme_start_time()
+            && epoch_sizes.0 != epoch_sizes.1
+        {
             let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
                     self_borrow.name, f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
@@ -1495,7 +1499,7 @@ mod test_newtype_ordering {
     #[test]
     fn test_start_time() {
         let s = Time::try_from(1e-3).unwrap();
-        let sd = Time::default_start_time();
+        let sd = Time::default_deme_start_time();
         assert!(s < sd);
     }
 

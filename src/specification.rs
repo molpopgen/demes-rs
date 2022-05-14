@@ -1014,12 +1014,12 @@ impl PartialEq for Graph {
 impl Eq for Graph {}
 
 impl Graph {
-    pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let g: Self = serde_yaml::from_str(yaml)?;
         Ok(g)
     }
 
-    pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let mut graph = Self::new_from_str(yaml)?;
         graph.resolve()?;
         graph.validate()?;

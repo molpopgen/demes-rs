@@ -418,3 +418,101 @@ pulses:
     let g = demes::loads(yaml).unwrap();
     assert_graph_equality_after_round_trip!(g);
 }
+
+#[test]
+fn test_pulses_are_stably_sorted() {
+    let yaml1 = "
+time_units: generations
+demes:
+  - name: X
+    epochs:
+      - end_time: 1000
+        start_size: 2000
+  - name: A
+    ancestors: [X]
+    epochs:
+      - start_size: 2000
+  - name: B
+    ancestors: [X]
+    epochs:
+      - start_size: 2000
+pulses:
+  - sources: [A]
+    dest: B
+    proportions: [0.05]
+    time: 500
+  - sources: [A]
+    dest: B
+    proportions: [0.05]
+    time: 501
+  - sources: [B]
+    dest: A
+    proportions: [0.05]
+    time: 501
+";
+
+    let yaml2 = "
+time_units: generations
+description: the pulses at 501 are in a different order
+demes:
+  - name: X
+    epochs:
+      - end_time: 1000
+        start_size: 2000
+  - name: A
+    ancestors: [X]
+    epochs:
+      - start_size: 2000
+  - name: B
+    ancestors: [X]
+    epochs:
+      - start_size: 2000
+pulses:
+  - sources: [A]
+    dest: B
+    proportions: [0.05]
+    time: 500
+  - sources: [B]
+    dest: A
+    proportions: [0.05]
+    time: 501
+  - sources: [A]
+    dest: B
+    proportions: [0.05]
+    time: 501
+";
+
+    let g = demes::loads(yaml1).unwrap();
+    let expected_pulse_times = vec![
+        demes::specification::Time::try_from(501.).unwrap(),
+        demes::specification::Time::try_from(501.).unwrap(),
+        demes::specification::Time::try_from(500.).unwrap(),
+    ];
+    let pulse_times = g
+        .pulses()
+        .iter()
+        .map(|pulse| pulse.time())
+        .collect::<Vec<Time>>();
+    assert_eq!(pulse_times, expected_pulse_times);
+    assert_eq!(g.pulses()[0].sources(), &["A".to_string()]);
+    assert_eq!(g.pulses()[0].dest(), "B");
+    assert_eq!(g.pulses()[1].sources(), &["B".to_string()]);
+    assert_eq!(g.pulses()[1].dest(), "A");
+    assert_graph_equality_after_round_trip!(g);
+
+    let g2 = demes::loads(yaml2).unwrap();
+    let pulse_times = g
+        .pulses()
+        .iter()
+        .map(|pulse| pulse.time())
+        .collect::<Vec<Time>>();
+    assert_eq!(pulse_times, expected_pulse_times);
+    assert_eq!(g2.pulses()[0].sources(), &["B".to_string()]);
+    assert_eq!(g2.pulses()[0].dest(), "A");
+    assert_eq!(g2.pulses()[1].sources(), &["A".to_string()]);
+    assert_eq!(g2.pulses()[1].dest(), "B");
+
+    // The two graphs are not equal b/c the pulses
+    // are sorted stable w.r.to time.
+    assert_ne!(g, g2);
+}

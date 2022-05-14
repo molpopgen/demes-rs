@@ -33,11 +33,11 @@ pub enum DemesError {
     #[error("{0:?}")]
     PulseError(String),
     #[error("{0:?}")]
-    YamlError(String),
+    YamlError(serde_yaml::Error),
 }
 
 impl From<serde_yaml::Error> for DemesError {
     fn from(error: serde_yaml::Error) -> Self {
-        Self::YamlError(error.to_string())
+        Self::YamlError(error)
     }
 }

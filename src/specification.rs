@@ -465,6 +465,18 @@ impl Pulse {
     fn resolve(&mut self) -> Result<(), DemesError> {
         Ok(())
     }
+
+    pub fn time(&self) -> Time {
+        self.time
+    }
+
+    pub fn sources(&self) -> &[String] {
+        &self.sources
+    }
+
+    pub fn dest(&self) -> &str {
+        &self.dest
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
@@ -1198,8 +1210,10 @@ impl Graph {
         self.pulses
             .iter_mut()
             .try_for_each(|pulse| pulse.resolve())?;
+        // NOTE: the sort_by flips the order to b, a
+        // to put more ancient events at the front.
         self.pulses
-            .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+            .sort_by(|a, b| b.time.partial_cmp(&a.time).unwrap());
         Ok(())
     }
 
@@ -1255,6 +1269,10 @@ impl Graph {
     }
     pub fn migrations(&self) -> &[AsymmetricMigration] {
         &self.resolved_migrations
+    }
+
+    pub fn pulses(&self) -> &[Pulse] {
+        &self.pulses
     }
 }
 

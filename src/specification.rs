@@ -242,7 +242,7 @@ impl Default for MigrationRate {
 
 impl_newtype_traits!(MigrationRate);
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct UnresolvedMigration {
     demes: Option<Vec<String>>,
     source: Option<String>,
@@ -395,7 +395,7 @@ impl From<Migration> for UnresolvedMigration {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Pulse {
     sources: Option<Vec<String>>,
     dest: Option<String>,
@@ -1047,10 +1047,15 @@ impl TryFrom<f64> for GenerationTime {
 
 impl_newtype_traits!(GenerationTime);
 
-#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaults {
+    #[serde(default = "Epoch::default")]
     epoch: Epoch,
+    #[serde(default = "UnresolvedMigration::default")]
+    migration: UnresolvedMigration,
+    #[serde(default = "Pulse::default")]
+    pulse: Pulse,
 }
 
 impl GraphDefaults {
@@ -1677,5 +1682,41 @@ demes:
 
         let y = serde_yaml::to_string(&g).unwrap();
         let _ = Graph::new_resolved_from_str(&y).unwrap();
+    }
+
+    // NOTE: eventually these tests should
+    // fail as we support the defaults
+
+    #[test]
+    fn deserialize_migration_defaults() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  migration:
+    rate: 0.25
+    source: A
+    dest: B
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+";
+        let _ = Graph::new_resolved_from_str(yaml).unwrap();
+    }
+
+    #[test]
+    fn deserialize_pulse_defaults() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  pulse: {sources: [A], dest: B, proportions: [0.25], time: 100}
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+";
+        let _ = Graph::new_resolved_from_str(yaml).unwrap();
     }
 }

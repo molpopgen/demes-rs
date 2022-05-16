@@ -9,6 +9,7 @@ use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Display;
+use std::io::Read;
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -1690,8 +1691,20 @@ impl Graph {
         Ok(g)
     }
 
+    pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let g: Self = serde_yaml::from_reader(reader)?;
+        Ok(g)
+    }
+
     pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let mut graph = Self::new_from_str(yaml)?;
+        graph.resolve()?;
+        graph.validate()?;
+        Ok(graph)
+    }
+
+    pub(crate) fn new_resolved_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let mut graph = Self::new_from_reader(reader)?;
         graph.resolve()?;
         graph.validate()?;
         Ok(graph)

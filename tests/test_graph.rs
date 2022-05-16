@@ -538,3 +538,37 @@ demes:
     let sf = graph.deme(0).epochs()[1].size_function();
     assert!(matches!(sf, demes::specification::SizeFunction::LINEAR));
 }
+
+#[test]
+fn selfing_rate_default() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch:
+    selfing_rate: 0.25
+demes:
+  - name: X
+    epochs:
+     - start_size: 5000
+";
+    let graph = demes::loads(yaml).unwrap();
+    let selfing_rate = graph.deme(0).epochs()[0].selfing_rate();
+    assert_eq!(0.25, f64::from(selfing_rate));
+}
+
+#[test]
+fn cloning_rate_default() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch:
+    cloning_rate: 0.25
+demes:
+  - name: X
+    epochs:
+     - start_size: 5000
+";
+    let graph = demes::loads(yaml).unwrap();
+    let cloning_rate = graph.deme(0).epochs()[0].cloning_rate();
+    assert_eq!(0.25, f64::from(cloning_rate));
+}

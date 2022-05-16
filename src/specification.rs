@@ -499,10 +499,10 @@ pub struct Epoch {
     end_size: Option<DemeSize>,
     #[serde(default = "SizeFunction::default")]
     size_function: SizeFunction,
-    #[serde(default = "CloningRate::default")]
-    cloning_rate: CloningRate,
-    #[serde(default = "SelfingRate::default")]
-    selfing_rate: SelfingRate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cloning_rate: Option<CloningRate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selfing_rate: Option<SelfingRate>,
 }
 
 impl Epoch {
@@ -531,6 +531,38 @@ impl Epoch {
         }
     }
 
+    fn resolve_selfing_rate(&mut self, defaults: &Option<GraphDefaults>) {
+        self.selfing_rate = match defaults {
+            Some(graph_defaults) => match graph_defaults.epoch {
+                Some(epoch_defaults) => match epoch_defaults.selfing_rate {
+                    Some(selfing_rate) => Some(selfing_rate),
+                    None => Some(SelfingRate::default()),
+                },
+                None => Some(SelfingRate::default()),
+            },
+            None => Some(SelfingRate::default()),
+        }
+    }
+
+    fn resolve_cloning_rate(&mut self, defaults: &Option<GraphDefaults>) {
+        self.cloning_rate = match defaults {
+            Some(graph_defaults) => match graph_defaults.epoch {
+                Some(epoch_defaults) => match epoch_defaults.cloning_rate {
+                    Some(cloning_rate) => Some(cloning_rate),
+                    None => Some(CloningRate::default()),
+                },
+                None => Some(CloningRate::default()),
+            },
+            None => Some(CloningRate::default()),
+        }
+    }
+
+    fn resolve(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
+        self.resolve_selfing_rate(&defaults);
+        self.resolve_cloning_rate(&defaults);
+        self.resolve_size_function(defaults)
+    }
+
     fn validate_end_time(&self) -> Result<(), DemesError> {
         match self.end_time {
             Some(time) => time.err_if_not_valid_epoch_end_time(),
@@ -538,17 +570,32 @@ impl Epoch {
         }
     }
 
-    fn validate(&self) -> Result<(), DemesError> {
-        self.validate_end_time()?;
+    fn validate_cloning_rate(&self) -> Result<(), DemesError> {
+        match self.cloning_rate {
+            Some(_) => Ok(()),
+            None => Err(DemesError::EpochError("cloning_rate is None".to_string())),
+        }
+    }
 
-        let mut msg: Option<String> = None;
+    fn validate_selfing_rate(&self) -> Result<(), DemesError> {
+        match self.selfing_rate {
+            Some(_) => Ok(()),
+            None => Err(DemesError::EpochError("selfing_rate is None".to_string())),
+        }
+    }
 
+    fn validate_size_function(&self) -> Result<(), DemesError> {
         if !matches!(
             self.size_function,
             SizeFunction::CONSTANT | SizeFunction::EXPONENTIAL | SizeFunction::LINEAR
         ) {
-            msg = Some(format!("unknown size_function: {:?}", self.size_function));
+            return Err(DemesError::EpochError(format!(
+                "unknown size_function: {:?}",
+                self.size_function
+            )));
         }
+
+        let mut msg: Option<String> = None;
 
         let start_size = self.start_size.unwrap();
         let end_size = self.end_size.unwrap();
@@ -571,8 +618,23 @@ impl Epoch {
         }
     }
 
+    fn validate(&self) -> Result<(), DemesError> {
+        self.validate_end_time()?;
+        self.validate_cloning_rate()?;
+        self.validate_selfing_rate()?;
+        self.validate_size_function()
+    }
+
     pub fn size_function(&self) -> SizeFunction {
         self.size_function
+    }
+
+    pub fn selfing_rate(&self) -> SelfingRate {
+        self.selfing_rate.unwrap()
+    }
+
+    pub fn cloning_rate(&self) -> CloningRate {
+        self.cloning_rate.unwrap()
     }
 }
 
@@ -803,7 +865,7 @@ impl Deme {
             .borrow_mut()
             .epochs
             .iter_mut()
-            .try_for_each(|e| e.resolve_size_function(defaults))?;
+            .try_for_each(|e| e.resolve(defaults))?;
         self.resolve_proportions()?;
 
         let mut ancestor_map = DemeMap::default();
@@ -980,6 +1042,10 @@ struct EpochDefaults {
     end_size: Option<DemeSize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     size_function: Option<SizeFunction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selfing_rate: Option<SelfingRate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cloning_rate: Option<CloningRate>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

@@ -490,7 +490,8 @@ impl Pulse {
         self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)
     }
 
-    fn resolve(&mut self) -> Result<(), DemesError> {
+    fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
+        defaults.apply_pulse_defaults(self);
         Ok(())
     }
 
@@ -512,6 +513,13 @@ impl Pulse {
         match &self.dest {
             Some(dest) => dest,
             None => panic!("pulse dest is None"),
+        }
+    }
+
+    pub fn proportions(&self) -> &[Proportion] {
+        match &self.proportions {
+            Some(proportions) => proportions,
+            None => panic!("proportions are None"),
         }
     }
 }
@@ -1112,6 +1120,21 @@ impl GraphDefaults {
             other.demes = self.migration.demes.clone();
         }
     }
+
+    fn apply_pulse_defaults(&self, other: &mut Pulse) {
+        if other.time.is_none() {
+            other.time = self.pulse.time;
+        }
+        if other.sources.is_none() {
+            other.sources = self.pulse.sources.clone();
+        }
+        if other.dest.is_none() {
+            other.dest = self.pulse.dest.clone();
+        }
+        if other.proportions.is_none() {
+            other.proportions = self.pulse.proportions.clone();
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1351,9 +1374,12 @@ impl Graph {
     }
 
     fn resolve_pulses(&mut self) -> Result<(), DemesError> {
+        if self.pulses.is_empty() && self.defaults.pulse != Pulse::default() {
+            self.pulses.push(self.defaults.pulse.clone());
+        }
         self.pulses
             .iter_mut()
-            .try_for_each(|pulse| pulse.resolve())?;
+            .try_for_each(|pulse| pulse.resolve(&self.defaults))?;
         // NOTE: the sort_by flips the order to b, a
         // to put more ancient events at the front.
         self.pulses
@@ -1876,9 +1902,6 @@ demes:
         assert_eq!(f64::from(g.migrations()[1].rate()), 0.25);
     }
 
-    // NOTE: eventually these tests should
-    // fail as we support the defaults
-
     #[test]
     fn deserialize_pulse_defaults() {
         let yaml = "
@@ -1890,7 +1913,18 @@ demes:
   - name: A
     epochs: 
      - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 250 
 ";
-        let _ = Graph::new_resolved_from_str(yaml).unwrap();
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.pulses().len(), 1);
+        assert_eq!(g.pulses()[0].sources(), vec!["A".to_string()]);
+        assert_eq!(g.pulses()[0].dest(), "B");
+        assert_eq!(
+            g.pulses()[0].proportions(),
+            vec![Proportion::try_from(0.25).unwrap()]
+        );
+        assert_eq!(f64::from(g.pulses()[0].time()), 100.0);
     }
 }

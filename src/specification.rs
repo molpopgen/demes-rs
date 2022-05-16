@@ -506,7 +506,7 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    fn resolve_size_function(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
+    fn resolve_size_function(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
         if !matches!(self.size_function, SizeFunction::NONE) {
             return Ok(());
         }
@@ -516,10 +516,8 @@ impl Epoch {
                     if start_size.0 == end_size.0 {
                         self.size_function = SizeFunction::CONSTANT;
                     } else {
-                        self.size_function = match defaults {
-                            Some(d) => d.apply_epoch_size_function_defaults(self.size_function),
-                            None => SizeFunction::EXPONENTIAL,
-                        };
+                        self.size_function =
+                            defaults.apply_epoch_size_function_defaults(self.size_function);
                     }
                     Ok(())
                 }
@@ -531,35 +529,23 @@ impl Epoch {
         }
     }
 
-    fn resolve_selfing_rate(&mut self, defaults: &Option<GraphDefaults>) {
-        self.selfing_rate = match defaults {
-            Some(graph_defaults) => match graph_defaults.epoch {
-                Some(epoch_defaults) => match epoch_defaults.selfing_rate {
-                    Some(selfing_rate) => Some(selfing_rate),
-                    None => Some(SelfingRate::default()),
-                },
-                None => Some(SelfingRate::default()),
-            },
+    fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults) {
+        self.selfing_rate = match defaults.epoch.selfing_rate {
+            Some(selfing_rate) => Some(selfing_rate),
             None => Some(SelfingRate::default()),
         }
     }
 
-    fn resolve_cloning_rate(&mut self, defaults: &Option<GraphDefaults>) {
-        self.cloning_rate = match defaults {
-            Some(graph_defaults) => match graph_defaults.epoch {
-                Some(epoch_defaults) => match epoch_defaults.cloning_rate {
-                    Some(cloning_rate) => Some(cloning_rate),
-                    None => Some(CloningRate::default()),
-                },
-                None => Some(CloningRate::default()),
-            },
+    fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults) {
+        self.cloning_rate = match defaults.epoch.cloning_rate {
+            Some(cloning_rate) => Some(cloning_rate),
             None => Some(CloningRate::default()),
-        }
+        };
     }
 
-    fn resolve(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
-        self.resolve_selfing_rate(&defaults);
-        self.resolve_cloning_rate(&defaults);
+    fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
+        self.resolve_selfing_rate(defaults);
+        self.resolve_cloning_rate(defaults);
         self.resolve_size_function(defaults)
     }
 
@@ -695,7 +681,7 @@ impl Deme {
     fn resolve_times(
         &mut self,
         deme_map: &DemeMap,
-        defaults: &Option<GraphDefaults>,
+        defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
         if self.0.borrow().ancestors.is_empty()
             && self.start_time() != Time::default_deme_start_time()
@@ -753,17 +739,10 @@ impl Deme {
             let mut self_borrow = self.0.borrow_mut();
             let last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = match defaults {
-                    Some(graph_defaults) => match graph_defaults.epoch {
-                        Some(epoch_defaults) => match epoch_defaults.end_time {
-                            Some(end_time) => Some(end_time),
-                            None => Some(Time::default_epoch_end_time()),
-                        },
-
-                        None => Some(Time::default_epoch_end_time()),
-                    },
+                last_epoch_ref.end_time = match defaults.epoch.end_time {
+                    Some(end_time) => Some(end_time),
                     None => Some(Time::default_epoch_end_time()),
-                }
+                };
             }
         }
 
@@ -788,18 +767,13 @@ impl Deme {
 
     fn resolve_first_epoch_sizes(
         &mut self,
-        defaults: Option<GraphDefaults>,
+        defaults: &GraphDefaults,
     ) -> Result<Option<DemeSize>, DemesError> {
         let mut self_borrow = self.0.borrow_mut();
         let epoch_sizes = {
             let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
 
-            match defaults {
-                Some(d) => {
-                    d.apply_epoch_size_defaults(temp_epoch);
-                }
-                None => (),
-            }
+            defaults.apply_epoch_size_defaults(temp_epoch);
             if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
@@ -827,21 +801,22 @@ impl Deme {
         Ok(epoch_sizes.1)
     }
 
-    fn resolve_sizes(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
+    fn resolve_sizes(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
-            match defaults {
-                Some(d) => d.apply_epoch_size_defaults(epoch),
-                None => {
-                    match epoch.start_size {
-                        Some(_) => (),
-                        None => epoch.start_size = last_end_size,
-                    }
-                    match epoch.end_size {
-                        Some(_) => (),
-                        None => epoch.end_size = epoch.start_size,
-                    }
-                }
+            match epoch.start_size {
+                Some(_) => (),
+                None => match defaults.epoch.start_size {
+                    Some(start_size) => epoch.start_size = Some(start_size),
+                    None => epoch.start_size = last_end_size,
+                },
+            }
+            match epoch.end_size {
+                Some(_) => (),
+                None => match defaults.epoch.end_size {
+                    Some(end_size) => epoch.end_size = Some(end_size),
+                    None => epoch.end_size = epoch.start_size,
+                },
             }
             last_end_size = epoch.end_size;
         }
@@ -871,14 +846,10 @@ impl Deme {
     }
 
     // Make the internal data match the MDM spec
-    fn resolve(
-        &mut self,
-        deme_map: &DemeMap,
-        defaults: Option<GraphDefaults>,
-    ) -> Result<(), DemesError> {
+    fn resolve(&mut self, deme_map: &DemeMap, defaults: &GraphDefaults) -> Result<(), DemesError> {
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
-        self.resolve_times(deme_map, &defaults)?;
+        self.resolve_times(deme_map, defaults)?;
         self.resolve_sizes(defaults)?;
         self.0
             .borrow_mut()
@@ -1052,7 +1023,7 @@ impl TryFrom<f64> for GenerationTime {
 
 impl_newtype_traits!(GenerationTime);
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct EpochDefaults {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1069,11 +1040,11 @@ struct EpochDefaults {
     cloning_rate: Option<CloningRate>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaults {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    epoch: Option<EpochDefaults>,
+    #[serde(skip_serializing)]
+    epoch: EpochDefaults,
 }
 
 impl GraphDefaults {
@@ -1081,22 +1052,14 @@ impl GraphDefaults {
         if start_size.is_some() {
             return start_size;
         }
-
-        match self.epoch {
-            Some(epoch_defaults) => epoch_defaults.start_size,
-            None => None,
-        }
+        self.epoch.start_size
     }
 
     fn apply_default_epoch_end_size(&self, end_size: Option<DemeSize>) -> Option<DemeSize> {
         if end_size.is_some() {
             return end_size;
         }
-
-        match self.epoch {
-            Some(epoch_defaults) => epoch_defaults.end_size,
-            None => None,
-        }
+        self.epoch.end_size
     }
 
     fn apply_epoch_size_defaults(&self, epoch: &mut Epoch) {
@@ -1109,11 +1072,8 @@ impl GraphDefaults {
             return size_function;
         }
 
-        match self.epoch {
-            Some(epoch) => match epoch.size_function {
-                Some(sf) => sf,
-                None => SizeFunction::EXPONENTIAL,
-            },
+        match self.epoch.size_function {
+            Some(sf) => sf,
             None => SizeFunction::EXPONENTIAL,
         }
     }
@@ -1127,7 +1087,8 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
     doi: Option<Vec<String>>,
     #[serde(skip_serializing)]
-    defaults: Option<GraphDefaults>,
+    #[serde(default = "GraphDefaults::default")]
+    defaults: GraphDefaults,
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
@@ -1357,7 +1318,7 @@ impl Graph {
 
         self.demes
             .iter_mut()
-            .try_for_each(|deme| deme.resolve(&self.deme_map, self.defaults))?;
+            .try_for_each(|deme| deme.resolve(&self.deme_map, &self.defaults))?;
         self.demes.iter().try_for_each(|deme| deme.validate())?;
         self.resolve_migrations()?;
         self.resolve_pulses()?;
@@ -1688,8 +1649,7 @@ demes:
         let y = serde_yaml::to_string(&g).unwrap();
         assert!(!y.contains("defaults:"));
 
-        let g2 = Graph::new_resolved_from_str(&y).unwrap();
-        assert!(g2.defaults.is_none());
+        let _ = Graph::new_resolved_from_str(&y).unwrap();
     }
 
     #[test]

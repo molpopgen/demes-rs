@@ -38,15 +38,16 @@ impl Time {
         Self(0.0)
     }
 
-    fn is_valid_epoch_start_time(&self) -> bool {
+    fn is_valid_deme_start_time(&self) -> bool {
         self.0 > 0.0
     }
 
-    fn err_if_not_valid_epoch_start_time(&self) -> Result<(), DemesError> {
-        if self.is_valid_epoch_start_time() {
+    fn err_if_not_valid_deme_start_time(&self) -> Result<(), DemesError> {
+        if self.is_valid_deme_start_time() {
             Ok(())
         } else {
-            Err(DemesError::StartTimeError(self.0))
+            let msg = format!("start_time must be > 0.0, got: {}", self.0);
+            Err(DemesError::DemeError(msg))
         }
     }
 
@@ -58,7 +59,8 @@ impl Time {
         if self.is_valid_epoch_end_time() {
             Ok(())
         } else {
-            Err(DemesError::EndTimeError(self.0))
+            let msg = format!("end_time must be <= t < Infinity, got: {}", self.0);
+            Err(DemesError::EpochError(msg))
         }
     }
 
@@ -81,7 +83,8 @@ impl TryFrom<f64> for DemeSize {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value.is_nan() || value.is_infinite() || value <= 0.0 {
-            Err(DemesError::DemeSizeError(value))
+            let msg = format!("deme sizes must be 0 <= d < Infinity, got: {}", value);
+            Err(DemesError::EpochError(msg))
         } else {
             Ok(Self(value))
         }
@@ -100,7 +103,11 @@ impl TryFrom<f64> for Proportion {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if !value.is_finite() || value <= 0.0 || value > 1.0 {
-            Err(DemesError::ProportionError(value))
+            let msg = format!(
+                "ancestor proportions must be 0.0 < p <= 1.0, got: {}",
+                value
+            );
+            Err(DemesError::DemeError(msg))
         } else {
             Ok(Self(value))
         }
@@ -133,7 +140,7 @@ impl TimeInterval {
     }
 
     fn contains_start_time(&self, other: Time) -> bool {
-        assert!(other.is_valid_epoch_start_time());
+        assert!(other.is_valid_deme_start_time());
         self.contains(other)
     }
 }
@@ -176,7 +183,8 @@ impl TryFrom<f64> for CloningRate {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            Err(DemesError::CloningRateError(value))
+            let msg = format!("cloning rate must be 0.0 <= C <= 1.0, got: {}", value);
+            Err(DemesError::EpochError(msg))
         } else {
             Ok(Self(value))
         }
@@ -201,7 +209,8 @@ impl TryFrom<f64> for SelfingRate {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            Err(DemesError::SelfingRateError(value))
+            let msg = format!("selfing rate must be 0.0 <= S <= 1.0, got: {}", value);
+            Err(DemesError::EpochError(msg))
         } else {
             Ok(Self(value))
         }
@@ -226,7 +235,8 @@ impl TryFrom<f64> for MigrationRate {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            Err(DemesError::MigrationRateError(value))
+            let msg = format!("migration rate must be 0.0 <= m <= 1.0, got: {value}");
+            Err(DemesError::MigrationError(msg))
         } else {
             Ok(Self(value))
         }
@@ -627,7 +637,7 @@ impl Deme {
                     .unwrap();
                 match mut_borrowed_self
                     .start_time
-                    .err_if_not_valid_epoch_start_time()
+                    .err_if_not_valid_deme_start_time()
                 {
                     Ok(_) => (),
                     Err(_) => {
@@ -644,7 +654,7 @@ impl Deme {
             let a = deme_map.get(ancestor).unwrap();
             let t = a.time_interval();
             if !t.contains_start_time(self.0.borrow().start_time) {
-                return Err(DemesError::AncestorError(format!(
+                return Err(DemesError::DemeError(format!(
                     "Ancestor {} does not exist at deme {}'s start_time",
                     ancestor,
                     self.name()
@@ -794,7 +804,7 @@ impl Deme {
         self.0
             .borrow()
             .start_time
-            .err_if_not_valid_epoch_start_time()
+            .err_if_not_valid_deme_start_time()
     }
 
     fn validate(&self) -> Result<(), DemesError> {
@@ -1307,7 +1317,7 @@ mod tests {
     fn test_zero_start_time() {
         let yaml = "---\nstart_time: 0.0\nend_time: 1.1\n".to_string();
         let t: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-        t.start_time.err_if_not_valid_epoch_start_time().unwrap();
+        t.start_time.err_if_not_valid_deme_start_time().unwrap();
     }
 
     #[test]

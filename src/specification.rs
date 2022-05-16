@@ -397,10 +397,10 @@ impl From<Migration> for UnresolvedMigration {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Pulse {
-    sources: Vec<String>,
-    dest: String,
-    time: Time,
-    proportions: Vec<Proportion>,
+    sources: Option<Vec<String>>,
+    dest: Option<String>,
+    time: Option<Time>,
+    proportions: Option<Vec<Proportion>>,
 }
 
 impl Pulse {
@@ -408,7 +408,11 @@ impl Pulse {
         match deme_map.get(deme) {
             Some(d) => {
                 let t = d.time_interval();
-                if !t.contains_start_time(self.time) {
+                let time = match self.time {
+                    Some(t) => t,
+                    None => return Err(DemesError::PulseError("time is None".to_string())),
+                };
+                if !t.contains_start_time(time) {
                     return Err(DemesError::PulseError(format!(
                         "deme {} does not exist at time of pulse",
                         deme,
@@ -424,23 +428,36 @@ impl Pulse {
     }
 
     fn validate_pulse_time(&self) -> Result<(), DemesError> {
-        if self.time.is_valid_pulse_time() {
-            Ok(())
-        } else {
-            Err(DemesError::PulseError(format!(
-                "invalid pulse time: {}",
-                self.time.0
-            )))
+        match self.time {
+            Some(time) => {
+                if time.is_valid_pulse_time() {
+                    Ok(())
+                } else {
+                    Err(DemesError::PulseError(format!(
+                        "invalid pulse time: {}",
+                        time.0
+                    )))
+                }
+            }
+            None => Err(DemesError::PulseError("time is None".to_string())),
         }
     }
 
     fn validate_proportions(&self) -> Result<(), DemesError> {
-        if self.proportions.len() != self.sources.len() {
-            return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", self.sources.len(), self.proportions.len())));
+        if self.proportions.is_none() {
+            return Err(DemesError::PulseError("proportions is None".to_string()));
+        }
+        if self.sources.is_none() {
+            return Err(DemesError::PulseError("sources is None".to_string()));
         }
 
-        let sum_proportions = self
-            .proportions
+        let proportions = self.proportions.as_ref().unwrap();
+        let sources = self.sources.as_ref().unwrap();
+        if proportions.len() != sources.len() {
+            return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
+        }
+
+        let sum_proportions = proportions
             .iter()
             .fold(0.0, |sum, &proportion| sum + proportion.0);
 
@@ -457,10 +474,20 @@ impl Pulse {
     fn validate(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
         self.validate_pulse_time()?;
         self.validate_proportions()?;
-        self.sources
+
+        // NOTE: validate proportions is taking care of
+        // returning Err if this is not true
+        assert!(self.sources.is_some());
+
+        let sources = self.sources.as_ref().unwrap();
+        sources
             .iter()
             .try_for_each(|source| self.validate_deme_existence(source, deme_map))?;
-        self.validate_deme_existence(&self.dest, deme_map)
+
+        //NOTE: the last check should enforce this
+        assert!(self.dest.is_some());
+
+        self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)
     }
 
     fn resolve(&mut self) -> Result<(), DemesError> {
@@ -468,15 +495,24 @@ impl Pulse {
     }
 
     pub fn time(&self) -> Time {
-        self.time
+        match self.time {
+            Some(time) => time,
+            None => panic!("pulse time is None"),
+        }
     }
 
     pub fn sources(&self) -> &[String] {
-        &self.sources
+        match &self.sources {
+            Some(sources) => sources,
+            None => panic!("sources are None"),
+        }
     }
 
     pub fn dest(&self) -> &str {
-        &self.dest
+        match &self.dest {
+            Some(dest) => dest,
+            None => panic!("pulse dest is None"),
+        }
     }
 }
 

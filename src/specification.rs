@@ -636,6 +636,10 @@ impl Epoch {
     pub fn cloning_rate(&self) -> CloningRate {
         self.cloning_rate.unwrap()
     }
+
+    pub fn end_time(&self) -> Time {
+        self.end_time.unwrap()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -688,7 +692,11 @@ impl Deme {
             .unwrap()
     }
 
-    fn resolve_times(&mut self, deme_map: &DemeMap) -> Result<(), DemesError> {
+    fn resolve_times(
+        &mut self,
+        deme_map: &DemeMap,
+        defaults: &Option<GraphDefaults>,
+    ) -> Result<(), DemesError> {
         if self.0.borrow().ancestors.is_empty()
             && self.start_time() != Time::default_deme_start_time()
         {
@@ -740,11 +748,22 @@ impl Deme {
         }
 
         {
-            // last epoch end time defaults to 0
+            // last epoch end time defaults to 0,
+            // unless defaults are specified
             let mut self_borrow = self.0.borrow_mut();
             let last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = Some(Time::default_epoch_end_time());
+                last_epoch_ref.end_time = match defaults {
+                    Some(graph_defaults) => match graph_defaults.epoch {
+                        Some(epoch_defaults) => match epoch_defaults.end_time {
+                            Some(end_time) => Some(end_time),
+                            None => Some(Time::default_epoch_end_time()),
+                        },
+
+                        None => Some(Time::default_epoch_end_time()),
+                    },
+                    None => Some(Time::default_epoch_end_time()),
+                }
             }
         }
 
@@ -859,7 +878,7 @@ impl Deme {
     ) -> Result<(), DemesError> {
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
-        self.resolve_times(deme_map)?;
+        self.resolve_times(deme_map, &defaults)?;
         self.resolve_sizes(defaults)?;
         self.0
             .borrow_mut()
@@ -1036,6 +1055,8 @@ impl_newtype_traits!(GenerationTime);
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct EpochDefaults {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_time: Option<Time>,
     #[serde(skip_serializing_if = "Option::is_none")]
     start_size: Option<DemeSize>,
     #[serde(skip_serializing_if = "Option::is_none")]

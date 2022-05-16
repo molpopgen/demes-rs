@@ -572,3 +572,20 @@ demes:
     let cloning_rate = graph.deme(0).epochs()[0].cloning_rate();
     assert_eq!(0.25, f64::from(cloning_rate));
 }
+
+#[test]
+fn end_time_default() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch:
+    end_time: 100
+demes:
+  - name: X
+    epochs:
+     - start_size: 5000
+";
+    let graph = demes::loads(yaml).unwrap();
+    let end_time = graph.deme(0).epochs()[0].end_time();
+    assert_eq!(100.0, f64::from(end_time));
+}

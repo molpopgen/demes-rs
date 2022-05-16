@@ -242,7 +242,7 @@ impl Default for MigrationRate {
 
 impl_newtype_traits!(MigrationRate);
 
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct UnresolvedMigration {
     demes: Option<Vec<String>>,
     source: Option<String>,
@@ -1091,6 +1091,27 @@ impl GraphDefaults {
             None => Some(SizeFunction::EXPONENTIAL),
         }
     }
+
+    fn apply_migration_defaults(&self, other: &mut UnresolvedMigration) {
+        if other.rate.is_none() {
+            other.rate = self.migration.rate;
+        }
+        if other.start_time.is_none() {
+            other.start_time = self.migration.start_time;
+        }
+        if other.end_time.is_none() {
+            other.end_time = self.migration.end_time;
+        }
+        if other.source.is_none() {
+            other.source = self.migration.source.clone();
+        }
+        if other.dest.is_none() {
+            other.dest = self.migration.dest.clone();
+        }
+        if other.demes.is_none() {
+            other.demes = self.migration.demes.clone();
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1107,10 +1128,10 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
     demes: Vec<Deme>,
-    #[serde(default = "Vec::<Migration>::default")]
+    #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_serializing)]
-    input_migrations: Vec<Migration>,
+    input_migrations: Vec<UnresolvedMigration>,
     #[serde(default = "Vec::<AsymmetricMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_deserializing)]
@@ -1236,12 +1257,25 @@ impl Graph {
         // do the old "swap it out" trick to demonstrate
         // that we are not doing bad things.
         // This object is only mut b/c we need to swap it
-        let mut input_migrations: Vec<Migration> = vec![];
+        let mut input_migrations: Vec<UnresolvedMigration> = vec![];
         std::mem::swap(&mut input_migrations, &mut self.input_migrations);
-        for m in &input_migrations {
+
+        if input_migrations.is_empty() {
+            // if there are non-default
+            // fields in migration defaults,
+            // then we go for it and add a default value
+            if self.defaults.migration != UnresolvedMigration::default() {
+                input_migrations.push(self.defaults.migration.clone());
+            }
+        }
+
+        for input_mig in &input_migrations {
+            let mut input_mig_clone = input_mig.clone();
+            self.defaults.apply_migration_defaults(&mut input_mig_clone);
+            let m = Migration::try_from(input_mig_clone)?;
             match m {
-                Migration::ASYMMETRIC(a) => self.process_input_asymmetric_migration(a)?,
-                Migration::SYMMETRIC(s) => self.process_input_symmetric_migration(s)?,
+                Migration::ASYMMETRIC(a) => self.process_input_asymmetric_migration(&a)?,
+                Migration::SYMMETRIC(s) => self.process_input_symmetric_migration(&s)?,
             }
         }
 
@@ -1684,9 +1718,6 @@ demes:
         let _ = Graph::new_resolved_from_str(&y).unwrap();
     }
 
-    // NOTE: eventually these tests should
-    // fail as we support the defaults
-
     #[test]
     fn deserialize_migration_defaults() {
         let yaml = "
@@ -1701,9 +1732,152 @@ demes:
   - name: A
     epochs: 
      - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
 ";
-        let _ = Graph::new_resolved_from_str(yaml).unwrap();
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 1);
+        assert_eq!(g.migrations()[0].source(), "A");
+        assert_eq!(g.migrations()[0].dest(), "B");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
     }
+
+    #[test]
+    fn deserialize_migration_defaults_rate_only() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  migration:
+    rate: 0.25
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+migrations:
+  - source: A
+    dest: B
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 1);
+        assert_eq!(g.migrations()[0].source(), "A");
+        assert_eq!(g.migrations()[0].dest(), "B");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
+    }
+
+    #[test]
+    fn deserialize_migration_defaults_source_only() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  migration:
+    source: A
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+migrations:
+  - dest: B
+    rate: 0.25
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 1);
+        assert_eq!(g.migrations()[0].source(), "A");
+        assert_eq!(g.migrations()[0].dest(), "B");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
+    }
+
+    #[test]
+    fn deserialize_migration_defaults_dest_only() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  migration:
+    dest: B
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+migrations:
+  - source: A
+    rate: 0.25
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 1);
+        assert_eq!(g.migrations()[0].source(), "A");
+        assert_eq!(g.migrations()[0].dest(), "B");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
+    }
+
+    #[test]
+    fn deserialize_migration_defaults_symmetric() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+  migration:
+    rate: 0.25
+    demes: [A, B]
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 2);
+        assert_eq!(g.migrations()[0].source(), "A");
+        assert_eq!(g.migrations()[0].dest(), "B");
+        assert_eq!(g.migrations()[1].source(), "B");
+        assert_eq!(g.migrations()[1].dest(), "A");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
+        assert_eq!(f64::from(g.migrations()[1].rate()), 0.25);
+    }
+
+    #[test]
+    fn deserialize_migration_defaults_symmetric_swap_deme_order() {
+        let yaml = "
+time_units: years
+description: same tests as above, but demes in different order in migration defaults
+generation_time: 25
+defaults:
+  migration:
+    rate: 0.25
+    demes: [B, A]
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+";
+        let g = Graph::new_resolved_from_str(yaml).unwrap();
+        assert_eq!(g.migrations().len(), 2);
+        assert_eq!(g.migrations()[0].source(), "B");
+        assert_eq!(g.migrations()[0].dest(), "A");
+        assert_eq!(g.migrations()[1].source(), "A");
+        assert_eq!(g.migrations()[1].dest(), "B");
+        assert_eq!(f64::from(g.migrations()[0].rate()), 0.25);
+        assert_eq!(f64::from(g.migrations()[1].rate()), 0.25);
+    }
+
+    // NOTE: eventually these tests should
+    // fail as we support the defaults
 
     #[test]
     fn deserialize_pulse_defaults() {

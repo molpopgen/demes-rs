@@ -148,23 +148,14 @@ impl TimeInterval {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
-    #[serde(skip)]
-    NONE,
     CONSTANT,
     EXPONENTIAL,
     LINEAR,
 }
 
-impl Default for SizeFunction {
-    fn default() -> Self {
-        Self::NONE
-    }
-}
-
 impl Display for SizeFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
-            SizeFunction::NONE => "none",
             SizeFunction::CONSTANT => "constant",
             SizeFunction::LINEAR => "linear",
             SizeFunction::EXPONENTIAL => "exponential",
@@ -497,8 +488,8 @@ pub struct Epoch {
     start_size: Option<DemeSize>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
     end_size: Option<DemeSize>,
-    #[serde(default = "SizeFunction::default")]
-    size_function: SizeFunction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_function: Option<SizeFunction>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cloning_rate: Option<CloningRate>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -507,14 +498,14 @@ pub struct Epoch {
 
 impl Epoch {
     fn resolve_size_function(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
-        if !matches!(self.size_function, SizeFunction::NONE) {
+        if self.size_function.is_some() {
             return Ok(());
         }
         match self.start_size {
             Some(start_size) => match self.end_size {
                 Some(end_size) => {
                     if start_size.0 == end_size.0 {
-                        self.size_function = SizeFunction::CONSTANT;
+                        self.size_function = Some(SizeFunction::CONSTANT);
                     } else {
                         self.size_function =
                             defaults.apply_epoch_size_function_defaults(self.size_function);
@@ -571,31 +562,28 @@ impl Epoch {
     }
 
     fn validate_size_function(&self) -> Result<(), DemesError> {
-        if !matches!(
-            self.size_function,
-            SizeFunction::CONSTANT | SizeFunction::EXPONENTIAL | SizeFunction::LINEAR
-        ) {
-            return Err(DemesError::EpochError(format!(
-                "unknown size_function: {:?}",
-                self.size_function
-            )));
-        }
-
         let mut msg: Option<String> = None;
 
         let start_size = self.start_size.unwrap();
         let end_size = self.end_size.unwrap();
 
-        if matches!(self.size_function, SizeFunction::CONSTANT) {
-            if start_size != end_size {
-                msg =
-                    Some("start_size != end_size paired with size_function: constant".to_string());
-            }
-        } else if start_size == end_size {
-            msg = Some(format!(
+        match self.size_function {
+            Some(size_function) => {
+                if matches!(size_function, SizeFunction::CONSTANT) {
+                    if start_size != end_size {
+                        msg = Some(
+                            "start_size != end_size paired with size_function: constant"
+                                .to_string(),
+                        );
+                    }
+                } else if start_size == end_size {
+                    msg = Some(format!(
                 "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
-                self.start_size, self.end_size, self.size_function
+                self.start_size, self.end_size, size_function
             ));
+                }
+            }
+            None => msg = Some("size_function is None".to_string()),
         }
 
         match msg {
@@ -612,7 +600,7 @@ impl Epoch {
     }
 
     pub fn size_function(&self) -> SizeFunction {
-        self.size_function
+        self.size_function.unwrap()
     }
 
     pub fn selfing_rate(&self) -> SelfingRate {
@@ -1067,14 +1055,17 @@ impl GraphDefaults {
         epoch.end_size = self.apply_default_epoch_end_size(epoch.end_size);
     }
 
-    fn apply_epoch_size_function_defaults(&self, size_function: SizeFunction) -> SizeFunction {
-        if !matches!(size_function, SizeFunction::NONE) {
+    fn apply_epoch_size_function_defaults(
+        &self,
+        size_function: Option<SizeFunction>,
+    ) -> Option<SizeFunction> {
+        if size_function.is_some() {
             return size_function;
         }
 
         match self.epoch.size_function {
-            Some(sf) => sf,
-            None => SizeFunction::EXPONENTIAL,
+            Some(sf) => Some(sf),
+            None => Some(SizeFunction::EXPONENTIAL),
         }
     }
 }

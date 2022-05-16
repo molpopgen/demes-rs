@@ -506,7 +506,7 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    fn resolve(&mut self) -> Result<(), DemesError> {
+    fn resolve_size_function(&mut self, defaults: Option<GraphDefaults>) -> Result<(), DemesError> {
         if !matches!(self.size_function, SizeFunction::NONE) {
             return Ok(());
         }
@@ -516,7 +516,10 @@ impl Epoch {
                     if start_size.0 == end_size.0 {
                         self.size_function = SizeFunction::CONSTANT;
                     } else {
-                        self.size_function = SizeFunction::EXPONENTIAL;
+                        self.size_function = match defaults {
+                            Some(d) => d.apply_epoch_size_function_defaults(self.size_function),
+                            None => SizeFunction::EXPONENTIAL,
+                        };
                     }
                     Ok(())
                 }
@@ -538,26 +541,38 @@ impl Epoch {
     fn validate(&self) -> Result<(), DemesError> {
         self.validate_end_time()?;
 
+        let mut msg: Option<String> = None;
+
         if !matches!(
             self.size_function,
             SizeFunction::CONSTANT | SizeFunction::EXPONENTIAL | SizeFunction::LINEAR
         ) {
-            Err(DemesError::EpochError(format!(
-                "unknown size_function: {:?}",
-                self.size_function
-            )))
-        } else if self.start_size.as_ref().unwrap() == self.end_size.as_ref().unwrap() {
-            if !matches!(self.size_function, SizeFunction::CONSTANT) {
-                Err(DemesError::EpochError(format!(
-                    "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
-                    self.start_size, self.end_size, self.size_function
-                )))
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
+            msg = Some(format!("unknown size_function: {:?}", self.size_function));
         }
+
+        let start_size = self.start_size.unwrap();
+        let end_size = self.end_size.unwrap();
+
+        if matches!(self.size_function, SizeFunction::CONSTANT) {
+            if start_size != end_size {
+                msg =
+                    Some("start_size != end_size paired with size_function: constant".to_string());
+            }
+        } else if start_size == end_size {
+            msg = Some(format!(
+                "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
+                self.start_size, self.end_size, self.size_function
+            ));
+        }
+
+        match msg {
+            Some(error_msg) => Err(DemesError::EpochError(error_msg)),
+            None => Ok(()),
+        }
+    }
+
+    pub fn size_function(&self) -> SizeFunction {
+        self.size_function
     }
 }
 
@@ -700,7 +715,7 @@ impl Deme {
 
             match defaults {
                 Some(d) => {
-                    d.apply_epoch_defaults(temp_epoch);
+                    d.apply_epoch_size_defaults(temp_epoch);
                 }
                 None => (),
             }
@@ -735,7 +750,7 @@ impl Deme {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
             match defaults {
-                Some(d) => d.apply_epoch_defaults(epoch),
+                Some(d) => d.apply_epoch_size_defaults(epoch),
                 None => {
                     match epoch.start_size {
                         Some(_) => (),
@@ -788,7 +803,7 @@ impl Deme {
             .borrow_mut()
             .epochs
             .iter_mut()
-            .try_for_each(|e| e.resolve())?;
+            .try_for_each(|e| e.resolve_size_function(defaults))?;
         self.resolve_proportions()?;
 
         let mut ancestor_map = DemeMap::default();
@@ -866,6 +881,11 @@ impl Deme {
 
     pub fn num_epochs(&self) -> usize {
         self.0.borrow().epochs.len()
+    }
+
+    pub fn epochs(&self) -> Ref<'_, [Epoch]> {
+        let borrow = self.0.borrow();
+        Ref::map(borrow, |b| b.epochs.as_slice())
     }
 
     pub fn proportions(&self) -> Ref<'_, [Proportion]> {
@@ -952,14 +972,18 @@ impl TryFrom<f64> for GenerationTime {
 impl_newtype_traits!(GenerationTime);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 struct EpochDefaults {
     #[serde(skip_serializing_if = "Option::is_none")]
     start_size: Option<DemeSize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     end_size: Option<DemeSize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_function: Option<SizeFunction>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct GraphDefaults {
     #[serde(skip_serializing_if = "Option::is_none")]
     epoch: Option<EpochDefaults>,
@@ -988,9 +1012,23 @@ impl GraphDefaults {
         }
     }
 
-    fn apply_epoch_defaults(&self, epoch: &mut Epoch) {
+    fn apply_epoch_size_defaults(&self, epoch: &mut Epoch) {
         epoch.start_size = self.apply_default_epoch_start_size(epoch.start_size);
         epoch.end_size = self.apply_default_epoch_end_size(epoch.end_size);
+    }
+
+    fn apply_epoch_size_function_defaults(&self, size_function: SizeFunction) -> SizeFunction {
+        if !matches!(size_function, SizeFunction::NONE) {
+            return size_function;
+        }
+
+        match self.epoch {
+            Some(epoch) => match epoch.size_function {
+                Some(sf) => sf,
+                None => SizeFunction::EXPONENTIAL,
+            },
+            None => SizeFunction::EXPONENTIAL,
+        }
     }
 }
 

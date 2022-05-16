@@ -516,3 +516,25 @@ pulses:
     // are sorted stable w.r.to time.
     assert_ne!(g, g2);
 }
+
+#[test]
+fn linear_size_function_default() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch:
+    start_size: 5000
+    size_function: linear
+demes:
+  - name: X
+    epochs:
+      - end_time: 1000
+      - end_size: 100
+
+";
+    let graph = demes::loads(yaml).unwrap();
+    let sf = graph.deme(0).epochs()[0].size_function();
+    assert!(matches!(sf, demes::specification::SizeFunction::CONSTANT));
+    let sf = graph.deme(0).epochs()[1].size_function();
+    assert!(matches!(sf, demes::specification::SizeFunction::LINEAR));
+}

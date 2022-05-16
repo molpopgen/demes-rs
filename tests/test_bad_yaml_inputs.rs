@@ -303,3 +303,23 @@ pulses:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+#[should_panic]
+fn size_function_bad_default() {
+    let yaml = "
+time_units: generations
+description: setting default size function to constant is bad.
+defaults:
+  epoch:
+    start_size: 5000
+    size_function: constant
+demes:
+  - name: X
+    epochs:
+      - end_time: 1000
+      - end_size: 100
+
+";
+    let _ = demes::loads(yaml).unwrap();
+}

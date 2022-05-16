@@ -249,7 +249,7 @@ pub struct UnresolvedMigration {
     dest: Option<String>,
     start_time: Option<Time>,
     end_time: Option<Time>,
-    rate: MigrationRate,
+    rate: Option<MigrationRate>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -351,7 +351,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
                 Ok(Migration::ASYMMETRIC(AsymmetricMigration {
                     source: value.source.unwrap(),
                     dest: value.dest.unwrap(),
-                    rate: value.rate,
+                    rate: value.rate.unwrap(),
                     start_time: value.start_time,
                     end_time: value.end_time,
                 }))
@@ -364,7 +364,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
         } else {
             Ok(Migration::SYMMETRIC(SymmetricMigration {
                 demes: value.demes.unwrap(),
-                rate: value.rate,
+                rate: value.rate.unwrap(),
                 start_time: value.start_time,
                 end_time: value.end_time,
             }))
@@ -377,7 +377,7 @@ impl From<Migration> for UnresolvedMigration {
         match value {
             Migration::SYMMETRIC(s) => UnresolvedMigration {
                 demes: Some(s.demes),
-                rate: s.rate,
+                rate: Some(s.rate),
                 start_time: s.start_time,
                 end_time: s.end_time,
                 source: None,
@@ -387,7 +387,7 @@ impl From<Migration> for UnresolvedMigration {
                 demes: None,
                 source: Some(a.source),
                 dest: Some(a.dest),
-                rate: a.rate,
+                rate: Some(a.rate),
                 start_time: a.start_time,
                 end_time: a.end_time,
             },

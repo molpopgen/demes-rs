@@ -1011,28 +1011,10 @@ impl TryFrom<f64> for GenerationTime {
 
 impl_newtype_traits!(GenerationTime);
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
-struct EpochDefaults {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    end_time: Option<Time>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    start_size: Option<DemeSize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    end_size: Option<DemeSize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size_function: Option<SizeFunction>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    selfing_rate: Option<SelfingRate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cloning_rate: Option<CloningRate>,
-}
-
 #[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaults {
-    #[serde(skip_serializing)]
-    epoch: EpochDefaults,
+    epoch: Epoch,
 }
 
 impl GraphDefaults {

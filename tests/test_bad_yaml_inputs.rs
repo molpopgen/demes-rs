@@ -323,3 +323,22 @@ demes:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+// copied from demes-spec repo
+#[test]
+fn infinity_03_bad_default() {
+    let yaml = "
+time_units: generations
+description: modified from demes-spec example to have invalid default start time
+defaults:
+  deme: {start_time: 100.0}
+demes:
+  - name: A
+    epochs:
+      - start_size: 100
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}

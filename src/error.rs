@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum DemesError {
     #[error("times must be >= 0.0, got: {0:?}")]
-    TimeError(f64),
+    TimeError(String),
     #[error("{0:?}")]
     DemeError(String),
     #[error("{0:?}")]

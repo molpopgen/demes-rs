@@ -719,3 +719,74 @@ demes:
         .collect::<Vec<f64>>();
     assert_eq!(end_times, vec![90., 50., 10.]);
 }
+
+// copied from demes-spec repo
+#[test]
+fn infinity_03() {
+    let yaml = "
+time_units: generations
+defaults:
+  deme: {start_time: .inf}
+demes:
+  - name: A
+    epochs:
+      - start_size: 100
+";
+    let g = demes::loads(yaml).unwrap();
+    let deme = g.deme(0);
+    assert_eq!(f64::from(deme.start_time()), f64::INFINITY);
+    assert_eq!(f64::from(deme.start_size()), 100.0);
+    assert_eq!(f64::from(deme.end_size()), 100.0);
+    assert_eq!(f64::from(deme.end_time()), 0.0);
+}
+
+// copied from demes-spec repo
+#[test]
+fn toplevel_defaults_deme_01() {
+    let yaml = "
+time_units: generations
+defaults:
+  deme:
+    ancestors: [a, b, c]
+    proportions: [0.1, 0.7, 0.2]
+demes:
+- name: a
+  ancestors: []
+  proportions: []
+  epochs:
+  - {start_size: 1}
+- name: b
+  ancestors: []
+  proportions: []
+  epochs:
+  - {start_size: 1}
+- name: c
+  ancestors: []
+  proportions: []
+  epochs:
+  - {start_size: 1}
+- name: x
+  start_time: 100
+  epochs:
+  - {start_size: 1}
+- name: y
+  start_time: 100
+  epochs:
+  - {start_size: 1}
+- name: z
+  start_time: 100
+  epochs:
+  - {start_size: 1}
+";
+    let g = demes::loads(yaml).unwrap();
+
+    for deme in 0..3 {
+        assert!(g.deme(deme).ancestors().is_empty());
+        assert!(g.deme(deme).proportions().is_empty());
+    }
+
+    for deme in 3..6 {
+        assert_eq!(g.deme(deme).ancestors().len(), 3);
+        assert_eq!(g.deme(deme).proportions().len(), 3);
+    }
+}

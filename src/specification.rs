@@ -733,12 +733,9 @@ pub struct DemeData {
     name: String,
     #[serde(default = "String::default")]
     description: String,
-    #[serde(default = "Vec::<String>::default")]
-    ancestors: Vec<String>,
-    #[serde(default = "Vec::<Proportion>::default")]
-    proportions: Vec<Proportion>,
-    #[serde(default = "Time::default_deme_start_time")]
-    start_time: Time,
+    ancestors: Option<Vec<String>>,
+    proportions: Option<Vec<Proportion>>,
+    start_time: Option<Time>,
     #[serde(default = "Vec::<Epoch>::default")]
     epochs: Vec<Epoch>,
     #[serde(skip)]
@@ -773,7 +770,20 @@ impl Deme {
         deme_map: &DemeMap,
         defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
-        if self.0.borrow().ancestors.is_empty()
+        // apply top-level default if it exists
+
+        {
+            let mut mut_borrowed_self = self.0.borrow_mut();
+            mut_borrowed_self.start_time = match mut_borrowed_self.start_time {
+                Some(start_time) => Some(start_time),
+                None => match defaults.deme.start_time {
+                    Some(start_time) => Some(start_time),
+                    None => Some(Time::default_deme_start_time()),
+                },
+            };
+        }
+
+        if self.0.borrow().ancestors.as_ref().unwrap().is_empty()
             && self.start_time() != Time::default_deme_start_time()
         {
             return Err(DemesError::DemeError(format!(
@@ -785,21 +795,42 @@ impl Deme {
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
 
-            if mut_borrowed_self.start_time == Time::default_deme_start_time() {
-                mut_borrowed_self.start_time = deme_map
-                    .get(mut_borrowed_self.ancestors.get(0).unwrap())
-                    .unwrap()
-                    .0
-                    .borrow() // panic if deme_map doesn't contain name
-                    .epochs
-                    .last()
-                    .unwrap() // panic if ancestor epochs are empty
-                    .end_time
-                    .unwrap();
-                match mut_borrowed_self
-                    .start_time
-                    .err_if_not_valid_deme_start_time()
-                {
+            let ancestors = mut_borrowed_self.ancestors.as_ref().unwrap();
+
+            mut_borrowed_self.start_time = match mut_borrowed_self.start_time {
+                Some(start_time) => {
+                    if start_time == Time::default_deme_start_time() {
+                        Some(
+                            deme_map
+                                .get(ancestors.get(0).unwrap())
+                                .unwrap()
+                                .0
+                                .borrow() // panic if deme_map doesn't contain name
+                                .epochs
+                                .last()
+                                .unwrap() // panic if ancestor epochs are empty
+                                .end_time
+                                .unwrap(),
+                        )
+                    } else {
+                        Some(start_time)
+                    }
+                }
+                None => Some(Time::default_deme_start_time()),
+            };
+            //if mut_borrowed_self.start_time == Time::default_deme_start_time() {
+            //    mut_borrowed_self.start_time = deme_map
+            //        .get(ancestors.get(0).unwrap())
+            //        .unwrap()
+            //        .0
+            //        .borrow() // panic if deme_map doesn't contain name
+            //        .epochs
+            //        .last()
+            //        .unwrap() // panic if ancestor epochs are empty
+            //        .end_time
+            //        .unwrap();
+            match mut_borrowed_self.start_time {
+                Some(start_time) => match start_time.err_if_not_valid_deme_start_time() {
                     Ok(_) => (),
                     Err(_) => {
                         return Err(DemesError::DemeError(format!(
@@ -807,14 +838,15 @@ impl Deme {
                             mut_borrowed_self.name
                         )))
                     }
-                }
+                },
+                None => return Err(DemesError::TimeError("start_time is None".to_string())),
             }
         }
 
-        for ancestor in &self.0.borrow().ancestors {
+        for ancestor in self.0.borrow().ancestors.as_ref().unwrap() {
             let a = deme_map.get(ancestor).unwrap();
             let t = a.time_interval();
-            if !t.contains_start_time(self.0.borrow().start_time) {
+            if !t.contains_start_time(self.0.borrow().start_time.unwrap()) {
                 return Err(DemesError::DemeError(format!(
                     "Ancestor {} does not exist at deme {}'s start_time",
                     ancestor,
@@ -841,7 +873,7 @@ impl Deme {
             }
         }
 
-        let mut last_time = f64::from(self.0.borrow().start_time);
+        let mut last_time = f64::from(self.0.borrow().start_time.unwrap());
         for epoch in &self.0.borrow_mut().epochs {
             if epoch.end_time.is_none() {
                 return Err(DemesError::EpochError(
@@ -884,14 +916,18 @@ impl Deme {
             // temp_epoch.clone()
             (temp_epoch.start_size, temp_epoch.end_size)
         };
-        if self_borrow.start_time == Time::default_deme_start_time()
-            && epoch_sizes.0 != epoch_sizes.1
-        {
-            let msg = format!(
+
+        match self_borrow.start_time {
+            Some(start_time) => {
+                if start_time == Time::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
+                    let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
                     self_borrow.name, f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
                 );
-            return Err(DemesError::EpochError(msg));
+                    return Err(DemesError::EpochError(msg));
+                }
+            }
+            None => return Err(DemesError::TimeError("start_time is None".to_string())),
         }
         Ok(epoch_sizes.1)
     }
@@ -928,11 +964,14 @@ impl Deme {
     fn resolve_proportions(&mut self) -> Result<(), DemesError> {
         let mut borrowed_self = self.0.borrow_mut();
 
-        if borrowed_self.proportions.is_empty() && borrowed_self.ancestors.len() == 1 {
-            borrowed_self.proportions.push(Proportion(1.0));
+        let num_ancestors = borrowed_self.ancestors.as_ref().unwrap().len();
+        let proportions = borrowed_self.proportions.as_mut().unwrap();
+
+        if proportions.is_empty() && num_ancestors == 1 {
+            proportions.push(Proportion(1.0));
         }
 
-        if borrowed_self.ancestors.len() != borrowed_self.proportions.len() {
+        if num_ancestors != proportions.len() {
             return Err(DemesError::DemeError(format!(
                 "deme {} ancestors and proportions have different lengths",
                 borrowed_self.name
@@ -947,8 +986,28 @@ impl Deme {
         }
     }
 
+    fn apply_toplevel_defaults(&mut self, defaults: &GraphDefaults) {
+        let mut borrowed_self = self.0.borrow_mut();
+        borrowed_self.ancestors = match &borrowed_self.ancestors {
+            Some(ancestors) => Some(ancestors.to_vec()),
+            None => match &defaults.deme.ancestors {
+                Some(ancestors) => Some(ancestors.to_vec()),
+                None => Some(vec![]),
+            },
+        };
+
+        borrowed_self.proportions = match &borrowed_self.proportions {
+            Some(proportions) => Some(proportions.to_vec()),
+            None => match &defaults.deme.proportions {
+                Some(proportions) => Some(proportions.to_vec()),
+                None => Some(vec![]),
+            },
+        };
+    }
+
     // Make the internal data match the MDM spec
     fn resolve(&mut self, deme_map: &DemeMap, defaults: &GraphDefaults) -> Result<(), DemesError> {
+        self.apply_toplevel_defaults(defaults);
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map, defaults)?;
@@ -963,7 +1022,7 @@ impl Deme {
 
         let mut ancestor_map = DemeMap::default();
         let mut mut_self_borrow = self.0.borrow_mut();
-        for ancestor in &mut_self_borrow.ancestors {
+        for ancestor in mut_self_borrow.ancestors.as_ref().unwrap().iter() {
             ancestor_map.insert(ancestor.clone(), deme_map.get(ancestor).unwrap().clone());
         }
         mut_self_borrow.ancestor_map = ancestor_map;
@@ -971,10 +1030,10 @@ impl Deme {
     }
 
     fn validate_start_time(&self) -> Result<(), DemesError> {
-        self.0
-            .borrow()
-            .start_time
-            .err_if_not_valid_deme_start_time()
+        match self.0.borrow().start_time {
+            Some(start_time) => start_time.err_if_not_valid_deme_start_time(),
+            None => Err(DemesError::TimeError("start_time is None".to_string())),
+        }
     }
 
     fn validate(&self) -> Result<(), DemesError> {
@@ -989,8 +1048,9 @@ impl Deme {
 
         self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
 
-        if !self_borrow.proportions.is_empty() {
-            let sum_proportions: f64 = self_borrow.proportions.iter().map(|p| f64::from(*p)).sum();
+        let proportions = self_borrow.proportions.as_ref().unwrap();
+        if !proportions.is_empty() {
+            let sum_proportions: f64 = proportions.iter().map(|p| f64::from(*p)).sum();
             // NOTE: this is same default as Python's math.isclose().
             if (sum_proportions - 1.0).abs() > 1e-9 {
                 return Err(DemesError::DemeError(format!(
@@ -1013,7 +1073,7 @@ impl Deme {
     }
 
     pub fn start_time(&self) -> Time {
-        self.0.borrow().start_time
+        self.0.borrow().start_time.unwrap()
     }
 
     pub fn name(&self) -> Ref<'_, String> {
@@ -1022,12 +1082,15 @@ impl Deme {
     }
 
     pub fn num_ancestors(&self) -> usize {
-        self.0.borrow().ancestors.len()
+        self.0.borrow().ancestors.as_ref().unwrap().len()
     }
 
     pub fn ancestor_names(&self) -> Ref<'_, [String]> {
         let borrow = self.0.borrow();
-        Ref::map(borrow, |b| b.ancestors.as_slice())
+        Ref::map(borrow, |b| match &b.ancestors {
+            Some(ancestors) => ancestors.as_slice(),
+            None => panic!("proportions is None"),
+        })
     }
 
     pub fn description(&self) -> String {
@@ -1045,7 +1108,10 @@ impl Deme {
 
     pub fn proportions(&self) -> Ref<'_, [Proportion]> {
         let borrow = self.0.borrow();
-        Ref::map(borrow, |b| b.proportions.as_slice())
+        Ref::map(borrow, |b| match &b.proportions {
+            Some(proportions) => proportions.as_slice(),
+            None => panic!("proportions is None"),
+        })
     }
 
     pub fn ancestors(&self) -> Ref<'_, DemeMap> {
@@ -1196,6 +1262,8 @@ struct GraphDefaults {
     migration: UnresolvedMigration,
     #[serde(default = "Pulse::default")]
     pulse: Pulse,
+    #[serde(default = "TopLevelDemeDefaults::default")]
+    deme: TopLevelDemeDefaults,
 }
 
 impl GraphDefaults {
@@ -1271,6 +1339,15 @@ impl GraphDefaults {
             other.proportions = self.pulse.proportions.clone();
         }
     }
+}
+
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TopLevelDemeDefaults {
+    description: Option<String>,
+    start_time: Option<Time>,
+    ancestors: Option<Vec<String>>,
+    proportions: Option<Vec<Proportion>>,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]

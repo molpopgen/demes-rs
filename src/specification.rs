@@ -897,8 +897,18 @@ impl Deme {
         defaults: &GraphDefaults,
     ) -> Result<Option<DemeSize>, DemesError> {
         let mut self_borrow = self.0.borrow_mut();
+        let self_defaults = self_borrow.defaults.clone();
         let epoch_sizes = {
             let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
+
+            temp_epoch.start_size = match temp_epoch.start_size {
+                Some(start_size) => Some(start_size),
+                None => self_defaults.epoch.start_size,
+            };
+            temp_epoch.end_size = match temp_epoch.end_size {
+                Some(end_size) => Some(end_size),
+                None => self_defaults.epoch.end_size,
+            };
 
             defaults.apply_epoch_size_defaults(temp_epoch);
             if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {

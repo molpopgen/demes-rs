@@ -180,6 +180,14 @@ impl TimeInterval {
         assert!(other.is_valid_deme_start_time());
         self.contains(other)
     }
+
+    pub fn start_time(&self) -> Time {
+        self.start_time
+    }
+
+    pub fn end_time(&self) -> Time {
+        self.end_time
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -578,7 +586,11 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    fn resolve_size_function(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
+    fn resolve_size_function(
+        &mut self,
+        defaults: &GraphDefaults,
+        deme_defaults: &DemeDefaults,
+    ) -> Result<(), DemesError> {
         if self.size_function.is_some() {
             return Ok(());
         }
@@ -588,8 +600,8 @@ impl Epoch {
                     if start_size.0 == end_size.0 {
                         self.size_function = Some(SizeFunction::CONSTANT);
                     } else {
-                        self.size_function =
-                            defaults.apply_epoch_size_function_defaults(self.size_function);
+                        self.size_function = defaults
+                            .apply_epoch_size_function_defaults(self.size_function, deme_defaults);
                     }
                     Ok(())
                 }
@@ -601,24 +613,34 @@ impl Epoch {
         }
     }
 
-    fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults) {
-        self.selfing_rate = match defaults.epoch.selfing_rate {
+    fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
+        self.selfing_rate = match deme_defaults.epoch.selfing_rate {
             Some(selfing_rate) => Some(selfing_rate),
-            None => Some(SelfingRate::default()),
+            None => match defaults.epoch.selfing_rate {
+                Some(selfing_rate) => Some(selfing_rate),
+                None => Some(SelfingRate::default()),
+            },
         }
     }
 
-    fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults) {
-        self.cloning_rate = match defaults.epoch.cloning_rate {
+    fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
+        self.cloning_rate = match deme_defaults.epoch.cloning_rate {
             Some(cloning_rate) => Some(cloning_rate),
-            None => Some(CloningRate::default()),
-        };
+            None => match defaults.epoch.cloning_rate {
+                Some(cloning_rate) => Some(cloning_rate),
+                None => Some(CloningRate::default()),
+            },
+        }
     }
 
-    fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
-        self.resolve_selfing_rate(defaults);
-        self.resolve_cloning_rate(defaults);
-        self.resolve_size_function(defaults)
+    fn resolve(
+        &mut self,
+        defaults: &GraphDefaults,
+        deme_defaults: &DemeDefaults,
+    ) -> Result<(), DemesError> {
+        self.resolve_selfing_rate(defaults, deme_defaults);
+        self.resolve_cloning_rate(defaults, deme_defaults);
+        self.resolve_size_function(defaults, deme_defaults)
     }
 
     fn validate_end_time(&self) -> Result<(), DemesError> {
@@ -695,6 +717,14 @@ impl Epoch {
     pub fn end_time(&self) -> Time {
         self.end_time.unwrap()
     }
+
+    pub fn start_size(&self) -> DemeSize {
+        self.start_size.unwrap()
+    }
+
+    pub fn end_size(&self) -> DemeSize {
+        self.end_size.unwrap()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -713,6 +743,9 @@ pub struct DemeData {
     epochs: Vec<Epoch>,
     #[serde(skip)]
     ancestor_map: DemeMap,
+    #[serde(default = "DemeDefaults::default")]
+    #[serde(skip_serializing)]
+    defaults: DemeDefaults,
 }
 
 impl PartialEq for DemeData {
@@ -735,18 +768,6 @@ type DemePtr = Rc<RefCell<DemeData>>;
 pub struct Deme(DemePtr);
 
 impl Deme {
-    // Will panic! if the deme is not properly resolved
-    fn end_time(&self) -> Time {
-        self.0
-            .borrow()
-            .epochs
-            .last()
-            .as_ref()
-            .unwrap()
-            .end_time
-            .unwrap()
-    }
-
     fn resolve_times(
         &mut self,
         deme_map: &DemeMap,
@@ -806,12 +827,17 @@ impl Deme {
             // last epoch end time defaults to 0,
             // unless defaults are specified
             let mut self_borrow = self.0.borrow_mut();
-            let last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
+            // NOTE: cloning the defaults to make borrow checker happy.
+            let self_defaults = self_borrow.defaults.clone();
+            let mut last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = match defaults.epoch.end_time {
+                last_epoch_ref.end_time = match self_defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
-                    None => Some(Time::default_epoch_end_time()),
-                };
+                    None => match defaults.epoch.end_time {
+                        Some(end_time) => Some(end_time),
+                        None => Some(Time::default_epoch_end_time()),
+                    },
+                }
             }
         }
 
@@ -872,19 +898,26 @@ impl Deme {
 
     fn resolve_sizes(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
+        let local_defaults = self.0.borrow().defaults.clone();
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
             match epoch.start_size {
                 Some(_) => (),
-                None => match defaults.epoch.start_size {
+                None => match local_defaults.epoch.start_size {
                     Some(start_size) => epoch.start_size = Some(start_size),
-                    None => epoch.start_size = last_end_size,
+                    None => match defaults.epoch.start_size {
+                        Some(start_size) => epoch.start_size = Some(start_size),
+                        None => epoch.start_size = last_end_size,
+                    },
                 },
             }
             match epoch.end_size {
                 Some(_) => (),
-                None => match defaults.epoch.end_size {
+                None => match local_defaults.epoch.end_size {
                     Some(end_size) => epoch.end_size = Some(end_size),
-                    None => epoch.end_size = epoch.start_size,
+                    None => match defaults.epoch.end_size {
+                        Some(end_size) => epoch.end_size = Some(end_size),
+                        None => epoch.end_size = epoch.start_size,
+                    },
                 },
             }
             last_end_size = epoch.end_size;
@@ -920,11 +953,12 @@ impl Deme {
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map, defaults)?;
         self.resolve_sizes(defaults)?;
+        let self_defaults = self.0.borrow().defaults.clone();
         self.0
             .borrow_mut()
             .epochs
             .iter_mut()
-            .try_for_each(|e| e.resolve(defaults))?;
+            .try_for_each(|e| e.resolve(defaults, &self_defaults))?;
         self.resolve_proportions()?;
 
         let mut ancestor_map = DemeMap::default();
@@ -1017,6 +1051,67 @@ impl Deme {
     pub fn ancestors(&self) -> Ref<'_, DemeMap> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| &b.ancestor_map)
+    }
+
+    pub fn start_size(&self) -> DemeSize {
+        self.0.borrow().epochs[0].start_size.unwrap()
+    }
+
+    pub fn end_size(&self) -> DemeSize {
+        self.0.borrow().epochs[0].end_size.unwrap()
+    }
+
+    pub fn start_sizes(&self) -> Vec<DemeSize> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.start_size())
+            .collect()
+    }
+
+    pub fn end_sizes(&self) -> Vec<DemeSize> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.end_size())
+            .collect()
+    }
+
+    pub fn end_times(&self) -> Vec<Time> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.end_time())
+            .collect()
+    }
+
+    pub fn start_times(&self) -> Vec<Time> {
+        let mut rv = vec![self.start_time()];
+        let end_time = self.end_time();
+        let self_borrow = self.0.borrow();
+
+        self_borrow.epochs.iter().for_each(|epoch| {
+            let epoch_end = epoch.end_time();
+            if epoch_end != end_time {
+                rv.push(epoch_end);
+            }
+        });
+        rv
+    }
+
+    // Will panic! if the deme is not properly resolved
+    pub fn end_time(&self) -> Time {
+        self.0
+            .borrow()
+            .epochs
+            .last()
+            .as_ref()
+            .unwrap()
+            .end_time
+            .unwrap()
     }
 }
 
@@ -1126,14 +1221,18 @@ impl GraphDefaults {
     fn apply_epoch_size_function_defaults(
         &self,
         size_function: Option<SizeFunction>,
+        deme_level_defaults: &DemeDefaults,
     ) -> Option<SizeFunction> {
         if size_function.is_some() {
             return size_function;
         }
 
-        match self.epoch.size_function {
+        match deme_level_defaults.epoch.size_function {
             Some(sf) => Some(sf),
-            None => Some(SizeFunction::EXPONENTIAL),
+            None => match self.epoch.size_function {
+                Some(sf) => Some(sf),
+                None => Some(SizeFunction::EXPONENTIAL),
+            },
         }
     }
 
@@ -1172,6 +1271,13 @@ impl GraphDefaults {
             other.proportions = self.pulse.proportions.clone();
         }
     }
+}
+
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DemeDefaults {
+    #[serde(default = "Epoch::default")]
+    epoch: Epoch,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

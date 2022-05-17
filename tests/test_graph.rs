@@ -1,4 +1,4 @@
-use demes::specification::{AsymmetricMigration, MigrationRate, Time};
+use demes::specification::{AsymmetricMigration, MigrationRate, SizeFunction, Time};
 
 #[derive(Eq, PartialEq)]
 struct ExpectedMigration {
@@ -588,4 +588,134 @@ demes:
     let graph = demes::loads(yaml).unwrap();
     let end_time = graph.deme(0).epochs()[0].end_time();
     assert_eq!(100.0, f64::from(end_time));
+}
+
+// from demes-spec/test-cases/valid
+#[test]
+fn defaults_deme_many_epochs_local() {
+    let yaml = "
+description: Set epoch defaults using deme-local values.
+time_units: generations
+
+demes:
+- name: deme0
+  defaults:
+    epoch: {cloning_rate: 0.5, end_size: 2, selfing_rate: 0.1, start_size: 1}
+  epochs:
+  - {end_time: 100, start_size: 1, end_size: 1}
+  - {end_time: 3}
+  - {end_time: 2}
+  - {end_time: 1}
+  - {end_time: 0}
+";
+    let g = demes::loads(yaml).unwrap();
+
+    for deme in g.demes().iter() {
+        assert_eq!(f64::from(deme.start_size()), 1.0);
+    }
+
+    for deme in g.demes().iter() {
+        for epoch in deme.epochs().iter() {
+            assert_eq!(f64::from(epoch.cloning_rate()), 0.5);
+            assert_eq!(f64::from(epoch.selfing_rate()), 0.1);
+        }
+    }
+    let expected_start_sizes = vec![1.; 5];
+    let start_sizes = g
+        .deme(0)
+        .start_sizes()
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_sizes, expected_start_sizes);
+
+    let expected_end_sizes = vec![1.0, 2.0, 2.0, 2.0, 2.0];
+    let end_sizes = g.deme(0).end_sizes();
+    let end_sizes = end_sizes
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(end_sizes, expected_end_sizes);
+    let expected_start_times = vec![f64::INFINITY, 100., 3., 2., 1.];
+    let start_times = g
+        .deme(0)
+        .start_times()
+        .iter()
+        .map(|time| f64::from(*time))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_times, expected_start_times);
+    let expected_end_times = vec![100., 3., 2., 1., 0.];
+    let end_times = g.deme(0).end_times();
+    let end_times = end_times
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(end_times, expected_end_times);
+}
+
+#[test]
+fn defaults_deme_many_epochs_local_with_size_function_default() {
+    let yaml = "
+description: Modified from above to include default size_function
+time_units: generations
+
+demes:
+- name: deme0
+  defaults:
+    epoch: {cloning_rate: 0.5, end_size: 2, selfing_rate: 0.1, start_size: 1, size_function: linear}
+  epochs:
+  - {end_time: 100, start_size: 1, end_size: 1}
+  - {end_time: 3, size_function: exponential}
+  - {end_time: 2}
+  - {end_time: 1}
+  - {end_time: 0}
+";
+    let g = demes::loads(yaml).unwrap();
+    let size_functions = g
+        .deme(0)
+        .epochs()
+        .iter()
+        .map(|epoch| epoch.size_function())
+        .collect::<Vec<SizeFunction>>();
+    let expected_size_functions = vec![
+        SizeFunction::CONSTANT,
+        SizeFunction::EXPONENTIAL,
+        SizeFunction::LINEAR,
+        SizeFunction::LINEAR,
+        SizeFunction::LINEAR,
+    ];
+    assert_eq!(size_functions, expected_size_functions);
+}
+
+// copied from demes-spec repo
+#[test]
+fn demelevel_defaults_epoch_03() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+  defaults:
+    epoch: {end_time: 10}
+- name: b
+  epochs:
+  - {start_size: 1, end_time: 90}
+  - {start_size: 2, end_time: 50}
+  - {start_size: 3}
+  defaults:
+    epoch: {end_time: 10}
+";
+    let g = demes::loads(yaml).unwrap();
+    let deme = g.deme(0);
+    assert_eq!(f64::from(deme.end_time()), 10.0);
+    assert_eq!(f64::from(deme.start_time()), f64::INFINITY);
+    let deme = g.deme(1);
+    assert_eq!(f64::from(deme.end_time()), 10.0);
+    let end_times = deme
+        .end_times()
+        .iter()
+        .map(|time| f64::from(*time))
+        .collect::<Vec<f64>>();
+    assert_eq!(end_times, vec![90., 50., 10.]);
 }

@@ -790,3 +790,71 @@ demes:
         assert_eq!(g.deme(deme).proportions().len(), 3);
     }
 }
+
+// from demes-spec repo
+#[test]
+fn demlevel_defaults_epoch_01() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  defaults:
+    epoch: {start_size: 1}
+- name: b
+  epochs:
+  - {end_time: 90}
+  - {end_size: 100, end_time: 50}
+  - {start_size: 100, end_size: 50}
+  defaults:
+    epoch: {start_size: 1}
+";
+    let g = demes::loads(yaml).unwrap();
+    let start_sizes = g
+        .deme(0)
+        .start_sizes()
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_sizes, vec![1.0]);
+    let start_sizes = g
+        .deme(1)
+        .start_sizes()
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_sizes, vec![1.0, 1.0, 100.0]);
+}
+
+// from demes-spec repo
+#[test]
+fn demlevel_defaults_epoch_06() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  defaults:
+    epoch: {end_size: 1}
+- name: b
+  epochs:
+  - {end_time: 90}
+  - {start_size: 100, end_time: 50}
+  - {start_size: 1, end_size: 100}
+  defaults:
+    epoch: {end_size: 1}
+";
+    let g = demes::loads(yaml).unwrap();
+    let start_sizes = g
+        .deme(0)
+        .start_sizes()
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_sizes, vec![1.0]);
+    let start_sizes = g
+        .deme(1)
+        .start_sizes()
+        .iter()
+        .map(|size| f64::from(*size))
+        .collect::<Vec<f64>>();
+    assert_eq!(start_sizes, vec![1.0, 100.0, 1.0]);
+}

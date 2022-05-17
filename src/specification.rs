@@ -14,7 +14,8 @@ use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(try_from = "TimeTrampoline")]
+#[serde(into = "TimeTrampoline")]
 pub struct Time(f64);
 
 impl TryFrom<f64> for Time {
@@ -22,7 +23,7 @@ impl TryFrom<f64> for Time {
 
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value.is_nan() || value.is_sign_negative() {
-            Err(DemesError::TimeError(value))
+            Err(DemesError::TimeError(value.to_string()))
         } else {
             Ok(Self(value))
         }
@@ -70,6 +71,42 @@ impl Time {
 }
 
 impl_newtype_traits!(Time);
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum TimeTrampoline {
+    Infinity(String),
+    Float(f64),
+}
+
+impl TryFrom<TimeTrampoline> for Time {
+    type Error = DemesError;
+
+    fn try_from(value: TimeTrampoline) -> Result<Self, Self::Error> {
+        match value {
+            // Handle string inputs
+            TimeTrampoline::Infinity(string) => {
+                if &string == "Infinity" {
+                    Ok(Self(f64::INFINITY))
+                } else {
+                    Err(DemesError::TimeError(string))
+                }
+            }
+            // Fall back to valid YAML representations
+            TimeTrampoline::Float(f) => Self::try_from(f),
+        }
+    }
+}
+
+impl From<Time> for TimeTrampoline {
+    fn from(value: Time) -> Self {
+        if value.0.is_infinite() {
+            Self::Infinity("Infinity".to_string())
+        } else {
+            Self::Float(f64::from(value))
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
@@ -1926,5 +1963,28 @@ demes:
             vec![Proportion::try_from(0.25).unwrap()]
         );
         assert_eq!(f64::from(g.pulses()[0].time()), 100.0);
+    }
+}
+
+#[cfg(test)]
+mod test_infinity {
+    use super::*;
+
+    #[test]
+    fn test_infinity_dot_inf() {
+        let yaml = "---\n.inf\n";
+        let time: Time = serde_yaml::from_str(yaml).unwrap();
+        assert!(time.0.is_infinite());
+        assert!(time.0.is_sign_positive());
+        let yaml = serde_yaml::to_string(&time).unwrap();
+        assert!(yaml.contains("Infinity"));
+    }
+
+    #[test]
+    fn test_infinity_string() {
+        let yaml = "---\nInfinity\n";
+        let time: Time = serde_yaml::from_str(yaml).unwrap();
+        assert!(time.0.is_infinite());
+        assert!(time.0.is_sign_positive());
     }
 }

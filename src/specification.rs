@@ -873,12 +873,30 @@ impl Deme {
             }
         }
 
+        {
+            // apply default epoch start times
+            let self_defaults = self.0.borrow().defaults.clone();
+            for epoch in self.0.borrow_mut().epochs.iter_mut() {
+                match epoch.end_time {
+                    Some(_) => (),
+                    None => {
+                        epoch.end_time = match self_defaults.epoch.end_time {
+                            Some(end_time) => Some(end_time),
+                            None => defaults.epoch.end_time,
+                        }
+                    }
+                }
+            }
+        }
+
         let mut last_time = f64::from(self.0.borrow().start_time.unwrap());
-        for epoch in &self.0.borrow_mut().epochs {
+        for (i, epoch) in self.0.borrow().epochs.iter().enumerate() {
             if epoch.end_time.is_none() {
-                return Err(DemesError::EpochError(
-                    "Epoch end time must be specified".to_string(),
-                ));
+                return Err(DemesError::EpochError(format!(
+                    "deme: {}, epoch: {} end time must be specified",
+                    self.name(),
+                    i
+                )));
             }
             let end_time = f64::from(epoch.end_time.unwrap());
             if end_time >= last_time {

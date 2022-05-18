@@ -858,3 +858,65 @@ demes:
         .collect::<Vec<f64>>();
     assert_eq!(start_sizes, vec![1.0, 100.0, 1.0]);
 }
+
+#[test]
+fn toplevel_defaults_epoch_03() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch: {end_time: 100}
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+- name: b
+  epochs:
+  - {start_size: 1}
+- name: c
+  epochs:
+  - {start_size: 1}
+- name: d
+  ancestors: [a, b, c]
+  proportions: [0.2, 0.3, 0.5]
+  start_time: 100
+  epochs:
+  - {start_size: 1, end_time: 50}
+  - {start_size: 2, end_time: 0}
+- name: e
+  ancestors: [a, b, c]
+  proportions: [0.2, 0.3, 0.5]
+  start_time: 100
+  epochs:
+  - {start_size: 1}
+  - {start_size: 2, end_time: 10}
+  defaults:
+    epoch: {end_time: 50}
+";
+    let g = demes::loads(yaml).unwrap();
+
+    for i in 0..3 {
+        let end_times = g
+            .deme(i)
+            .end_times()
+            .iter()
+            .map(|time| f64::from(*time))
+            .collect::<Vec<f64>>();
+        assert_eq!(end_times, vec![100.]);
+    }
+    // deme d
+    let end_times = g
+        .deme(3)
+        .end_times()
+        .iter()
+        .map(|time| f64::from(*time))
+        .collect::<Vec<f64>>();
+    assert_eq!(end_times, vec![50., 0.]);
+    // deme e
+    let end_times = g
+        .deme(4)
+        .end_times()
+        .iter()
+        .map(|time| f64::from(*time))
+        .collect::<Vec<f64>>();
+    assert_eq!(end_times, vec![50., 10.]);
+}

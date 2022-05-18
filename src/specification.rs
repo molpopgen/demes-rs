@@ -1385,6 +1385,18 @@ struct DemeDefaults {
     epoch: Epoch,
 }
 
+#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct Metadata {
+    #[serde(flatten)]
+    metadata: std::collections::BTreeMap<String, serde_yaml::Value>,
+}
+
+impl Metadata {
+    pub fn as_yaml_string(&self) -> String {
+        serde_yaml::to_string(&self.metadata).unwrap()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Graph {
@@ -1395,6 +1407,8 @@ pub struct Graph {
     #[serde(skip_serializing)]
     #[serde(default = "GraphDefaults::default")]
     defaults: GraphDefaults,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<Metadata>,
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
@@ -1426,6 +1440,7 @@ impl PartialEq for Graph {
             && self.demes == other.demes
             && self.resolved_migrations == other.resolved_migrations
             && self.deme_map == other.deme_map
+            && self.metadata == other.metadata
     }
 }
 
@@ -1691,6 +1706,10 @@ impl Graph {
 
     pub fn pulses(&self) -> &[Pulse] {
         &self.pulses
+    }
+
+    pub fn metadata(&self) -> Option<Metadata> {
+        self.metadata.clone()
     }
 }
 

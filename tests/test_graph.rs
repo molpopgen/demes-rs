@@ -920,3 +920,35 @@ demes:
         .collect::<Vec<f64>>();
     assert_eq!(end_times, vec![50., 10.]);
 }
+
+#[test]
+fn toplevel_metadata_01() {
+    let yaml = r#"
+time_units: generations
+metadata:
+  one: 1
+  two: "two"
+  three: [3, 3, 3]
+  not_sure: null
+  nested:
+    nested:
+      nested:
+        now_im_done: "nested!"
+demes:
+  - name: a
+    epochs:
+    - start_size: 100
+"#;
+    let g = demes::loads(yaml).unwrap();
+    assert!(g.metadata().is_some());
+    let yaml_from_graph = serde_yaml::to_string(&g).unwrap();
+    let g_from_yaml = demes::loads(&yaml_from_graph).unwrap();
+    assert_eq!(g, g_from_yaml);
+    let json = serde_json::to_string(&g).unwrap();
+    // NOTE: we cannot yet compare equality b/c
+    // we do not have support for resolve, etc.?
+    // The issue is that the internal deme_map
+    // is used in PartialEq, which may be a mistake?
+    let _g_from_json: demes::specification::Graph = serde_json::from_str(&json).unwrap();
+    // assert_eq!(g, g_from_json);
+}

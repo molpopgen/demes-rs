@@ -1033,9 +1033,36 @@ impl Deme {
         };
     }
 
+    fn validate_ancestor_uniqueness(&self) -> Result<(), DemesError> {
+        let self_borrow = self.0.borrow();
+        match &self_borrow.ancestors {
+            Some(ancestors) => {
+                let mut ancestor_set = HashSet::<String>::default();
+                for ancestor in ancestors {
+                    if ancestor == &self_borrow.name {
+                        return Err(DemesError::DemeError(format!(
+                            "deme: {} lists itself as an ancestor",
+                            self_borrow.name
+                        )));
+                    }
+                    if ancestor_set.contains(ancestor) {
+                        return Err(DemesError::DemeError(format!(
+                            "deme: {} lists ancestor: {} multiple times",
+                            self_borrow.name, ancestor
+                        )));
+                    }
+                    ancestor_set.insert(ancestor.clone());
+                }
+            }
+            None => (),
+        }
+        Ok(())
+    }
+
     // Make the internal data match the MDM spec
     fn resolve(&mut self, deme_map: &DemeMap, defaults: &GraphDefaults) -> Result<(), DemesError> {
         self.apply_toplevel_defaults(defaults);
+        self.validate_ancestor_uniqueness()?;
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map, defaults)?;

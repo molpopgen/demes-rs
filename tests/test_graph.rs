@@ -952,3 +952,24 @@ demes:
     let _g_from_json: demes::specification::Graph = serde_json::from_str(&json).unwrap();
     // assert_eq!(g, g_from_json);
 }
+
+#[test]
+fn pulse_edge_case_02() {
+    let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  epochs:
+  - {start_size: 1}
+- name: deme2
+  epochs:
+  - {start_size: 1, end_time: 50}
+- name: deme3
+  ancestors: [deme2]
+  epochs:
+  - {start_size: 1}
+pulses:
+- {sources: [deme1], dest: deme3, proportions: [0.9], time: 50}
+";
+    let _ = demes::loads(yaml).unwrap();
+}

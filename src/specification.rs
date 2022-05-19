@@ -457,7 +457,7 @@ impl Pulse {
                     Some(t) => t,
                     None => return Err(DemesError::PulseError("time is None".to_string())),
                 };
-                if !t.contains_start_time(time) {
+                if !t.contains_inclusive(time) {
                     return Err(DemesError::PulseError(format!(
                         "deme {} does not exist at time of pulse",
                         deme,

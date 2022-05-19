@@ -18,6 +18,8 @@ pub enum DemesError {
     PulseError(String),
     #[error("{0:?}")]
     YamlError(serde_yaml::Error),
+    #[error("{0:?}")]
+    UnwoundPanic(String),
 }
 
 impl From<serde_yaml::Error> for DemesError {

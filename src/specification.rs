@@ -1494,7 +1494,7 @@ impl Graph {
                 Ok(g) => Ok(g),
                 Err(e) => Err(DemesError::YamlError(e)),
             },
-            Err(e) => Err(DemesError::YamlPanic(format!("{:?}", e)))
+            Err(e) => Err(DemesError::UnwoundPanic(format!("{:?}", e)))
         }
     }
 

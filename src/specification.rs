@@ -288,6 +288,7 @@ impl Default for MigrationRate {
 impl_newtype_traits!(MigrationRate);
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UnresolvedMigration {
     demes: Option<Vec<String>>,
     source: Option<String>,
@@ -295,6 +296,48 @@ pub struct UnresolvedMigration {
     start_time: Option<Time>,
     end_time: Option<Time>,
     rate: Option<MigrationRate>,
+}
+
+impl UnresolvedMigration {
+    fn valid_asymmetric_or_err(&self) -> Result<(), DemesError> {
+        let mut msg = Option::<String>::default();
+
+        if self.source.is_none() {
+            msg = Some("source is None".to_string());
+        }
+        if self.dest.is_none() {
+            msg = Some("dest is None".to_string());
+        }
+        if self.rate.is_none() {
+            msg = Some(format!(
+                "rate from source: {} to dest: {} is None",
+                self.source.as_ref().unwrap(),
+                self.dest.as_ref().unwrap(),
+            ));
+        };
+
+        match msg {
+            Some(message) => Err(DemesError::MigrationError(message)),
+            None => Ok(()),
+        }
+    }
+
+    fn valid_symmetric_or_err(&self) -> Result<(), DemesError> {
+        let mut msg = Option::<String>::default();
+        if self.demes.is_none() {
+            msg = Some("demes is None".to_string());
+        }
+        if self.rate.is_none() {
+            msg = Some(format!(
+                "migration rate among {:?} is None",
+                self.demes.as_ref().unwrap()
+            ));
+        };
+        match msg {
+            Some(message) => Err(DemesError::MigrationError(message)),
+            None => Ok(()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -393,6 +436,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
                     "a migration must specify either demes or source and dest".to_string(),
                 ))
             } else {
+                value.valid_asymmetric_or_err()?;
                 Ok(Migration::ASYMMETRIC(AsymmetricMigration {
                     source: value.source.unwrap(),
                     dest: value.dest.unwrap(),
@@ -407,6 +451,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
                     .to_string(),
             ))
         } else {
+            value.valid_symmetric_or_err()?;
             Ok(Migration::SYMMETRIC(SymmetricMigration {
                 demes: value.demes.unwrap(),
                 rate: value.rate.unwrap(),
@@ -1614,6 +1659,14 @@ impl Graph {
         for m in &self.resolved_migrations {
             let source = self.get_deme_from_name(&m.source).unwrap();
             let dest = self.get_deme_from_name(&m.dest).unwrap();
+
+            if *source.name() == *dest.name() {
+                return Err(DemesError::MigrationError(format!(
+                    "source: {} == dest: {}",
+                    source.name(),
+                    dest.name()
+                )));
+            }
 
             match m.start_time {
                 None => {

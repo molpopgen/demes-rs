@@ -392,3 +392,86 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
     }
 }
+
+// copied from demes-spec repo
+#[test]
+fn bad_migrations_11() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+- name: b
+  epochs:
+  - {start_size: 1}
+migrations:
+- {source: a, dest: b}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migrations_12() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+- name: b
+  epochs:
+  - {start_size: 1}
+migrations:
+- demes: [a, b]
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migrations_20() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100}
+- name: b
+  epochs:
+  - {start_size: 100}
+migrations:
+- rate: 0.1
+  source: a
+  dest: a
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migrations_21() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs: 
+  - start_size: 1
+- name: b
+  epochs: 
+  - start_size: 1
+migrations:
+- {source: a, dest: b, rate: 0.1, foo: 0.2}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}

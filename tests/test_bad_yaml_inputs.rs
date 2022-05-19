@@ -367,3 +367,28 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
     }
 }
+
+// copied from demes-spec repo
+#[test]
+fn bad_ancestors_07() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100, end_time: 50}
+- name: b
+  epochs:
+  - {start_size: 100, end_time: 50}
+- name: c
+  ancestors: [d, b]
+  proportions: [0.5, 0.5]
+  start_time: 100
+  epochs:
+  - {start_size: 100}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}

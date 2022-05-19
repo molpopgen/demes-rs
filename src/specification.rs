@@ -1033,36 +1033,48 @@ impl Deme {
         };
     }
 
-    fn validate_ancestor_uniqueness(&self) -> Result<(), DemesError> {
+    fn validate_ancestor_uniqueness(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
         let self_borrow = self.0.borrow();
+
+        let mut msg = Option::<String>::default();
         match &self_borrow.ancestors {
             Some(ancestors) => {
                 let mut ancestor_set = HashSet::<String>::default();
                 for ancestor in ancestors {
                     if ancestor == &self_borrow.name {
-                        return Err(DemesError::DemeError(format!(
+                        msg = Some(format!(
                             "deme: {} lists itself as an ancestor",
                             self_borrow.name
-                        )));
+                        ));
+                    }
+                    if !deme_map.contains_key(ancestor) {
+                        msg = Some(format!(
+                            "deme: {} lists invalid ancestor: {}",
+                            self_borrow.name, ancestor
+                        ));
                     }
                     if ancestor_set.contains(ancestor) {
-                        return Err(DemesError::DemeError(format!(
+                        msg = Some(format!(
                             "deme: {} lists ancestor: {} multiple times",
                             self_borrow.name, ancestor
-                        )));
+                        ));
                     }
                     ancestor_set.insert(ancestor.clone());
                 }
             }
             None => (),
         }
-        Ok(())
+
+        match msg {
+            None => Ok(()),
+            Some(m) => Err(DemesError::DemeError(m)),
+        }
     }
 
     // Make the internal data match the MDM spec
     fn resolve(&mut self, deme_map: &DemeMap, defaults: &GraphDefaults) -> Result<(), DemesError> {
         self.apply_toplevel_defaults(defaults);
-        self.validate_ancestor_uniqueness()?;
+        self.validate_ancestor_uniqueness(deme_map)?;
         self.check_empty_epochs();
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map, defaults)?;

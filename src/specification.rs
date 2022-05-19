@@ -1487,8 +1487,15 @@ impl Eq for Graph {}
 
 impl Graph {
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
-        let g: Self = serde_yaml::from_str(yaml)?;
-        Ok(g)
+        let result = std::panic::catch_unwind(|| serde_yaml::from_str::<Graph>(yaml));
+
+        match result {
+            Ok(r) => match r {
+                Ok(g) => Ok(g),
+                Err(e) => Err(DemesError::YamlError(e)),
+            },
+            Err(e) => Err(DemesError::YamlPanic(format!("{:?}", e)))
+        }
     }
 
     pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {

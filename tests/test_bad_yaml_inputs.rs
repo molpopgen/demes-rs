@@ -392,3 +392,24 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
     }
 }
+
+// copied from demes-spec repo
+#[test]
+fn bad_demelevel_defaults_epoch_43() {
+    // NOTE: from serde_yaml's point of view,
+    // this input so so malformed that a panic!
+    // happens rather than an Err.
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  defaults:
+    epoch: {size_function: {}}
+  epochs:
+  - start_size: 1
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::UnwoundPanic(_))),
+    }
+}

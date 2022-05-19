@@ -1494,7 +1494,10 @@ impl Graph {
                 Ok(g) => Ok(g),
                 Err(e) => Err(DemesError::YamlError(e)),
             },
-            Err(e) => Err(DemesError::UnwoundPanic(format!("{:?}", e)))
+            Err(e) => Err(DemesError::UnwoundPanic(format!(
+                "panic caught when loading YAML: {:?}. Input is likely malformed.",
+                e
+            ))),
         }
     }
 

@@ -1235,7 +1235,22 @@ impl Deme {
         }
     }
 
+    // Names must be valid Python identifiers
+    // https://docs.python.org/3/reference/lexical_analysis.html#identifiers
+    fn validate_name(&self) -> Result<(), DemesError> {
+        let python_identifier = regex::Regex::new(r"^[^\d\W]\w*$").unwrap();
+        if python_identifier.is_match(&self.name().to_string()) {
+            Ok(())
+        } else {
+            Err(DemesError::DemeError(format!(
+                "invalid deme name: {}:",
+                self.name()
+            )))
+        }
+    }
+
     fn validate(&self) -> Result<(), DemesError> {
+        self.validate_name()?;
         self.validate_start_time()?;
         let self_borrow = self.0.borrow();
         if self_borrow.epochs.is_empty() {

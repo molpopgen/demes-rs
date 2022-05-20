@@ -827,3 +827,93 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::TopLevelError(_))),
     }
 }
+
+#[test]
+fn bad_deme_name_01() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: ""
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}
+
+#[test]
+fn bad_deme_name_02() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: a b
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}
+
+#[test]
+fn bad_deme_name_03() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: a-b
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}
+
+#[test]
+fn bad_deme_name_04() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: 900
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}
+
+#[test]
+fn bad_deme_name_05() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: "\u0669"
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}
+
+#[test]
+fn bad_deme_name_07() {
+    let yaml = r#"
+time_units: generations
+demes:
+  - name: "π ٩"
+    epochs:
+    - start_size: 100
+"#;
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}

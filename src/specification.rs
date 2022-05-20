@@ -486,6 +486,7 @@ impl From<Migration> for UnresolvedMigration {
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Pulse {
     sources: Option<Vec<String>>,
     dest: Option<String>,
@@ -574,8 +575,9 @@ impl Pulse {
             .iter()
             .try_for_each(|source| self.validate_deme_existence(source, deme_map))?;
 
-        //NOTE: the last check should enforce this
-        assert!(self.dest.is_some());
+        self.dest
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("dest is None".to_string()))?;
 
         self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)
     }

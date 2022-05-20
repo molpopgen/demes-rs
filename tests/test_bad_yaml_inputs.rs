@@ -475,3 +475,43 @@ migrations:
         Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
     }
 }
+
+#[test]
+fn bad_pulses_14() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+- name: b
+  epochs:
+  - {start_size: 1}
+pulses:
+- {sources: [a], proportions: [0.1], time: 100}
+    ";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::PulseError(_))),
+    }
+}
+
+#[test]
+fn bad_pulses_19() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - start_size: 1
+- name: b
+  epochs:
+  - start_size: 1
+pulses:
+- {sources: [a], dest: b, time: 100, proportions: [0.1], foo: 0.2}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}

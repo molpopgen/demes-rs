@@ -26,11 +26,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           submodules: recursive
-      - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           override: true
+      - uses: Swatinem/rust-cache@v1
       - name: cargo check
         run: cargo check 
       - name: cargo check examples

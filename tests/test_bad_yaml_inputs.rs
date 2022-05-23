@@ -917,3 +917,69 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
     }
 }
+
+#[test]
+fn bad_migration_rates_sum_01() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch: {start_size: 1}
+demes:
+- {name: A}
+- {name: B}
+- {name: C}
+- {name: D}
+migrations:
+- {rate: 0.5, source: B, dest: A}
+- {rate: 0.5, source: C, dest: A}
+- {rate: 1e-03, source: D, dest: A}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migration_rates_sum_02() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch: {start_size: 1}
+demes:
+- {name: A}
+- {name: B}
+- {name: C}
+- {name: D}
+migrations:
+- {rate: 0.6, source: C, dest: A, start_time: 100, end_time: 50}
+- {rate: 0.6, source: B, dest: A, start_time: 200, end_time: 100}
+- {rate: 0.6, source: D, dest: A, start_time: 60, end_time: 20}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migration_rates_sum_03() {
+    let yaml = "
+time_units: generations
+defaults:
+  epoch: {start_size: 1}
+demes:
+- {name: A}
+- {name: B}
+- {name: C}
+migrations:
+- rate: 0.6
+  demes: [A, B]
+  start_time: 100
+- {rate: 0.6, source: C, dest: A}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}

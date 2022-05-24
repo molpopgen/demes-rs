@@ -1893,6 +1893,10 @@ impl Graph {
     }
 
     pub(crate) fn validate(&self) -> Result<(), DemesError> {
+        if self.demes.is_empty() {
+            return Err(DemesError::DemeError("no demes specified".to_string()));
+        }
+
         if !matches!(&self.time_units, TimeUnits::GENERATIONS) && self.generation_time.is_none() {
             return Err(DemesError::TopLevelError(
                 "missing generation_time".to_string(),

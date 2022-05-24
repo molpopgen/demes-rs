@@ -730,3 +730,35 @@ demes: []
         Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
     }
 }
+
+#[test]
+fn bad_toplevel_defaults() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+defaults: []
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}
+
+#[test]
+fn bad_toplevel_metadata_01() {
+    let yaml = "
+time_units: generations
+metadata: 
+demes:
+  - name: a
+    epochs:
+    - start_size: 100
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}

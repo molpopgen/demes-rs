@@ -515,3 +515,98 @@ pulses:
         Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
     }
 }
+
+#[test]
+fn bad_migration_start_end_times_03() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100}
+- name: b
+  epochs:
+  - {start_size: 100}
+migrations:
+- rate: 0.1
+  source: a
+  dest: b
+  start_time: 0
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migration_start_end_times_07() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100, end_time: 100}
+- name: b
+  ancestors: [a]
+  start_time: 200
+  epochs:
+  - {start_size: 100}
+migrations:
+- rate: 0.1
+  demes: [a, b]
+  start_time: 250
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migration_start_end_times_10() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100}
+- name: b
+  epochs:
+  - {start_size: 100}
+migrations:
+- rate: 0.1
+  source: a
+  dest: b
+  end_time: .inf
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}
+
+#[test]
+fn bad_migration_start_end_times_15() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 100, end_time: 100}
+- name: b
+  ancestors: [a]
+  start_time: 200
+  epochs:
+  - {start_size: 100}
+migrations:
+- rate: 0.1
+  demes: [a, b]
+  start_time: 150
+  end_time: 150
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}

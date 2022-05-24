@@ -168,12 +168,35 @@ impl TimeInterval {
         self.start_time.0 > time && time >= self.end_time.0
     }
 
+    // true if other is in (start_time, end_time]
+    fn contains_inclusive_start_exclusive_end<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+
+        time > self.end_time.0 && time <= self.start_time.0
+    }
+
+    fn contains_exclusive_start_inclusive_end<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+
+        time >= self.end_time.0 && time < self.start_time.0
+    }
+
     fn contains_inclusive<F>(&self, other: F) -> bool
     where
         F: Into<f64>,
     {
         let time = other.into();
         self.start_time.0 >= time && time >= self.end_time.0
+    }
+
+    fn duration_greater_than_zero(&self) -> bool {
+        self.start_time() > self.end_time()
     }
 
     fn contains_start_time(&self, other: Time) -> bool {
@@ -380,6 +403,12 @@ impl AsymmetricMigration {
     }
     pub fn end_time(&self) -> Time {
         self.end_time.unwrap()
+    }
+    pub fn time_interval(&self) -> TimeInterval {
+        TimeInterval {
+            start_time: self.start_time(),
+            end_time: self.end_time(),
+        }
     }
 }
 
@@ -1603,20 +1632,23 @@ impl Graph {
         for (source_name, dest_name) in s.demes.iter().tuple_combinations() {
             assert_ne!(source_name, dest_name);
 
+            let start_time = s.start_time;
+            let end_time = s.end_time;
+
             let a = AsymmetricMigration {
                 source: source_name.to_string(),
                 dest: dest_name.to_string(),
                 rate: s.rate,
-                start_time: None,
-                end_time: None,
+                start_time,
+                end_time,
             };
             self.resolve_asymmetric_migration(a)?;
             let a = AsymmetricMigration {
                 source: dest_name.to_string(),
                 dest: source_name.to_string(),
                 rate: s.rate,
-                start_time: None,
-                end_time: None,
+                start_time,
+                end_time,
             };
             self.resolve_asymmetric_migration(a)?;
         }
@@ -1681,7 +1713,7 @@ impl Graph {
                 }
                 Some(start_time) => {
                     let interval = source.time_interval();
-                    if !interval.contains_inclusive(start_time) {
+                    if !interval.contains_inclusive_start_exclusive_end(start_time) {
                         return Err(DemesError::MigrationError(format!(
                             "migration start_time: {:?} does not overlap with existence of source deme {}",
                             start_time,
@@ -1689,7 +1721,7 @@ impl Graph {
                         )));
                     }
                     let interval = dest.time_interval();
-                    if !interval.contains_inclusive(start_time) {
+                    if !interval.contains_inclusive_start_exclusive_end(start_time) {
                         return Err(DemesError::MigrationError(format!(
                             "migration start_time: {:?} does not overlap with existence of dest deme {}",
                             start_time,
@@ -1708,8 +1740,14 @@ impl Graph {
                     )))
                 }
                 Some(end_time) => {
+                    if !end_time.0.is_finite() {
+                        return Err(DemesError::MigrationError(format!(
+                            "invalid migration end_time: {:?}",
+                            end_time
+                        )));
+                    }
                     let interval = source.time_interval();
-                    if !interval.contains_inclusive(end_time) {
+                    if !interval.contains_exclusive_start_inclusive_end(end_time) {
                         return Err(DemesError::MigrationError(format!(
                             "migration end_time: {:?} does not overlap with existence of source deme {}",
                             end_time,
@@ -1717,7 +1755,7 @@ impl Graph {
                         )));
                     }
                     let interval = dest.time_interval();
-                    if !interval.contains_inclusive(end_time) {
+                    if !interval.contains_exclusive_start_inclusive_end(end_time) {
                         return Err(DemesError::MigrationError(format!(
                             "migration end_time: {:?} does not overlap with existence of dest deme {}",
                             end_time,
@@ -1725,6 +1763,13 @@ impl Graph {
                         )));
                     }
                 }
+            }
+            let interval = m.time_interval();
+            if !interval.duration_greater_than_zero() {
+                return Err(DemesError::MigrationError(format!(
+                    "invalid migration duration: {:?} ",
+                    interval
+                )));
             }
         }
         Ok(())

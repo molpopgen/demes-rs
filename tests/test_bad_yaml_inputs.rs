@@ -718,3 +718,15 @@ pulses:
         Err(e) => assert!(matches!(e, demes::DemesError::PulseError(_))),
     }
 }
+
+#[test]
+fn missing_demes_02() {
+    let yaml = "
+time_units: generations
+demes: []
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::DemeError(_))),
+    }
+}

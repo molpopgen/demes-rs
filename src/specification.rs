@@ -595,6 +595,32 @@ impl Pulse {
         Ok(())
     }
 
+    fn dest_is_not_source(&self) -> Result<(), DemesError> {
+        let dest = self.dest.as_ref().unwrap();
+        if self.sources.as_ref().unwrap().contains(dest) {
+            Err(DemesError::PulseError(format!(
+                "dest: {} is also listed as a source",
+                dest
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn sources_are_unique(&self) -> Result<(), DemesError> {
+        let mut sources = HashSet::<String>::default();
+        for source in self.sources.as_ref().unwrap() {
+            if sources.contains(source) {
+                return Err(DemesError::PulseError(format!(
+                    "source: {} listed multiple times",
+                    source
+                )));
+            }
+            sources.insert(source.clone());
+        }
+        Ok(())
+    }
+
     fn validate(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
         self.validate_pulse_time()?;
         self.validate_proportions()?;
@@ -612,7 +638,9 @@ impl Pulse {
             .as_ref()
             .ok_or_else(|| DemesError::PulseError("dest is None".to_string()))?;
 
-        self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)
+        self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)?;
+        self.dest_is_not_source()?;
+        self.sources_are_unique()
     }
 
     fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {

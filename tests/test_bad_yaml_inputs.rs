@@ -610,3 +610,24 @@ migrations:
         Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
     }
 }
+
+#[test]
+fn overlapping_migrations_01() {
+    let yaml = "
+time_units: generations
+demes:
+- name: A
+  epochs:
+  - {start_size: 1}
+- name: B
+  epochs:
+  - {start_size: 1}
+migrations:
+- {rate: 0.01, source: A, dest: B}
+- {rate: 0.02, source: A, dest: B, start_time: 10}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::MigrationError(_))),
+    }
+}

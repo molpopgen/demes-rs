@@ -551,20 +551,44 @@ impl Pulse {
         }
     }
 
-    fn validate_pulse_time(&self) -> Result<(), DemesError> {
+    fn validate_pulse_time(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
         match self.time {
             Some(time) => {
-                if time.is_valid_pulse_time() {
-                    Ok(())
-                } else {
-                    Err(DemesError::PulseError(format!(
+                if !time.is_valid_pulse_time() {
+                    return Err(DemesError::PulseError(format!(
                         "invalid pulse time: {}",
                         time.0
-                    )))
+                    )));
                 }
             }
-            None => Err(DemesError::PulseError("time is None".to_string())),
+            None => return Err(DemesError::PulseError("time is None".to_string())),
         }
+
+        for source_name in self.sources.as_ref().unwrap() {
+            let source = deme_map.get(source_name).unwrap();
+
+            let ti = source.time_interval();
+
+            if !ti.contains_exclusive_start_inclusive_end(self.time()) {
+                return Err(DemesError::PulseError(format!(
+                    "pulse at time: {:?} does not overlap with source: {}",
+                    self.time(),
+                    source_name
+                )));
+            }
+        }
+
+        let dest = deme_map.get(self.dest()).unwrap();
+        let ti = dest.time_interval();
+        if !ti.contains_inclusive_start_exclusive_end(self.time()) {
+            return Err(DemesError::PulseError(format!(
+                "pulse at time: {:?} does not overlap with dest: {}",
+                self.time(),
+                dest.name(),
+            )));
+        }
+
+        Ok(())
     }
 
     fn validate_proportions(&self) -> Result<(), DemesError> {
@@ -622,7 +646,6 @@ impl Pulse {
     }
 
     fn validate(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        self.validate_pulse_time()?;
         self.validate_proportions()?;
 
         // NOTE: validate proportions is taking care of
@@ -640,7 +663,8 @@ impl Pulse {
 
         self.validate_deme_existence(self.dest.as_ref().unwrap(), deme_map)?;
         self.dest_is_not_source()?;
-        self.sources_are_unique()
+        self.sources_are_unique()?;
+        self.validate_pulse_time(deme_map)
     }
 
     fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {

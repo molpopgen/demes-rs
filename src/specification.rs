@@ -211,6 +211,10 @@ impl TimeInterval {
     pub fn end_time(&self) -> Time {
         self.end_time
     }
+
+    fn overlaps(&self, other: &Self) -> bool {
+        self.start_time() > other.end_time() && other.start_time() > self.end_time()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -1689,6 +1693,39 @@ impl Graph {
         Ok(())
     }
 
+    fn build_migration_epochs(&self) -> HashMap<(String, String), Vec<TimeInterval>> {
+        let mut rv = HashMap::<(String, String), Vec<TimeInterval>>::default();
+
+        for migration in &self.resolved_migrations {
+            let source = migration.source().to_string();
+            let dest = migration.dest().to_string();
+            let key = (source, dest);
+
+            match rv.get_mut(&key) {
+                Some(v) => v.push(migration.time_interval()),
+                None => {
+                    let _ = rv.insert(key, vec![migration.time_interval()]);
+                }
+            }
+        }
+
+        rv
+    }
+
+    fn check_migration_epoch_overlap(&self) -> Result<(), DemesError> {
+        let mig_epochs = self.build_migration_epochs();
+
+        for (demes, epochs) in &mig_epochs {
+            if epochs.windows(2).any(|w| w[0].overlaps(&w[1])) {
+                return Err(DemesError::MigrationError(format!(
+                    "overlapping migration epochs between source: {} and dest: {}",
+                    demes.0, demes.1
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn validate_migrations(&self) -> Result<(), DemesError> {
         for m in &self.resolved_migrations {
             let source = self.get_deme_from_name(&m.source).unwrap();
@@ -1772,6 +1809,7 @@ impl Graph {
                 )));
             }
         }
+        self.check_migration_epoch_overlap()?;
         Ok(())
     }
 

@@ -1453,6 +1453,7 @@ impl TryFrom<f64> for GenerationTime {
 impl_newtype_traits!(GenerationTime);
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct GraphDefaultInput {
     #[serde(flatten)]
     defaults: GraphDefaults,

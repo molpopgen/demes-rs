@@ -732,7 +732,7 @@ demes: []
 }
 
 #[test]
-fn bad_toplevel_defaults() {
+fn bad_toplevel_defaults_02() {
     let yaml = "
 time_units: generations
 demes:
@@ -756,6 +756,22 @@ demes:
   - name: a
     epochs:
     - start_size: 100
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}
+
+#[test]
+fn bad_toplevel_defaults_06() {
+    let yaml = "
+time_units: generations
+defaults: {rate: 0.1, proportion: 0.1}
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
 ";
     match demes::loads(yaml) {
         Ok(_) => panic!("expected Err!"),

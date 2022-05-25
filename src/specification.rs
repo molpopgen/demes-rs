@@ -1435,17 +1435,21 @@ impl std::fmt::Display for TimeUnits {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 pub struct GenerationTime(f64);
 
-impl TryFrom<f64> for GenerationTime {
-    type Error = DemesError;
+impl From<f64> for GenerationTime {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
 
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() || !value.is_sign_positive() {
-            Err(DemesError::GenerationTimeError(value))
+impl GenerationTime {
+    fn validate(&self) -> Result<(), DemesError> {
+        if !self.0.is_finite() || !self.0.is_sign_positive() || !self.0.gt(&0.0) {
+            Err(DemesError::GenerationTimeError(self.0))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
@@ -1934,6 +1938,23 @@ impl Graph {
             ));
         }
 
+        match self.generation_time {
+            None => (),
+            Some(value) => value.validate()?,
+        }
+
+        if matches!(&self.time_units, TimeUnits::GENERATIONS) {
+            match self.generation_time {
+                Some(value) => {
+                    if !value.0.eq(&1.0) {
+                        return Err(DemesError::TopLevelError(
+                            "time units are generations but generation_time != 1.0".to_string(),
+                        ));
+                    }
+                }
+                None => (),
+            }
+        }
         self.pulses
             .iter()
             .try_for_each(|pulse| pulse.validate(&self.deme_map))?;

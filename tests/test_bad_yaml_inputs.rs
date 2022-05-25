@@ -794,3 +794,36 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
     }
 }
+
+#[test]
+fn bad_generation_time_08() {
+    let yaml = "
+time_units: generations
+generation_time: 0
+demes:
+  - name: a
+    epochs:
+    - start_size: 100
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::GenerationTimeError(_))),
+    }
+}
+
+#[test]
+fn bad_generation_time_09() {
+    let yaml = "
+time_units: generations
+generation_time: 13
+demes:
+- name: A
+  epochs:
+  - {start_size: 2000, end_time: 100}
+  - {start_size: 100}
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::TopLevelError(_))),
+    }
+}

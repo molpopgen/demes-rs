@@ -778,3 +778,19 @@ demes:
         Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
     }
 }
+
+#[test]
+fn bad_demelevel_defaults_02() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+  defaults: []
+";
+    match demes::loads(yaml) {
+        Ok(_) => panic!("expected Err!"),
+        Err(e) => assert!(matches!(e, demes::DemesError::YamlError(_))),
+    }
+}

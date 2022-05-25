@@ -872,9 +872,9 @@ pub struct DemeData {
     epochs: Vec<Epoch>,
     #[serde(skip)]
     ancestor_map: DemeMap,
-    #[serde(default = "DemeDefaults::default")]
+    #[serde(default = "DemeDefaultsInput::default")]
     #[serde(skip_serializing)]
-    defaults: DemeDefaults,
+    defaults: DemeDefaultsInput,
 }
 
 impl PartialEq for DemeData {
@@ -1554,6 +1554,21 @@ struct TopLevelDemeDefaults {
     start_time: Option<Time>,
     ancestors: Option<Vec<String>>,
     proportions: Option<Vec<Proportion>>,
+}
+
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DemeDefaultsInput {
+    #[serde(flatten)]
+    defaults: DemeDefaults,
+}
+
+impl std::ops::Deref for DemeDefaultsInput {
+    type Target = DemeDefaults;
+
+    fn deref(&self) -> &Self::Target {
+        &self.defaults
+    }
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]

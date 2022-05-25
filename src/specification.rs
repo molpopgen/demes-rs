@@ -1453,6 +1453,12 @@ impl TryFrom<f64> for GenerationTime {
 impl_newtype_traits!(GenerationTime);
 
 #[derive(Default, Debug, Serialize, Deserialize)]
+struct GraphDefaultInput {
+    #[serde(flatten)]
+    defaults: GraphDefaults,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaults {
     #[serde(default = "Epoch::default")]
@@ -1563,6 +1569,10 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    fn is_empty(&self) -> bool {
+        self.metadata.is_empty()
+    }
+
     pub fn as_yaml_string(&self) -> String {
         serde_yaml::to_string(&self.metadata).unwrap()
     }
@@ -1576,10 +1586,14 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
     doi: Option<Vec<String>>,
     #[serde(skip_serializing)]
-    #[serde(default = "GraphDefaults::default")]
+    #[serde(default = "GraphDefaultInput::default")]
+    #[serde(rename = "defaults")]
+    input_defaults: GraphDefaultInput,
+    #[serde(skip)]
     defaults: GraphDefaults,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<Metadata>,
+    #[serde(default = "Metadata::default")]
+    #[serde(skip_serializing_if = "Metadata::is_empty")]
+    metadata: Metadata,
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
@@ -1880,6 +1894,7 @@ impl Graph {
     }
 
     pub(crate) fn resolve(&mut self) -> Result<(), DemesError> {
+        std::mem::swap(&mut self.defaults, &mut self.input_defaults.defaults);
         self.deme_map = self.build_deme_map()?;
 
         self.demes
@@ -1942,7 +1957,11 @@ impl Graph {
     }
 
     pub fn metadata(&self) -> Option<Metadata> {
-        self.metadata.clone()
+        if self.metadata.metadata.is_empty() {
+            None
+        } else {
+            Some(self.metadata.clone())
+        }
     }
 }
 

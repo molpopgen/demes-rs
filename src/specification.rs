@@ -108,6 +108,24 @@ impl From<Time> for TimeTrampoline {
     }
 }
 
+#[repr(transparent)]
+pub struct HashableTime(Time);
+
+impl std::hash::Hash for HashableTime {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let value = f64::from(self.0);
+        value.to_bits().hash(state)
+    }
+}
+
+impl PartialEq for HashableTime {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Eq for HashableTime {}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(try_from = "f64")]
 #[repr(transparent)]
@@ -1827,6 +1845,66 @@ impl Graph {
         Ok(())
     }
 
+    fn get_non_overlapping_migration_intervals(&self) -> Vec<TimeInterval> {
+        let mut unique_times = HashSet::<HashableTime>::default();
+        for migration in &self.resolved_migrations {
+            unique_times.insert(HashableTime(migration.start_time()));
+            unique_times.insert(HashableTime(migration.end_time()));
+        }
+        unique_times.retain(|t| f64::from(t.0).is_finite());
+
+        let mut end_times = unique_times.into_iter().map(|x| x.0).collect::<Vec<_>>();
+
+        // REVERSE sort
+        end_times.sort_by(|a, b| b.cmp(a));
+
+        let mut start_times = vec![Time(f64::INFINITY)];
+
+        if let Some((_last, elements)) = end_times.split_last() {
+            start_times.extend_from_slice(elements);
+        }
+
+        start_times
+            .into_iter()
+            .zip(end_times.into_iter())
+            .map(|times| TimeInterval {
+                start_time: times.0,
+                end_time: times.1,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn validate_input_migration_rates(&self) -> Result<(), DemesError> {
+        let intervals = self.get_non_overlapping_migration_intervals();
+        let mut input_rates = HashMap::<String, Vec<f64>>::default();
+
+        for deme in self.deme_map.keys() {
+            input_rates.insert(deme.clone(), vec![0.0; intervals.len()]);
+        }
+
+        for (i, ti) in intervals.iter().enumerate() {
+            for migration in &self.resolved_migrations {
+                let mti = migration.time_interval();
+                if ti.overlaps(&mti) {
+                    match input_rates.get_mut(migration.dest()) {
+                        Some(rates) => {
+                            let rate = rates[i] + migration.rate().0;
+                            if rate > 1.0 + 1e-9 {
+                                let msg = format!("migration rate into dest: {} is > 1 in the time interval ({:?}, {:?}]",
+                                                  migration.dest(), ti.start_time, ti.end_time);
+                                return Err(DemesError::MigrationError(msg));
+                            }
+                            rates[i] = rate;
+                        }
+                        None => panic!("fatal error when validating migration rate sums"),
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn validate_migrations(&self) -> Result<(), DemesError> {
         for m in &self.resolved_migrations {
             let source = self.get_deme_from_name(&m.source).unwrap();
@@ -1911,6 +1989,7 @@ impl Graph {
             }
         }
         self.check_migration_epoch_overlap()?;
+        self.validate_input_migration_rates()?;
         Ok(())
     }
 

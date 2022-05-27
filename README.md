@@ -9,7 +9,7 @@ A [rust](https://www.rustlang.org) implementation of the [demes](https://popsim-
 ### Cloning the repository and running the test suite
 
 ```sh
-git clone https://github.com/molopgen/demes-rs
+git clone https://github.com/molpopgen/demes-rs
 cd demes-rs
 cargo test
 ```

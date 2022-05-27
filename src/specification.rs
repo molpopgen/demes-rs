@@ -1678,8 +1678,8 @@ impl PartialEq for Graph {
             && self.generation_time == other.generation_time
             && self.demes == other.demes
             && self.resolved_migrations == other.resolved_migrations
-            && self.deme_map == other.deme_map
             && self.metadata == other.metadata
+            && self.pulses == other.pulses
     }
 }
 

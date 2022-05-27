@@ -172,7 +172,7 @@ impl TryFrom<f64> for Proportion {
 
 impl_newtype_traits!(Proportion);
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug)]
 pub struct TimeInterval {
     start_time: Time,
     end_time: Time,
@@ -2112,66 +2112,6 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    #[should_panic]
-    fn test_negative_start_time() {
-        let yaml = "---\nstart_time: -1.0\nend_time: 1.1\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_nan_start_time() {
-        let yaml = "---\nstart_time: .nan\nend_time: 1.1\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    fn test_zero_end_time() {
-        let yaml = "---\nstart_time: 1.0\nend_time: 0.\n".to_string();
-        let ts: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(ts.start_time.0, 1.0);
-        assert_eq!(ts.end_time.0, 0.0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_zero_start_time() {
-        let yaml = "---\nstart_time: 0.0\nend_time: 1.1\n".to_string();
-        let t: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-        t.start_time.err_if_not_valid_deme_start_time().unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_negative_end_time() {
-        let yaml = "---\nstart_time: 1.0\nend_time: -1.1\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_infinite_end_time() {
-        let yaml = "---\nstart_time: 1.0\nend_time: .Inf\n".to_string();
-        let t: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-        t.end_time.err_if_not_valid_epoch_end_time().unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_nan_epoch_end_time() {
-        let yaml = "---\nstart_time: 1.0\nend_time: .nan\n".to_string();
-        let _: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    fn test_time_interval() {
-        let yaml = "---\nstart_time: 1.0\nend_time: 1.1\n".to_string();
-        let ti: TimeInterval = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(ti.start_time.0, 1.0);
-        assert_eq!(ti.end_time.0, 1.1);
-    }
 
     #[test]
     #[should_panic]

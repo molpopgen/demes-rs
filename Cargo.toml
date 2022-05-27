@@ -3,6 +3,9 @@ name = "demes"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "rust implementation of demes specification"
+homepage = "https://github.com/molpopgen/demes-rs"
+repository = "https://github.com/molpopgen/demes-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

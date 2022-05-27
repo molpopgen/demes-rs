@@ -30,5 +30,11 @@ macro_rules! impl_newtype_traits {
         }
 
         impl Eq for $type {}
+
+        impl std::fmt::Display for $type {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}({})", stringify!($type), self.0)
+            }
+        }
     };
 }

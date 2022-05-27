@@ -2341,6 +2341,13 @@ mod tests {
         assert_eq!(d.proportions().len(), 2);
         assert!(d.proportions().iter().all(|p| p.0 == 0.5));
     }
+
+    #[test]
+    fn test_display() {
+        let t = Time::try_from(1.0).unwrap();
+        let f = format!("{}", t);
+        assert!(f.contains("Time("));
+    }
 }
 
 #[cfg(test)]

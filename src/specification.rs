@@ -19,15 +19,9 @@ use std::rc::Rc;
 #[serde(into = "TimeTrampoline")]
 pub struct Time(f64);
 
-impl TryFrom<f64> for Time {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_nan() || value.is_sign_negative() {
-            Err(DemesError::TimeError(value.to_string()))
-        } else {
-            Ok(Self(value))
-        }
+impl From<f64> for Time {
+    fn from(value: f64) -> Self {
+        Self(value)
     }
 }
 
@@ -69,6 +63,17 @@ impl Time {
     fn is_valid_pulse_time(&self) -> bool {
         self.0.is_sign_positive() && !self.0.is_infinite()
     }
+
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if self.0.is_nan() || self.0.is_sign_negative() {
+            Err(f(format!("invalid time value: {}", self.0)))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl_newtype_traits!(Time);
@@ -90,11 +95,11 @@ impl TryFrom<TimeTrampoline> for Time {
                 if &string == "Infinity" {
                     Ok(Self(f64::INFINITY))
                 } else {
-                    Err(DemesError::TimeError(string))
+                    Err(DemesError::TopLevelError(string))
                 }
             }
             // Fall back to valid YAML representations
-            TimeTrampoline::Float(f) => Self::try_from(f),
+            TimeTrampoline::Float(f) => Ok(Self::from(f)),
         }
     }
 }
@@ -990,7 +995,7 @@ impl Deme {
                         )))
                     }
                 },
-                None => return Err(DemesError::TimeError("start_time is None".to_string())),
+                None => return Err(DemesError::DemeError("start_time is None".to_string())),
             }
         }
 
@@ -1029,7 +1034,7 @@ impl Deme {
             let self_defaults = self.0.borrow().defaults.clone();
             for epoch in self.0.borrow_mut().epochs.iter_mut() {
                 match epoch.end_time {
-                    Some(_) => (),
+                    Some(end_time) => end_time.validate(DemesError::EpochError)?,
                     None => {
                         epoch.end_time = match self_defaults.epoch.end_time {
                             Some(end_time) => Some(end_time),
@@ -1056,6 +1061,7 @@ impl Deme {
                 ));
             }
             last_time = end_time;
+            epoch.end_time().validate(DemesError::EpochError)?;
         }
 
         Ok(())
@@ -1106,7 +1112,7 @@ impl Deme {
                     return Err(DemesError::EpochError(msg));
                 }
             }
-            None => return Err(DemesError::TimeError("start_time is None".to_string())),
+            None => return Err(DemesError::EpochError("start_time is None".to_string())),
         }
         Ok(epoch_sizes.1)
     }
@@ -1249,8 +1255,11 @@ impl Deme {
 
     fn validate_start_time(&self) -> Result<(), DemesError> {
         match self.0.borrow().start_time {
-            Some(start_time) => start_time.err_if_not_valid_deme_start_time(),
-            None => Err(DemesError::TimeError("start_time is None".to_string())),
+            Some(start_time) => {
+                start_time.validate(DemesError::DemeError)?;
+                start_time.err_if_not_valid_deme_start_time()
+            }
+            None => Err(DemesError::DemeError("start_time is None".to_string())),
         }
     }
 
@@ -2287,6 +2296,16 @@ mod tests {
         let t = Time::try_from(1.0).unwrap();
         let f = format!("{}", t);
         assert!(f.contains("Time("));
+    }
+
+    #[test]
+    fn test_time_validity() {
+        let t = Time::from(f64::NAN);
+
+        match t.validate(DemesError::DemeError) {
+            Ok(_) => (),
+            Err(e) => assert!(matches!(e, DemesError::DemeError(_))),
+        }
     }
 }
 

@@ -13,8 +13,8 @@ impl ExpectedMigration {
     fn new<
         N: ToString,
         M: TryInto<MigrationRate, Error = demes::DemesError>,
-        S: TryInto<Time, Error = demes::DemesError>,
-        E: TryInto<Time, Error = demes::DemesError>,
+        S: Into<Time>,
+        E: Into<Time>,
     >(
         source: N,
         dest: N,
@@ -23,8 +23,8 @@ impl ExpectedMigration {
         end_time: E,
     ) -> Result<Self, demes::DemesError> {
         let rate = rate.try_into()?;
-        let start_time = start_time.try_into()?;
-        let end_time = end_time.try_into()?;
+        let start_time = start_time.into();
+        let end_time = end_time.into();
         Ok(Self {
             source: source.to_string(),
             dest: dest.to_string(),

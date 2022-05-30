@@ -7,7 +7,7 @@ pub enum DemesError {
     #[error("{0:?}")]
     EpochError(String),
     #[error("{0:?}")]
-    TopLevelError(String),
+    GraphError(String),
     #[error("generation time must be > 0.0, got: {0:?}")]
     GenerationTimeError(f64),
     #[error("{0:?}")]

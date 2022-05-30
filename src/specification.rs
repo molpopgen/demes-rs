@@ -95,7 +95,7 @@ impl TryFrom<TimeTrampoline> for Time {
                 if &string == "Infinity" {
                     Ok(Self(f64::INFINITY))
                 } else {
-                    Err(DemesError::TopLevelError(string))
+                    Err(DemesError::GraphError(string))
                 }
             }
             // Fall back to valid YAML representations
@@ -2049,7 +2049,7 @@ impl Graph {
         }
 
         if !matches!(&self.time_units, TimeUnits::GENERATIONS) && self.generation_time.is_none() {
-            return Err(DemesError::TopLevelError(
+            return Err(DemesError::GraphError(
                 "missing generation_time".to_string(),
             ));
         }
@@ -2063,7 +2063,7 @@ impl Graph {
             match self.generation_time {
                 Some(value) => {
                     if !value.0.eq(&1.0) {
-                        return Err(DemesError::TopLevelError(
+                        return Err(DemesError::GraphError(
                             "time units are generations but generation_time != 1.0".to_string(),
                         ));
                     }

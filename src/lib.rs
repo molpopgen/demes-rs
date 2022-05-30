@@ -10,7 +10,7 @@
 //! - https://doi.org/10.1371/journal.pgen.1000695
 //! time_units: years
 //! generation_time: 25
-//! 
+//!
 //! demes:
 //! - name: ancestral
 //!   description: Equilibrium/root population
@@ -41,7 +41,7 @@
 //!   ancestors: [OOA]
 //!   epochs:
 //!   - {start_size: 510, end_size: 54090}
-//! 
+//!
 //! migrations:
 //! - {demes: [YRI, OOA], rate: 25e-5}
 //! - {demes: [YRI, CEU], rate: 3e-5}
@@ -61,7 +61,7 @@
 //!     assert_eq!(graph, roundtripped_graph);
 //! }
 //!
-//! 
+//!
 //!for deme in graph.demes() {
 //!    println!("{} {} {} {} {}",
 //!         deme.name(),

@@ -1490,7 +1490,10 @@ impl From<f64> for GenerationTime {
 impl GenerationTime {
     fn validate(&self) -> Result<(), DemesError> {
         if !self.0.is_finite() || !self.0.is_sign_positive() || !self.0.gt(&0.0) {
-            Err(DemesError::GenerationTimeError(self.0))
+            Err(DemesError::GraphError(format!(
+                "generation time must be > 0.0, got: {}",
+                self.0
+            )))
         } else {
             Ok(())
         }

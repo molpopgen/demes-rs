@@ -807,7 +807,7 @@ demes:
 ";
     match demes::loads(yaml) {
         Ok(_) => panic!("expected Err!"),
-        Err(e) => assert!(matches!(e, demes::DemesError::GenerationTimeError(_))),
+        Err(e) => assert!(matches!(e, demes::DemesError::GraphError(_))),
     }
 }
 

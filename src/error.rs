@@ -8,8 +8,6 @@ pub enum DemesError {
     EpochError(String),
     #[error("{0:?}")]
     GraphError(String),
-    #[error("generation time must be > 0.0, got: {0:?}")]
-    GenerationTimeError(f64),
     #[error("{0:?}")]
     MigrationError(String),
     #[error("{0:?}")]

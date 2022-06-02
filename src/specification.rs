@@ -1698,6 +1698,25 @@ impl PartialEq for Graph {
 impl Eq for Graph {}
 
 impl Graph {
+    pub(crate) fn new_from_time_units(time_units: TimeUnits) -> Self {
+        Self {
+            time_units,
+
+            // remaining fields have defaults
+            description: Option::<String>::default(),
+            doi: Option::<Vec<String>>::default(),
+            input_defaults: GraphDefaultInput::default(),
+            defaults: GraphDefaults::default(),
+            metadata: Metadata::default(),
+            generation_time: Option::<GenerationTime>::default(),
+            demes: Vec::<Deme>::default(),
+            input_migrations: Vec::<UnresolvedMigration>::default(),
+            resolved_migrations: Vec::<AsymmetricMigration>::default(),
+            pulses: Vec::<Pulse>::default(),
+            deme_map: DemeMap::default(),
+        }
+    }
+
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let g: Self = serde_yaml::from_str(yaml)?;
         Ok(g)
@@ -2033,6 +2052,11 @@ impl Graph {
     }
 
     pub(crate) fn resolve(&mut self) -> Result<(), DemesError> {
+        if self.demes.is_empty() {
+            return Err(DemesError::DemeError(
+                "no demes have been specified".to_string(),
+            ));
+        }
         std::mem::swap(&mut self.defaults, &mut self.input_defaults.defaults);
         self.deme_map = self.build_deme_map()?;
 

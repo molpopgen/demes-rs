@@ -91,6 +91,8 @@
 
 mod macros;
 
+#[allow(dead_code)]
+mod builder;
 mod error;
 pub mod specification;
 

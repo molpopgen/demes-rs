@@ -244,17 +244,17 @@ impl TimeInterval {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
-    CONSTANT,
-    EXPONENTIAL,
-    LINEAR,
+    Constant,
+    Exponential,
+    Linear,
 }
 
 impl Display for SizeFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
-            SizeFunction::CONSTANT => "constant",
-            SizeFunction::LINEAR => "linear",
-            SizeFunction::EXPONENTIAL => "exponential",
+            SizeFunction::Constant => "constant",
+            SizeFunction::Linear => "linear",
+            SizeFunction::Exponential => "exponential",
         };
         write!(f, "{}", value)
     }
@@ -754,7 +754,7 @@ impl Epoch {
             Some(start_size) => match self.end_size {
                 Some(end_size) => {
                     if start_size.0 == end_size.0 {
-                        self.size_function = Some(SizeFunction::CONSTANT);
+                        self.size_function = Some(SizeFunction::Constant);
                     } else {
                         self.size_function = defaults
                             .apply_epoch_size_function_defaults(self.size_function, deme_defaults);
@@ -828,7 +828,7 @@ impl Epoch {
 
         match self.size_function {
             Some(size_function) => {
-                if matches!(size_function, SizeFunction::CONSTANT) {
+                if matches!(size_function, SizeFunction::Constant) {
                     if start_size != end_size {
                         msg = Some(
                             "start_size != end_size paired with size_function: constant"
@@ -1439,9 +1439,9 @@ type DemeMap = HashMap<String, Deme>;
 #[serde(from = "String")]
 #[serde(into = "String")]
 pub enum TimeUnits {
-    GENERATIONS,
-    YEARS,
-    CUSTOM(String),
+    Generations,
+    Years,
+    Custom(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -1451,11 +1451,11 @@ pub struct CustomTimeUnits(String);
 impl From<String> for TimeUnits {
     fn from(value: String) -> Self {
         if &value == "generations" {
-            Self::GENERATIONS
+            Self::Generations
         } else if &value == "years" {
-            Self::YEARS
+            Self::Years
         } else {
-            Self::CUSTOM(value)
+            Self::Custom(value)
         }
     }
 }
@@ -1469,9 +1469,9 @@ impl From<TimeUnits> for String {
 impl std::fmt::Display for TimeUnits {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TimeUnits::GENERATIONS => write!(f, "generations"),
-            TimeUnits::YEARS => write!(f, "years"),
-            TimeUnits::CUSTOM(custom) => write!(f, "{}", &custom),
+            TimeUnits::Generations => write!(f, "generations"),
+            TimeUnits::Years => write!(f, "years"),
+            TimeUnits::Custom(custom) => write!(f, "{}", &custom),
         }
     }
 }
@@ -1555,7 +1555,7 @@ impl GraphDefaults {
             Some(sf) => Some(sf),
             None => match self.epoch.size_function {
                 Some(sf) => Some(sf),
-                None => Some(SizeFunction::EXPONENTIAL),
+                None => Some(SizeFunction::Exponential),
             },
         }
     }
@@ -2075,7 +2075,7 @@ impl Graph {
             return Err(DemesError::DemeError("no demes specified".to_string()));
         }
 
-        if !matches!(&self.time_units, TimeUnits::GENERATIONS) && self.generation_time.is_none() {
+        if !matches!(&self.time_units, TimeUnits::Generations) && self.generation_time.is_none() {
             return Err(DemesError::GraphError(
                 "missing generation_time".to_string(),
             ));
@@ -2086,7 +2086,7 @@ impl Graph {
             Some(value) => value.validate()?,
         }
 
-        if matches!(&self.time_units, TimeUnits::GENERATIONS) {
+        if matches!(&self.time_units, TimeUnits::Generations) {
             match self.generation_time {
                 Some(value) => {
                     if !value.0.eq(&1.0) {
@@ -2160,11 +2160,11 @@ mod tests {
     fn test_size_function() {
         let yaml = "---\nexponential\n".to_string();
         let sf: SizeFunction = serde_yaml::from_str(&yaml).unwrap();
-        assert!(matches!(sf, SizeFunction::EXPONENTIAL));
+        assert!(matches!(sf, SizeFunction::Exponential));
 
         let yaml = "---\nconstant\n".to_string();
         let sf: SizeFunction = serde_yaml::from_str(&yaml).unwrap();
-        assert!(matches!(sf, SizeFunction::CONSTANT));
+        assert!(matches!(sf, SizeFunction::Constant));
     }
 
     #[test]

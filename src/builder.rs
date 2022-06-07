@@ -27,7 +27,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn new_builder() {
-        let b = GraphBuilder::new(TimeUnits::GENERATIONS);
+        let b = GraphBuilder::new(TimeUnits::Generations);
         b.resolve().unwrap();
     }
 }

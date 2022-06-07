@@ -231,7 +231,7 @@ migrations:
     assert_eq!(generation_time, 25.0);
     assert!(matches!(
         g.time_units(),
-        demes::specification::TimeUnits::YEARS,
+        demes::specification::TimeUnits::Years,
     ));
     assert_eq!(g.time_units().to_string(), "years".to_string());
     assert_eq!(g.migrations().len(), 8);
@@ -534,9 +534,9 @@ demes:
 ";
     let graph = demes::loads(yaml).unwrap();
     let sf = graph.deme(0).epochs()[0].size_function();
-    assert!(matches!(sf, demes::specification::SizeFunction::CONSTANT));
+    assert!(matches!(sf, demes::specification::SizeFunction::Constant));
     let sf = graph.deme(0).epochs()[1].size_function();
-    assert!(matches!(sf, demes::specification::SizeFunction::LINEAR));
+    assert!(matches!(sf, demes::specification::SizeFunction::Linear));
 }
 
 #[test]
@@ -678,11 +678,11 @@ demes:
         .map(|epoch| epoch.size_function())
         .collect::<Vec<SizeFunction>>();
     let expected_size_functions = vec![
-        SizeFunction::CONSTANT,
-        SizeFunction::EXPONENTIAL,
-        SizeFunction::LINEAR,
-        SizeFunction::LINEAR,
-        SizeFunction::LINEAR,
+        SizeFunction::Constant,
+        SizeFunction::Exponential,
+        SizeFunction::Linear,
+        SizeFunction::Linear,
+        SizeFunction::Linear,
     ];
     assert_eq!(size_functions, expected_size_functions);
 }

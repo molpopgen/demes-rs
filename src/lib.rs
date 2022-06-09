@@ -100,10 +100,18 @@ use std::io::Read;
 
 pub use error::DemesError;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_str(yaml)
 }
 
 pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_reader(reader)
+}
+
+/// Return the package version given in the
+/// `Cargo.toml` file of this crate.
+pub fn version() -> &'static str {
+    VERSION
 }

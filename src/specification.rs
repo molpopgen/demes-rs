@@ -1512,14 +1512,10 @@ struct GraphDefaultInput {
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaults {
-    #[serde(default = "Epoch::default")]
-    epoch: Epoch,
-    #[serde(default = "UnresolvedMigration::default")]
-    migration: UnresolvedMigration,
-    #[serde(default = "Pulse::default")]
-    pulse: Pulse,
-    #[serde(default = "TopLevelDemeDefaults::default")]
-    deme: TopLevelDemeDefaults,
+    epoch: Option<Epoch>,
+    migration: Option<UnresolvedMigration>,
+    pulse: Option<Pulse>,
+    deme: Option<TopLevelDemeDefaults>,
 }
 
 impl GraphDefaults {
@@ -1636,11 +1632,7 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
     doi: Option<Vec<String>>,
     #[serde(skip_serializing)]
-    #[serde(default = "GraphDefaultInput::default")]
-    #[serde(rename = "defaults")]
-    input_defaults: GraphDefaultInput,
-    #[serde(skip)]
-    defaults: GraphDefaults,
+    defaults: Option<GraphDefaults>,
     #[serde(default = "Metadata::default")]
     #[serde(skip_serializing_if = "Metadata::is_empty")]
     metadata: Metadata,

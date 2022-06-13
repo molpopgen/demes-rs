@@ -5,7 +5,7 @@
 use crate::DemesError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::cell::{Ref, RefCell};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Display;
@@ -38,7 +38,7 @@ impl Time {
         self.0 > 0.0
     }
 
-    fn err_if_not_valid_deme_start_time(&self) -> Result<(), DemesError> {
+    pub(crate) fn err_if_not_valid_deme_start_time(&self) -> Result<(), DemesError> {
         if self.is_valid_deme_start_time() {
             Ok(())
         } else {
@@ -727,37 +727,50 @@ impl Pulse {
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct EpochData {
+    pub end_time: Option<Time>,
+    // NOTE: the Option is for input. An actual value must be put in via resolution.
+    pub start_size: Option<DemeSize>,
+    // NOTE: the Option is for input. An actual value must be put in via resolution.
+    pub end_size: Option<DemeSize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_function: Option<crate::specification::SizeFunction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cloning_rate: Option<crate::specification::CloningRate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selfing_rate: Option<crate::specification::SelfingRate>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Epoch {
-    end_time: Option<Time>,
-    // NOTE: the Option is for input. An actual value must be put in via resolution.
-    start_size: Option<DemeSize>,
-    // NOTE: the Option is for input. An actual value must be put in via resolution.
-    end_size: Option<DemeSize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    size_function: Option<SizeFunction>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cloning_rate: Option<CloningRate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    selfing_rate: Option<SelfingRate>,
+    #[serde(flatten)]
+    data: EpochData,
 }
 
 impl Epoch {
+    pub(crate) fn new_from_epoch_data(data: EpochData) -> Self {
+        Self { data }
+    }
+
     fn resolve_size_function(
         &mut self,
         defaults: &GraphDefaults,
         deme_defaults: &DemeDefaults,
     ) -> Result<(), DemesError> {
-        if self.size_function.is_some() {
+        if self.data.size_function.is_some() {
             return Ok(());
         }
-        match self.start_size {
-            Some(start_size) => match self.end_size {
+        match self.data.start_size {
+            Some(start_size) => match self.data.end_size {
                 Some(end_size) => {
                     if start_size.0 == end_size.0 {
-                        self.size_function = Some(SizeFunction::Constant);
+                        self.data.size_function = Some(SizeFunction::Constant);
                     } else {
-                        self.size_function = defaults
-                            .apply_epoch_size_function_defaults(self.size_function, deme_defaults);
+                        self.data.size_function = defaults.apply_epoch_size_function_defaults(
+                            self.data.size_function,
+                            deme_defaults,
+                        );
                     }
                     Ok(())
                 }
@@ -770,9 +783,9 @@ impl Epoch {
     }
 
     fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        self.selfing_rate = match deme_defaults.epoch.selfing_rate {
+        self.data.selfing_rate = match deme_defaults.epoch.selfing_rate {
             Some(selfing_rate) => Some(selfing_rate),
-            None => match defaults.epoch.selfing_rate {
+            None => match defaults.epoch.data.selfing_rate {
                 Some(selfing_rate) => Some(selfing_rate),
                 None => Some(SelfingRate::default()),
             },
@@ -780,9 +793,9 @@ impl Epoch {
     }
 
     fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        self.cloning_rate = match deme_defaults.epoch.cloning_rate {
+        self.data.cloning_rate = match deme_defaults.epoch.cloning_rate {
             Some(cloning_rate) => Some(cloning_rate),
-            None => match defaults.epoch.cloning_rate {
+            None => match defaults.epoch.data.cloning_rate {
                 Some(cloning_rate) => Some(cloning_rate),
                 None => Some(CloningRate::default()),
             },
@@ -800,21 +813,21 @@ impl Epoch {
     }
 
     fn validate_end_time(&self) -> Result<(), DemesError> {
-        match self.end_time {
+        match self.data.end_time {
             Some(time) => time.err_if_not_valid_epoch_end_time(),
             None => Err(DemesError::EpochError("end time is None".to_string())),
         }
     }
 
     fn validate_cloning_rate(&self) -> Result<(), DemesError> {
-        match self.cloning_rate {
+        match self.data.cloning_rate {
             Some(_) => Ok(()),
             None => Err(DemesError::EpochError("cloning_rate is None".to_string())),
         }
     }
 
     fn validate_selfing_rate(&self) -> Result<(), DemesError> {
-        match self.selfing_rate {
+        match self.data.selfing_rate {
             Some(_) => Ok(()),
             None => Err(DemesError::EpochError("selfing_rate is None".to_string())),
         }
@@ -823,10 +836,10 @@ impl Epoch {
     fn validate_size_function(&self) -> Result<(), DemesError> {
         let mut msg: Option<String> = None;
 
-        let start_size = self.start_size.unwrap();
-        let end_size = self.end_size.unwrap();
+        let start_size = self.data.start_size.unwrap();
+        let end_size = self.data.end_size.unwrap();
 
-        match self.size_function {
+        match self.data.size_function {
             Some(size_function) => {
                 if matches!(size_function, SizeFunction::Constant) {
                     if start_size != end_size {
@@ -838,7 +851,7 @@ impl Epoch {
                 } else if start_size == end_size {
                     msg = Some(format!(
                 "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
-                self.start_size, self.end_size, size_function
+                self.data.start_size, self.data.end_size, size_function
             ));
                 }
             }
@@ -859,31 +872,31 @@ impl Epoch {
     }
 
     pub fn size_function(&self) -> SizeFunction {
-        self.size_function.unwrap()
+        self.data.size_function.unwrap()
     }
 
     pub fn selfing_rate(&self) -> SelfingRate {
-        self.selfing_rate.unwrap()
+        self.data.selfing_rate.unwrap()
     }
 
     pub fn cloning_rate(&self) -> CloningRate {
-        self.cloning_rate.unwrap()
+        self.data.cloning_rate.unwrap()
     }
 
     pub fn end_time(&self) -> Time {
-        self.end_time.unwrap()
+        self.data.end_time.unwrap()
     }
 
     pub fn start_size(&self) -> DemeSize {
-        self.start_size.unwrap()
+        self.data.start_size.unwrap()
     }
 
     pub fn end_size(&self) -> DemeSize {
-        self.end_size.unwrap()
+        self.data.end_size.unwrap()
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DemeData {
     name: String,
@@ -915,12 +928,66 @@ impl PartialEq for DemeData {
 
 impl Eq for DemeData {}
 
-type DemePtr = Rc<RefCell<DemeData>>;
+impl DemeData {
+    pub(crate) fn new_with_name(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    pub(crate) fn set_start_time(&mut self, start_time: Option<Time>) -> Result<(), DemesError> {
+        match start_time {
+            Some(start_time) => {
+                start_time.err_if_not_valid_deme_start_time()?;
+                self.start_time = Some(start_time);
+            }
+            None => (),
+        }
+        Ok(())
+    }
+
+    pub(crate) fn set_ancestors(&mut self, ancestors: Option<Vec<String>>) {
+        self.ancestors = ancestors;
+    }
+
+    pub(crate) fn set_proportions(&mut self, proportions: Option<Vec<Proportion>>) {
+        self.proportions = proportions;
+    }
+
+    pub(crate) fn set_epochs(&mut self, epochs: Vec<Epoch>) {
+        self.epochs = epochs;
+    }
+
+    pub(crate) fn set_description(&mut self, description: Option<&str>) {
+        match description {
+            Some(string) => self.description = string.to_owned(),
+            None => self.description = "".to_string(),
+        }
+    }
+
+    pub(crate) fn set_defaults(&mut self, defaults: DemeDefaults) {
+        self.defaults = DemeDefaults {
+            epoch: defaults.epoch,
+        };
+    }
+}
+
+pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Deme(DemePtr);
 
 impl Deme {
+    pub(crate) fn new_from_deme_data(data: DemeData) -> Self {
+        let ptr = DemePtr::new(RefCell::new(data));
+        Self(ptr)
+    }
+
+    pub(crate) fn borrow_mut(&mut self) -> RefMut<DemeData> {
+        self.0.borrow_mut()
+    }
+
     fn resolve_times(
         &mut self,
         deme_map: &DemeMap,
@@ -965,6 +1032,7 @@ impl Deme {
                                 .epochs
                                 .last()
                                 .unwrap() // panic if ancestor epochs are empty
+                                .data
                                 .end_time
                                 .unwrap(),
                         )
@@ -1018,10 +1086,10 @@ impl Deme {
             // NOTE: cloning the defaults to make borrow checker happy.
             let self_defaults = self_borrow.defaults.clone();
             let mut last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
-            if last_epoch_ref.end_time.is_none() {
-                last_epoch_ref.end_time = match self_defaults.epoch.end_time {
+            if last_epoch_ref.data.end_time.is_none() {
+                last_epoch_ref.data.end_time = match self_defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
-                    None => match defaults.epoch.end_time {
+                    None => match defaults.epoch.data.end_time {
                         Some(end_time) => Some(end_time),
                         None => Some(Time::default_epoch_end_time()),
                     },
@@ -1033,12 +1101,12 @@ impl Deme {
             // apply default epoch start times
             let self_defaults = self.0.borrow().defaults.clone();
             for epoch in self.0.borrow_mut().epochs.iter_mut() {
-                match epoch.end_time {
+                match epoch.data.end_time {
                     Some(end_time) => end_time.validate(DemesError::EpochError)?,
                     None => {
-                        epoch.end_time = match self_defaults.epoch.end_time {
+                        epoch.data.end_time = match self_defaults.epoch.end_time {
                             Some(end_time) => Some(end_time),
-                            None => defaults.epoch.end_time,
+                            None => defaults.epoch.data.end_time,
                         }
                     }
                 }
@@ -1047,14 +1115,14 @@ impl Deme {
 
         let mut last_time = f64::from(self.0.borrow().start_time.unwrap());
         for (i, epoch) in self.0.borrow().epochs.iter().enumerate() {
-            if epoch.end_time.is_none() {
+            if epoch.data.end_time.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "deme: {}, epoch: {} end time must be specified",
                     self.name(),
                     i
                 )));
             }
-            let end_time = f64::from(epoch.end_time.unwrap());
+            let end_time = f64::from(epoch.data.end_time.unwrap());
             if end_time >= last_time {
                 return Err(DemesError::EpochError(
                     "Epoch end times must be listed in decreasing order".to_string(),
@@ -1076,30 +1144,30 @@ impl Deme {
         let epoch_sizes = {
             let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
 
-            temp_epoch.start_size = match temp_epoch.start_size {
+            temp_epoch.data.start_size = match temp_epoch.data.start_size {
                 Some(start_size) => Some(start_size),
                 None => self_defaults.epoch.start_size,
             };
-            temp_epoch.end_size = match temp_epoch.end_size {
+            temp_epoch.data.end_size = match temp_epoch.data.end_size {
                 Some(end_size) => Some(end_size),
                 None => self_defaults.epoch.end_size,
             };
 
             defaults.apply_epoch_size_defaults(temp_epoch);
-            if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {
+            if temp_epoch.data.start_size.is_none() && temp_epoch.data.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
                     self_borrow.name
                 )));
             }
-            if temp_epoch.start_size.is_none() {
-                temp_epoch.start_size = temp_epoch.end_size;
+            if temp_epoch.data.start_size.is_none() {
+                temp_epoch.data.start_size = temp_epoch.data.end_size;
             }
-            if temp_epoch.end_size.is_none() {
-                temp_epoch.end_size = temp_epoch.start_size;
+            if temp_epoch.data.end_size.is_none() {
+                temp_epoch.data.end_size = temp_epoch.data.start_size;
             }
             // temp_epoch.clone()
-            (temp_epoch.start_size, temp_epoch.end_size)
+            (temp_epoch.data.start_size, temp_epoch.data.end_size)
         };
 
         match self_borrow.start_time {
@@ -1121,27 +1189,27 @@ impl Deme {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         let local_defaults = self.0.borrow().defaults.clone();
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
-            match epoch.start_size {
+            match epoch.data.start_size {
                 Some(_) => (),
                 None => match local_defaults.epoch.start_size {
-                    Some(start_size) => epoch.start_size = Some(start_size),
-                    None => match defaults.epoch.start_size {
-                        Some(start_size) => epoch.start_size = Some(start_size),
-                        None => epoch.start_size = last_end_size,
+                    Some(start_size) => epoch.data.start_size = Some(start_size),
+                    None => match defaults.epoch.data.start_size {
+                        Some(start_size) => epoch.data.start_size = Some(start_size),
+                        None => epoch.data.start_size = last_end_size,
                     },
                 },
             }
-            match epoch.end_size {
+            match epoch.data.end_size {
                 Some(_) => (),
                 None => match local_defaults.epoch.end_size {
-                    Some(end_size) => epoch.end_size = Some(end_size),
-                    None => match defaults.epoch.end_size {
-                        Some(end_size) => epoch.end_size = Some(end_size),
-                        None => epoch.end_size = epoch.start_size,
+                    Some(end_size) => epoch.data.end_size = Some(end_size),
+                    None => match defaults.epoch.data.end_size {
+                        Some(end_size) => epoch.data.end_size = Some(end_size),
+                        None => epoch.data.end_size = epoch.data.start_size,
                     },
                 },
             }
-            last_end_size = epoch.end_size;
+            last_end_size = epoch.data.end_size;
         }
         Ok(())
     }
@@ -1265,7 +1333,7 @@ impl Deme {
 
     // Names must be valid Python identifiers
     // https://docs.python.org/3/reference/lexical_analysis.html#identifiers
-    fn validate_name(&self) -> Result<(), DemesError> {
+    pub(crate) fn validate_name(&self) -> Result<(), DemesError> {
         let python_identifier = regex::Regex::new(r"^[^\d\W]\w*$").unwrap();
         if python_identifier.is_match(&self.name().to_string()) {
             Ok(())
@@ -1362,11 +1430,11 @@ impl Deme {
     }
 
     pub fn start_size(&self) -> DemeSize {
-        self.0.borrow().epochs[0].start_size.unwrap()
+        self.0.borrow().epochs[0].data.start_size.unwrap()
     }
 
     pub fn end_size(&self) -> DemeSize {
-        self.0.borrow().epochs[0].end_size.unwrap()
+        self.0.borrow().epochs[0].data.end_size.unwrap()
     }
 
     pub fn start_sizes(&self) -> Vec<DemeSize> {
@@ -1418,6 +1486,7 @@ impl Deme {
             .last()
             .as_ref()
             .unwrap()
+            .data
             .end_time
             .unwrap()
     }
@@ -1527,19 +1596,19 @@ impl GraphDefaults {
         if start_size.is_some() {
             return start_size;
         }
-        self.epoch.start_size
+        self.epoch.data.start_size
     }
 
     fn apply_default_epoch_end_size(&self, end_size: Option<DemeSize>) -> Option<DemeSize> {
         if end_size.is_some() {
             return end_size;
         }
-        self.epoch.end_size
+        self.epoch.data.end_size
     }
 
     fn apply_epoch_size_defaults(&self, epoch: &mut Epoch) {
-        epoch.start_size = self.apply_default_epoch_start_size(epoch.start_size);
-        epoch.end_size = self.apply_default_epoch_end_size(epoch.end_size);
+        epoch.data.start_size = self.apply_default_epoch_start_size(epoch.data.start_size);
+        epoch.data.end_size = self.apply_default_epoch_end_size(epoch.data.end_size);
     }
 
     fn apply_epoch_size_function_defaults(
@@ -1553,7 +1622,7 @@ impl GraphDefaults {
 
         match deme_level_defaults.epoch.size_function {
             Some(sf) => Some(sf),
-            None => match self.epoch.size_function {
+            None => match self.epoch.data.size_function {
                 Some(sf) => Some(sf),
                 None => Some(SizeFunction::Exponential),
             },
@@ -1608,8 +1677,8 @@ struct TopLevelDemeDefaults {
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DemeDefaults {
-    epoch: Epoch,
+pub struct DemeDefaults {
+    pub epoch: EpochData,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -1647,7 +1716,7 @@ pub struct Graph {
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
-    demes: Vec<Deme>,
+    pub(crate) demes: Vec<Deme>,
     #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_serializing)]
@@ -1723,6 +1792,10 @@ impl Graph {
         graph.resolve()?;
         graph.validate()?;
         Ok(graph)
+    }
+
+    pub(crate) fn add_deme(&mut self, deme: Deme) {
+        self.demes.push(deme);
     }
 
     fn build_deme_map(&self) -> Result<DemeMap, DemesError> {
@@ -2203,9 +2276,9 @@ mod tests {
     fn test_epoch_using_defaults() {
         let yaml = "---\nend_time: 1000\nend_size: 100\n".to_string();
         let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(e.end_size.as_ref().unwrap().0, 100.0);
-        assert_eq!(e.end_time.unwrap().0, 1000.0);
-        assert!(e.start_size.is_none());
+        assert_eq!(e.data.end_size.as_ref().unwrap().0, 100.0);
+        assert_eq!(e.data.end_time.unwrap().0, 1000.0);
+        assert!(e.data.start_size.is_none());
     }
 
     #[test]

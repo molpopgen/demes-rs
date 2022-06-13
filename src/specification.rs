@@ -5,7 +5,7 @@
 use crate::DemesError;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Display;
@@ -749,10 +749,6 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    pub(crate) fn new_from_epoch_data(data: EpochData) -> Self {
-        Self { data }
-    }
-
     fn resolve_size_function(
         &mut self,
         defaults: &GraphDefaults,
@@ -902,25 +898,32 @@ pub struct DemeData {
     name: String,
     #[serde(default = "String::default")]
     description: String,
-    ancestors: Option<Vec<String>>,
-    proportions: Option<Vec<Proportion>>,
-    start_time: Option<Time>,
-    #[serde(default = "Vec::<Epoch>::default")]
-    epochs: Vec<Epoch>,
     #[serde(skip)]
     ancestor_map: DemeMap,
+    #[serde(default = "Vec::<Epoch>::default")]
+    epochs: Vec<Epoch>,
+    #[serde(flatten)]
+    history: DemeHistory,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DemeHistory {
+    pub ancestors: Option<Vec<String>>,
+    pub proportions: Option<Vec<Proportion>>,
+    pub start_time: Option<Time>,
     #[serde(default = "DemeDefaults::default")]
     #[serde(skip_serializing)]
-    defaults: DemeDefaults,
+    pub defaults: DemeDefaults,
 }
 
 impl PartialEq for DemeData {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.description == other.description
-            && self.ancestors == other.ancestors
-            && self.proportions == other.proportions
-            && self.start_time == other.start_time
+            && self.history.ancestors == other.history.ancestors
+            && self.history.proportions == other.history.proportions
+            && self.history.start_time == other.history.start_time
             && self.epochs == other.epochs
             && self.ancestor_map == other.ancestor_map
     }
@@ -928,64 +931,34 @@ impl PartialEq for DemeData {
 
 impl Eq for DemeData {}
 
-impl DemeData {
-    pub(crate) fn new_with_name(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            ..Default::default()
-        }
-    }
-
-    pub(crate) fn set_start_time(&mut self, start_time: Option<Time>) -> Result<(), DemesError> {
-        match start_time {
-            Some(start_time) => {
-                start_time.err_if_not_valid_deme_start_time()?;
-                self.start_time = Some(start_time);
-            }
-            None => (),
-        }
-        Ok(())
-    }
-
-    pub(crate) fn set_ancestors(&mut self, ancestors: Option<Vec<String>>) {
-        self.ancestors = ancestors;
-    }
-
-    pub(crate) fn set_proportions(&mut self, proportions: Option<Vec<Proportion>>) {
-        self.proportions = proportions;
-    }
-
-    pub(crate) fn set_epochs(&mut self, epochs: Vec<Epoch>) {
-        self.epochs = epochs;
-    }
-
-    pub(crate) fn set_description(&mut self, description: Option<&str>) {
-        match description {
-            Some(string) => self.description = string.to_owned(),
-            None => self.description = "".to_string(),
-        }
-    }
-
-    pub(crate) fn set_defaults(&mut self, defaults: DemeDefaults) {
-        self.defaults = DemeDefaults {
-            epoch: defaults.epoch,
-        };
-    }
-}
-
 pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Deme(DemePtr);
 
 impl Deme {
-    pub(crate) fn new_from_deme_data(data: DemeData) -> Self {
+    pub(crate) fn new_via_builder(
+        name: &str,
+        epochs: Vec<EpochData>,
+        history: DemeHistory,
+        description: Option<&str>,
+    ) -> Result<Self, DemesError> {
+        let epochs = epochs.into_iter().map(|data| Epoch { data }).collect_vec();
+        let description = match description {
+            Some(desc) => desc.to_string(),
+            None => String::default(),
+        };
+        let data = DemeData {
+            name: name.to_string(),
+            epochs,
+            history,
+            description,
+            ..Default::default()
+        };
         let ptr = DemePtr::new(RefCell::new(data));
-        Self(ptr)
-    }
-
-    pub(crate) fn borrow_mut(&mut self) -> RefMut<DemeData> {
-        self.0.borrow_mut()
+        let rv = Self(ptr);
+        rv.validate_name()?;
+        Ok(rv)
     }
 
     fn resolve_times(
@@ -997,7 +970,7 @@ impl Deme {
 
         {
             let mut mut_borrowed_self = self.0.borrow_mut();
-            mut_borrowed_self.start_time = match mut_borrowed_self.start_time {
+            mut_borrowed_self.history.start_time = match mut_borrowed_self.history.start_time {
                 Some(start_time) => Some(start_time),
                 None => match defaults.deme.start_time {
                     Some(start_time) => Some(start_time),
@@ -1006,7 +979,14 @@ impl Deme {
             };
         }
 
-        if self.0.borrow().ancestors.as_ref().unwrap().is_empty()
+        if self
+            .0
+            .borrow()
+            .history
+            .ancestors
+            .as_ref()
+            .unwrap()
+            .is_empty()
             && self.start_time() != Time::default_deme_start_time()
         {
             return Err(DemesError::DemeError(format!(
@@ -1018,9 +998,9 @@ impl Deme {
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
 
-            let ancestors = mut_borrowed_self.ancestors.as_ref().unwrap();
+            let ancestors = mut_borrowed_self.history.ancestors.as_ref().unwrap();
 
-            mut_borrowed_self.start_time = match mut_borrowed_self.start_time {
+            mut_borrowed_self.history.start_time = match mut_borrowed_self.history.start_time {
                 Some(start_time) => {
                     if start_time == Time::default_deme_start_time() {
                         Some(
@@ -1053,7 +1033,7 @@ impl Deme {
             //        .unwrap() // panic if ancestor epochs are empty
             //        .end_time
             //        .unwrap();
-            match mut_borrowed_self.start_time {
+            match mut_borrowed_self.history.start_time {
                 Some(start_time) => match start_time.err_if_not_valid_deme_start_time() {
                     Ok(_) => (),
                     Err(_) => {
@@ -1067,10 +1047,10 @@ impl Deme {
             }
         }
 
-        for ancestor in self.0.borrow().ancestors.as_ref().unwrap() {
+        for ancestor in self.0.borrow().history.ancestors.as_ref().unwrap() {
             let a = deme_map.get(ancestor).unwrap();
             let t = a.time_interval();
-            if !t.contains_start_time(self.0.borrow().start_time.unwrap()) {
+            if !t.contains_start_time(self.0.borrow().history.start_time.unwrap()) {
                 return Err(DemesError::DemeError(format!(
                     "Ancestor {} does not exist at deme {}'s start_time",
                     ancestor,
@@ -1084,7 +1064,7 @@ impl Deme {
             // unless defaults are specified
             let mut self_borrow = self.0.borrow_mut();
             // NOTE: cloning the defaults to make borrow checker happy.
-            let self_defaults = self_borrow.defaults.clone();
+            let self_defaults = self_borrow.history.defaults.clone();
             let mut last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
             if last_epoch_ref.data.end_time.is_none() {
                 last_epoch_ref.data.end_time = match self_defaults.epoch.end_time {
@@ -1099,7 +1079,7 @@ impl Deme {
 
         {
             // apply default epoch start times
-            let self_defaults = self.0.borrow().defaults.clone();
+            let self_defaults = self.0.borrow().history.defaults.clone();
             for epoch in self.0.borrow_mut().epochs.iter_mut() {
                 match epoch.data.end_time {
                     Some(end_time) => end_time.validate(DemesError::EpochError)?,
@@ -1113,7 +1093,7 @@ impl Deme {
             }
         }
 
-        let mut last_time = f64::from(self.0.borrow().start_time.unwrap());
+        let mut last_time = f64::from(self.0.borrow().history.start_time.unwrap());
         for (i, epoch) in self.0.borrow().epochs.iter().enumerate() {
             if epoch.data.end_time.is_none() {
                 return Err(DemesError::EpochError(format!(
@@ -1140,7 +1120,7 @@ impl Deme {
         defaults: &GraphDefaults,
     ) -> Result<Option<DemeSize>, DemesError> {
         let mut self_borrow = self.0.borrow_mut();
-        let self_defaults = self_borrow.defaults.clone();
+        let self_defaults = self_borrow.history.defaults.clone();
         let epoch_sizes = {
             let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
 
@@ -1170,7 +1150,7 @@ impl Deme {
             (temp_epoch.data.start_size, temp_epoch.data.end_size)
         };
 
-        match self_borrow.start_time {
+        match self_borrow.history.start_time {
             Some(start_time) => {
                 if start_time == Time::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
                     let msg = format!(
@@ -1187,7 +1167,7 @@ impl Deme {
 
     fn resolve_sizes(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
-        let local_defaults = self.0.borrow().defaults.clone();
+        let local_defaults = self.0.borrow().history.defaults.clone();
         for epoch in self.0.borrow_mut().epochs.iter_mut().skip(1) {
             match epoch.data.start_size {
                 Some(_) => (),
@@ -1217,8 +1197,8 @@ impl Deme {
     fn resolve_proportions(&mut self) -> Result<(), DemesError> {
         let mut borrowed_self = self.0.borrow_mut();
 
-        let num_ancestors = borrowed_self.ancestors.as_ref().unwrap().len();
-        let proportions = borrowed_self.proportions.as_mut().unwrap();
+        let num_ancestors = borrowed_self.history.ancestors.as_ref().unwrap().len();
+        let proportions = borrowed_self.history.proportions.as_mut().unwrap();
 
         if proportions.is_empty() && num_ancestors == 1 {
             proportions.push(Proportion(1.0));
@@ -1241,7 +1221,7 @@ impl Deme {
 
     fn apply_toplevel_defaults(&mut self, defaults: &GraphDefaults) {
         let mut borrowed_self = self.0.borrow_mut();
-        borrowed_self.ancestors = match &borrowed_self.ancestors {
+        borrowed_self.history.ancestors = match &borrowed_self.history.ancestors {
             Some(ancestors) => Some(ancestors.to_vec()),
             None => match &defaults.deme.ancestors {
                 Some(ancestors) => Some(ancestors.to_vec()),
@@ -1249,7 +1229,7 @@ impl Deme {
             },
         };
 
-        borrowed_self.proportions = match &borrowed_self.proportions {
+        borrowed_self.history.proportions = match &borrowed_self.history.proportions {
             Some(proportions) => Some(proportions.to_vec()),
             None => match &defaults.deme.proportions {
                 Some(proportions) => Some(proportions.to_vec()),
@@ -1262,7 +1242,7 @@ impl Deme {
         let self_borrow = self.0.borrow();
 
         let mut msg = Option::<String>::default();
-        match &self_borrow.ancestors {
+        match &self_borrow.history.ancestors {
             Some(ancestors) => {
                 let mut ancestor_set = HashSet::<String>::default();
                 for ancestor in ancestors {
@@ -1304,7 +1284,7 @@ impl Deme {
         assert!(self.0.borrow().ancestor_map.is_empty());
         self.resolve_times(deme_map, defaults)?;
         self.resolve_sizes(defaults)?;
-        let self_defaults = self.0.borrow().defaults.clone();
+        let self_defaults = self.0.borrow().history.defaults.clone();
         self.0
             .borrow_mut()
             .epochs
@@ -1314,7 +1294,7 @@ impl Deme {
 
         let mut ancestor_map = DemeMap::default();
         let mut mut_self_borrow = self.0.borrow_mut();
-        for ancestor in mut_self_borrow.ancestors.as_ref().unwrap().iter() {
+        for ancestor in mut_self_borrow.history.ancestors.as_ref().unwrap().iter() {
             ancestor_map.insert(ancestor.clone(), deme_map.get(ancestor).unwrap().clone());
         }
         mut_self_borrow.ancestor_map = ancestor_map;
@@ -1322,7 +1302,7 @@ impl Deme {
     }
 
     fn validate_start_time(&self) -> Result<(), DemesError> {
-        match self.0.borrow().start_time {
+        match self.0.borrow().history.start_time {
             Some(start_time) => {
                 start_time.validate(DemesError::DemeError)?;
                 start_time.err_if_not_valid_deme_start_time()
@@ -1358,7 +1338,7 @@ impl Deme {
 
         self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
 
-        let proportions = self_borrow.proportions.as_ref().unwrap();
+        let proportions = self_borrow.history.proportions.as_ref().unwrap();
         if !proportions.is_empty() {
             let sum_proportions: f64 = proportions.iter().map(|p| f64::from(*p)).sum();
             // NOTE: this is same default as Python's math.isclose().
@@ -1383,7 +1363,7 @@ impl Deme {
     }
 
     pub fn start_time(&self) -> Time {
-        self.0.borrow().start_time.unwrap()
+        self.0.borrow().history.start_time.unwrap()
     }
 
     pub fn name(&self) -> Ref<'_, String> {
@@ -1392,12 +1372,12 @@ impl Deme {
     }
 
     pub fn num_ancestors(&self) -> usize {
-        self.0.borrow().ancestors.as_ref().unwrap().len()
+        self.0.borrow().history.ancestors.as_ref().unwrap().len()
     }
 
     pub fn ancestor_names(&self) -> Ref<'_, [String]> {
         let borrow = self.0.borrow();
-        Ref::map(borrow, |b| match &b.ancestors {
+        Ref::map(borrow, |b| match &b.history.ancestors {
             Some(ancestors) => ancestors.as_slice(),
             None => panic!("proportions is None"),
         })
@@ -1418,7 +1398,7 @@ impl Deme {
 
     pub fn proportions(&self) -> Ref<'_, [Proportion]> {
         let borrow = self.0.borrow();
-        Ref::map(borrow, |b| match &b.proportions {
+        Ref::map(borrow, |b| match &b.history.proportions {
             Some(proportions) => proportions.as_slice(),
             None => panic!("proportions is None"),
         })
@@ -2350,7 +2330,7 @@ mod tests {
 
     #[test]
     fn load_deme_with_two_ancestors() {
-        let yaml = "---\nname: A great deme!\nancestors: [11, Apple Pie]".to_string();
+        let yaml = "---\nname: A great deme!\nancestors: [Eleven, ApplePie]".to_string();
         let d: Deme = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(*d.name(), "A great deme!".to_string());
         assert_eq!(d.num_ancestors(), 2);

@@ -942,7 +942,7 @@ impl Deme {
         epochs: Vec<EpochData>,
         history: DemeHistory,
         description: Option<&str>,
-    ) -> Result<Self, DemesError> {
+    ) -> Self {
         let epochs = epochs.into_iter().map(|data| Epoch { data }).collect_vec();
         let description = match description {
             Some(desc) => desc.to_string(),
@@ -956,9 +956,7 @@ impl Deme {
             ..Default::default()
         };
         let ptr = DemePtr::new(RefCell::new(data));
-        let rv = Self(ptr);
-        rv.validate_name()?;
-        Ok(rv)
+        Self(ptr)
     }
 
     fn resolve_times(

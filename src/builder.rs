@@ -44,10 +44,9 @@ impl GraphBuilder {
         epochs: Vec<EpochData>,
         history: DemeHistory,
         description: Option<&str>,
-    ) -> Result<(), DemesError> {
-        let ptr = Deme::new_via_builder(name, epochs, history, description)?;
+    ) {
+        let ptr = Deme::new_via_builder(name, epochs, history, description);
         self.graph.add_deme(ptr);
-        Ok(())
     }
 
     pub fn add_migration(
@@ -95,8 +94,7 @@ mod tests {
             start_size: Some(DemeSize::try_from(100.0).unwrap()),
             ..Default::default()
         };
-        b.add_deme("CEU", vec![edata], DemeHistory::default(), None)
-            .unwrap();
+        b.add_deme("CEU", vec![edata], DemeHistory::default(), None);
         let _graph = b.resolve().unwrap();
     }
 
@@ -122,7 +120,7 @@ mod tests {
             ..Default::default()
         };
         let mut b = GraphBuilder::new_generations(None);
-        b.add_deme("YRB", vec![], history, None).unwrap();
+        b.add_deme("YRB", vec![], history, None);
         b.resolve().unwrap();
     }
 }
@@ -174,12 +172,8 @@ demes:
             Some(GenerationTime::from(25.0)),
             Some(toplevel_defaults),
         );
-        builder
-            .add_deme("A", vec![epochs_a], DemeHistory::default(), None)
-            .unwrap();
-        builder
-            .add_deme("B", vec![epochs_b], DemeHistory::default(), None)
-            .unwrap();
+        builder.add_deme("A", vec![epochs_a], DemeHistory::default(), None);
+        builder.add_deme("B", vec![epochs_b], DemeHistory::default(), None);
         let graph_from_builder = builder.resolve().unwrap();
         assert_eq!(graph_from_yaml, graph_from_builder);
     }

@@ -26,6 +26,12 @@ impl GraphBuilder {
         }
     }
 
+    pub fn new_generations(defaults: Option<GraphDefaults>) -> Self {
+        Self {
+            graph: Graph::new(TimeUnits::Generations, None, defaults),
+        }
+    }
+
     pub fn resolve(self) -> Result<Graph, DemesError> {
         let mut builder = self;
         builder.graph.resolve()?;
@@ -84,7 +90,7 @@ mod tests {
 
     #[test]
     fn add_deme_with_epochs() {
-        let mut b = GraphBuilder::new(TimeUnits::Generations, None, Some(GraphDefaults::default()));
+        let mut b = GraphBuilder::new_generations(Some(GraphDefaults::default()));
         let edata = EpochData {
             start_size: Some(DemeSize::try_from(100.0).unwrap()),
             ..Default::default()
@@ -115,7 +121,7 @@ mod tests {
             defaults,
             ..Default::default()
         };
-        let mut b = GraphBuilder::new(TimeUnits::Generations, None, None);
+        let mut b = GraphBuilder::new_generations(None);
         b.add_deme("YRB", vec![], history, None).unwrap();
         b.resolve().unwrap();
     }

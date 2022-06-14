@@ -91,14 +91,15 @@
 
 mod macros;
 
-#[allow(dead_code)]
 mod builder;
 mod error;
-pub mod specification;
+mod specification;
 
 use std::io::Read;
 
+pub use builder::GraphBuilder;
 pub use error::DemesError;
+pub use specification::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

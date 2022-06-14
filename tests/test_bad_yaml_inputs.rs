@@ -113,7 +113,7 @@ demes:
     let g = demes::loads(yaml).unwrap();
     assert!(matches!(
         g.time_units(),
-        demes::specification::TimeUnits::Generations
+        demes::TimeUnits::Generations
     ));
 }
 

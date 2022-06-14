@@ -115,7 +115,7 @@ impl From<Time> for TimeTrampoline {
 }
 
 #[repr(transparent)]
-pub struct HashableTime(Time);
+struct HashableTime(Time);
 
 impl std::hash::Hash for HashableTime {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -441,7 +441,7 @@ impl AsymmetricMigration {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SymmetricMigration {
+struct SymmetricMigration {
     demes: Vec<String>,
     rate: MigrationRate,
     start_time: Option<Time>,
@@ -478,9 +478,9 @@ impl SymmetricMigration {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(try_from = "UnresolvedMigration")]
 #[serde(into = "UnresolvedMigration")]
-pub enum Migration {
-    ASYMMETRIC(AsymmetricMigration),
-    SYMMETRIC(SymmetricMigration),
+enum Migration {
+    Asymmetric(AsymmetricMigration),
+    Symmetric(SymmetricMigration),
 }
 
 impl TryFrom<UnresolvedMigration> for Migration {
@@ -494,7 +494,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
                 ))
             } else {
                 value.valid_asymmetric_or_err()?;
-                Ok(Migration::ASYMMETRIC(AsymmetricMigration {
+                Ok(Migration::Asymmetric(AsymmetricMigration {
                     source: value.source.unwrap(),
                     dest: value.dest.unwrap(),
                     rate: value.rate.unwrap(),
@@ -509,7 +509,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
             ))
         } else {
             value.valid_symmetric_or_err()?;
-            Ok(Migration::SYMMETRIC(SymmetricMigration {
+            Ok(Migration::Symmetric(SymmetricMigration {
                 demes: value.demes.unwrap(),
                 rate: value.rate.unwrap(),
                 start_time: value.start_time,
@@ -522,7 +522,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
 impl From<Migration> for UnresolvedMigration {
     fn from(value: Migration) -> Self {
         match value {
-            Migration::SYMMETRIC(s) => UnresolvedMigration {
+            Migration::Symmetric(s) => UnresolvedMigration {
                 demes: Some(s.demes),
                 rate: Some(s.rate),
                 start_time: s.start_time,
@@ -530,7 +530,7 @@ impl From<Migration> for UnresolvedMigration {
                 source: None,
                 dest: None,
             },
-            Migration::ASYMMETRIC(a) => UnresolvedMigration {
+            Migration::Asymmetric(a) => UnresolvedMigration {
                 demes: None,
                 source: Some(a.source),
                 dest: Some(a.dest),
@@ -1493,7 +1493,7 @@ pub enum TimeUnits {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[repr(transparent)]
-pub struct CustomTimeUnits(String);
+struct CustomTimeUnits(String);
 
 impl From<String> for TimeUnits {
     fn from(value: String) -> Self {
@@ -1922,8 +1922,8 @@ impl Graph {
             self.defaults.apply_migration_defaults(&mut input_mig_clone);
             let m = Migration::try_from(input_mig_clone)?;
             match m {
-                Migration::ASYMMETRIC(a) => self.process_input_asymmetric_migration(&a)?,
-                Migration::SYMMETRIC(s) => self.process_input_symmetric_migration(&s)?,
+                Migration::Asymmetric(a) => self.process_input_asymmetric_migration(&a)?,
+                Migration::Symmetric(s) => self.process_input_symmetric_migration(&s)?,
             }
         }
 

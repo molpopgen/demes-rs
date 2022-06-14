@@ -5,7 +5,7 @@ use demes::GenerationTime;
 use demes::GraphBuilder;
 use demes::GraphDefaults;
 use demes::Proportion;
-use demes::Pulse;
+use demes::UnresolvedPulse;
 use demes::Time;
 use demes::TimeUnits;
 use demes::TopLevelDemeDefaults;
@@ -29,7 +29,7 @@ demes:
     let graph_from_yaml = demes::loads(yaml).unwrap();
 
     let toplevel_defaults = GraphDefaults {
-        pulse: Pulse {
+        pulse: UnresolvedPulse {
             sources: Some(vec!["A".to_string()]),
             dest: Some("B".to_string()),
             proportions: Some(vec![Proportion::try_from(0.25).unwrap()]),

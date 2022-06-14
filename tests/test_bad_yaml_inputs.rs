@@ -111,10 +111,7 @@ demes:
       - start_size: 1000
 ";
     let g = demes::loads(yaml).unwrap();
-    assert!(matches!(
-        g.time_units(),
-        demes::TimeUnits::Generations
-    ));
+    assert!(matches!(g.time_units(), demes::TimeUnits::Generations));
 }
 
 #[test]

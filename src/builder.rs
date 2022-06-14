@@ -2,6 +2,8 @@ use crate::specification::Deme;
 use crate::specification::DemeHistory;
 use crate::specification::EpochData;
 use crate::specification::Graph;
+use crate::specification::MigrationRate;
+use crate::specification::Time;
 use crate::specification::TimeUnits;
 use crate::DemesError;
 
@@ -33,6 +35,19 @@ impl GraphBuilder {
         let ptr = Deme::new_via_builder(name, epochs, history, description)?;
         self.graph.add_deme(ptr);
         Ok(())
+    }
+
+    pub fn add_migration(
+        &mut self,
+        demes: Option<Vec<String>>,
+        source: Option<String>,
+        dest: Option<String>,
+        rate: Option<MigrationRate>,
+        start_time: Option<Time>,
+        end_time: Option<Time>,
+    ) {
+        self.graph
+            .add_migration(demes, source, dest, rate, start_time, end_time);
     }
 }
 

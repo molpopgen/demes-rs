@@ -2411,6 +2411,47 @@ mod tests {
             Err(e) => assert!(matches!(e, DemesError::DemeError(_))),
         }
     }
+
+    #[test]
+    fn test_newtype_compare_to_f64() {
+        {
+            let v = Time::from(100.0);
+            assert_eq!(v, 100.0);
+            assert_eq!(100.0, v);
+            assert!(v > 50.0);
+            assert!(50.0 < v);
+        }
+
+        {
+            let v = DemeSize::try_from(100.0).unwrap();
+            assert_eq!(v, 100.0);
+            assert_eq!(100.0, v);
+        }
+
+        {
+            let v = SelfingRate::try_from(1.0).unwrap();
+            assert_eq!(v, 1.0);
+            assert_eq!(1.0, v);
+        }
+
+        {
+            let v = CloningRate::try_from(1.0).unwrap();
+            assert_eq!(v, 1.0);
+            assert_eq!(1.0, v);
+        }
+
+        {
+            let v = Proportion::try_from(1.0).unwrap();
+            assert_eq!(v, 1.0);
+            assert_eq!(1.0, v);
+        }
+
+        {
+            let v = MigrationRate::try_from(1.0).unwrap();
+            assert_eq!(v, 1.0);
+            assert_eq!(1.0, v);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,4 @@
 use crate::specification::Deme;
-use crate::specification::DemeHistory;
-use crate::specification::EpochData;
 use crate::specification::GenerationTime;
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
@@ -8,6 +6,8 @@ use crate::specification::MigrationRate;
 use crate::specification::Proportion;
 use crate::specification::Time;
 use crate::specification::TimeUnits;
+use crate::specification::UnresolvedDemeHistory;
+use crate::specification::UnresolvedEpoch;
 use crate::DemesError;
 
 pub struct GraphBuilder {
@@ -41,8 +41,8 @@ impl GraphBuilder {
     pub fn add_deme(
         &mut self,
         name: &str,
-        epochs: Vec<EpochData>,
-        history: DemeHistory,
+        epochs: Vec<UnresolvedEpoch>,
+        history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) {
         let ptr = Deme::new_via_builder(name, epochs, history, description);
@@ -90,18 +90,18 @@ mod tests {
     #[test]
     fn add_deme_with_epochs() {
         let mut b = GraphBuilder::new_generations(Some(GraphDefaults::default()));
-        let edata = EpochData {
+        let edata = UnresolvedEpoch {
             start_size: Some(DemeSize::try_from(100.0).unwrap()),
             ..Default::default()
         };
-        b.add_deme("CEU", vec![edata], DemeHistory::default(), None);
+        b.add_deme("CEU", vec![edata], UnresolvedDemeHistory::default(), None);
         let _graph = b.resolve().unwrap();
     }
 
     #[test]
     fn use_proportion_for_proportions() {
         let p = Proportion::try_from(0.5).unwrap();
-        let _ = DemeHistory {
+        let _ = UnresolvedDemeHistory {
             proportions: Some(vec![p, p]),
             ..Default::default()
         };
@@ -110,12 +110,12 @@ mod tests {
     #[test]
     fn builder_deme_defaults() {
         let defaults = DemeDefaults {
-            epoch: EpochData {
+            epoch: UnresolvedEpoch {
                 end_size: Some(DemeSize::try_from(100.).unwrap()),
                 ..Default::default()
             },
         };
-        let history = DemeHistory {
+        let history = UnresolvedDemeHistory {
             defaults,
             ..Default::default()
         };

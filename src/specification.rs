@@ -733,7 +733,7 @@ impl Pulse {
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct EpochData {
+pub struct UnresolvedEpoch {
     pub end_time: Option<Time>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
     pub start_size: Option<DemeSize>,
@@ -751,7 +751,7 @@ pub struct EpochData {
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
     #[serde(flatten)]
-    data: EpochData,
+    data: UnresolvedEpoch,
 }
 
 impl Epoch {
@@ -909,12 +909,12 @@ pub(crate) struct DemeData {
     #[serde(default = "Vec::<Epoch>::default")]
     epochs: Vec<Epoch>,
     #[serde(flatten)]
-    history: DemeHistory,
+    history: UnresolvedDemeHistory,
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DemeHistory {
+pub struct UnresolvedDemeHistory {
     pub ancestors: Option<Vec<String>>,
     pub proportions: Option<Vec<Proportion>>,
     pub start_time: Option<Time>,
@@ -945,8 +945,8 @@ pub struct Deme(DemePtr);
 impl Deme {
     pub(crate) fn new_via_builder(
         name: &str,
-        epochs: Vec<EpochData>,
-        history: DemeHistory,
+        epochs: Vec<UnresolvedEpoch>,
+        history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) -> Self {
         let epochs = epochs.into_iter().map(|data| Epoch { data }).collect_vec();
@@ -1565,8 +1565,8 @@ struct GraphDefaultInput {
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GraphDefaults {
-    #[serde(default = "EpochData::default")]
-    pub epoch: EpochData,
+    #[serde(default = "UnresolvedEpoch::default")]
+    pub epoch: UnresolvedEpoch,
     #[serde(default = "UnresolvedMigration::default")]
     pub migration: UnresolvedMigration,
     #[serde(default = "UnresolvedPulse::default")]
@@ -1662,7 +1662,7 @@ pub struct TopLevelDemeDefaults {
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DemeDefaults {
-    pub epoch: EpochData,
+    pub epoch: UnresolvedEpoch,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]

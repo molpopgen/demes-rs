@@ -1,15 +1,15 @@
-use demes::DemeHistory;
 use demes::DemeSize;
-use demes::EpochData;
 use demes::GenerationTime;
 use demes::GraphBuilder;
 use demes::GraphDefaults;
 use demes::Proportion;
-use demes::UnresolvedPulse;
 use demes::Time;
 use demes::TimeUnits;
 use demes::TopLevelDemeDefaults;
+use demes::UnresolvedDemeHistory;
+use demes::UnresolvedEpoch;
 use demes::UnresolvedMigration;
+use demes::UnresolvedPulse;
 
 #[test]
 fn builder_toplevel_pulse_defaults() {
@@ -38,11 +38,11 @@ demes:
         ..Default::default()
     };
 
-    let epochs_a = EpochData {
+    let epochs_a = UnresolvedEpoch {
         start_size: Some(DemeSize::try_from(100.0).unwrap()),
         ..Default::default()
     };
-    let epochs_b = EpochData {
+    let epochs_b = UnresolvedEpoch {
         start_size: Some(DemeSize::try_from(250.0).unwrap()),
         ..Default::default()
     };
@@ -52,8 +52,8 @@ demes:
         Some(GenerationTime::from(25.0)),
         Some(toplevel_defaults),
     );
-    builder.add_deme("A", vec![epochs_a], DemeHistory::default(), None);
-    builder.add_deme("B", vec![epochs_b], DemeHistory::default(), None);
+    builder.add_deme("A", vec![epochs_a], UnresolvedDemeHistory::default(), None);
+    builder.add_deme("B", vec![epochs_b], UnresolvedDemeHistory::default(), None);
     let graph_from_builder = builder.resolve().unwrap();
     assert_eq!(graph_from_yaml, graph_from_builder);
 }
@@ -61,7 +61,7 @@ demes:
 #[test]
 fn builder_toplevel_epoch_defaults() {
     let _ = GraphDefaults {
-        epoch: EpochData {
+        epoch: UnresolvedEpoch {
             end_time: Some(Time::try_from(100.0).unwrap()),
             ..Default::default()
         },

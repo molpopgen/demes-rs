@@ -341,12 +341,12 @@ impl_newtype_traits!(MigrationRate);
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedMigration {
-    demes: Option<Vec<String>>,
-    source: Option<String>,
-    dest: Option<String>,
-    start_time: Option<Time>,
-    end_time: Option<Time>,
-    rate: Option<MigrationRate>,
+    pub demes: Option<Vec<String>>,
+    pub source: Option<String>,
+    pub dest: Option<String>,
+    pub start_time: Option<Time>,
+    pub end_time: Option<Time>,
+    pub rate: Option<MigrationRate>,
 }
 
 impl UnresolvedMigration {
@@ -545,10 +545,10 @@ impl From<Migration> for UnresolvedMigration {
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Pulse {
-    sources: Option<Vec<String>>,
-    dest: Option<String>,
-    time: Option<Time>,
-    proportions: Option<Vec<Proportion>>,
+    pub sources: Option<Vec<String>>,
+    pub dest: Option<String>,
+    pub time: Option<Time>,
+    pub proportions: Option<Vec<Proportion>>,
 }
 
 impl Pulse {
@@ -781,7 +781,7 @@ impl Epoch {
     fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
         self.data.selfing_rate = match deme_defaults.epoch.selfing_rate {
             Some(selfing_rate) => Some(selfing_rate),
-            None => match defaults.epoch.data.selfing_rate {
+            None => match defaults.epoch.selfing_rate {
                 Some(selfing_rate) => Some(selfing_rate),
                 None => Some(SelfingRate::default()),
             },
@@ -791,7 +791,7 @@ impl Epoch {
     fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
         self.data.cloning_rate = match deme_defaults.epoch.cloning_rate {
             Some(cloning_rate) => Some(cloning_rate),
-            None => match defaults.epoch.data.cloning_rate {
+            None => match defaults.epoch.cloning_rate {
                 Some(cloning_rate) => Some(cloning_rate),
                 None => Some(CloningRate::default()),
             },
@@ -1069,7 +1069,7 @@ impl Deme {
             if last_epoch_ref.data.end_time.is_none() {
                 last_epoch_ref.data.end_time = match self_defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
-                    None => match defaults.epoch.data.end_time {
+                    None => match defaults.epoch.end_time {
                         Some(end_time) => Some(end_time),
                         None => Some(Time::default_epoch_end_time()),
                     },
@@ -1086,7 +1086,7 @@ impl Deme {
                     None => {
                         epoch.data.end_time = match self_defaults.epoch.end_time {
                             Some(end_time) => Some(end_time),
-                            None => defaults.epoch.data.end_time,
+                            None => defaults.epoch.end_time,
                         }
                     }
                 }
@@ -1173,7 +1173,7 @@ impl Deme {
                 Some(_) => (),
                 None => match local_defaults.epoch.start_size {
                     Some(start_size) => epoch.data.start_size = Some(start_size),
-                    None => match defaults.epoch.data.start_size {
+                    None => match defaults.epoch.start_size {
                         Some(start_size) => epoch.data.start_size = Some(start_size),
                         None => epoch.data.start_size = last_end_size,
                     },
@@ -1183,7 +1183,7 @@ impl Deme {
                 Some(_) => (),
                 None => match local_defaults.epoch.end_size {
                     Some(end_size) => epoch.data.end_size = Some(end_size),
-                    None => match defaults.epoch.data.end_size {
+                    None => match defaults.epoch.end_size {
                         Some(end_size) => epoch.data.end_size = Some(end_size),
                         None => epoch.data.end_size = epoch.data.start_size,
                     },
@@ -1560,15 +1560,15 @@ struct GraphDefaultInput {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct GraphDefaults {
-    #[serde(default = "Epoch::default")]
-    epoch: Epoch,
+pub struct GraphDefaults {
+    #[serde(default = "EpochData::default")]
+    pub epoch: EpochData,
     #[serde(default = "UnresolvedMigration::default")]
-    migration: UnresolvedMigration,
+    pub migration: UnresolvedMigration,
     #[serde(default = "Pulse::default")]
-    pulse: Pulse,
+    pub pulse: Pulse,
     #[serde(default = "TopLevelDemeDefaults::default")]
-    deme: TopLevelDemeDefaults,
+    pub deme: TopLevelDemeDefaults,
 }
 
 impl GraphDefaults {
@@ -1576,14 +1576,14 @@ impl GraphDefaults {
         if start_size.is_some() {
             return start_size;
         }
-        self.epoch.data.start_size
+        self.epoch.start_size
     }
 
     fn apply_default_epoch_end_size(&self, end_size: Option<DemeSize>) -> Option<DemeSize> {
         if end_size.is_some() {
             return end_size;
         }
-        self.epoch.data.end_size
+        self.epoch.end_size
     }
 
     fn apply_epoch_size_defaults(&self, epoch: &mut Epoch) {
@@ -1602,7 +1602,7 @@ impl GraphDefaults {
 
         match deme_level_defaults.epoch.size_function {
             Some(sf) => Some(sf),
-            None => match self.epoch.data.size_function {
+            None => match self.epoch.size_function {
                 Some(sf) => Some(sf),
                 None => Some(SizeFunction::Exponential),
             },
@@ -1648,11 +1648,11 @@ impl GraphDefaults {
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct TopLevelDemeDefaults {
-    description: Option<String>,
-    start_time: Option<Time>,
-    ancestors: Option<Vec<String>>,
-    proportions: Option<Vec<Proportion>>,
+pub struct TopLevelDemeDefaults {
+    pub description: Option<String>,
+    pub start_time: Option<Time>,
+    pub ancestors: Option<Vec<String>>,
+    pub proportions: Option<Vec<Proportion>>,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
@@ -1731,17 +1731,25 @@ impl PartialEq for Graph {
 impl Eq for Graph {}
 
 impl Graph {
-    pub(crate) fn new_from_time_units(time_units: TimeUnits) -> Self {
+    pub(crate) fn new(
+        time_units: TimeUnits,
+        generation_time: Option<GenerationTime>,
+        defaults: Option<GraphDefaults>,
+    ) -> Self {
+        let input_defaults = match defaults {
+            Some(defaults) => GraphDefaultInput { defaults },
+            None => GraphDefaultInput::default(),
+        };
         Self {
             time_units,
+            input_defaults,
+            generation_time,
 
             // remaining fields have defaults
             description: Option::<String>::default(),
             doi: Option::<Vec<String>>::default(),
-            input_defaults: GraphDefaultInput::default(),
             defaults: GraphDefaults::default(),
             metadata: Metadata::default(),
-            generation_time: Option::<GenerationTime>::default(),
             demes: Vec::<Deme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),

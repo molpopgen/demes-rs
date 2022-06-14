@@ -1,4 +1,4 @@
-use demes::specification::{AsymmetricMigration, MigrationRate, SizeFunction, Time};
+use demes::{AsymmetricMigration, MigrationRate, SizeFunction, Time};
 
 #[derive(Eq, PartialEq)]
 struct ExpectedMigration {
@@ -48,7 +48,7 @@ impl From<AsymmetricMigration> for ExpectedMigration {
 }
 
 fn test_graph_equality_after_round_trip(
-    graph: &demes::specification::Graph,
+    graph: &demes::Graph,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let yaml = serde_yaml::to_string(graph)?;
     let round_trip = demes::loads(&yaml)?;
@@ -229,10 +229,7 @@ migrations:
     let g = demes::loads(yaml).unwrap();
     let generation_time: f64 = g.generation_time().unwrap().into();
     assert_eq!(generation_time, 25.0);
-    assert!(matches!(
-        g.time_units(),
-        demes::specification::TimeUnits::Years,
-    ));
+    assert!(matches!(g.time_units(), demes::TimeUnits::Years,));
     assert_eq!(g.time_units().to_string(), "years".to_string());
     assert_eq!(g.migrations().len(), 8);
 
@@ -484,9 +481,9 @@ pulses:
 
     let g = demes::loads(yaml1).unwrap();
     let expected_pulse_times = vec![
-        demes::specification::Time::try_from(501.).unwrap(),
-        demes::specification::Time::try_from(501.).unwrap(),
-        demes::specification::Time::try_from(500.).unwrap(),
+        demes::Time::try_from(501.).unwrap(),
+        demes::Time::try_from(501.).unwrap(),
+        demes::Time::try_from(500.).unwrap(),
     ];
     let pulse_times = g
         .pulses()
@@ -534,9 +531,9 @@ demes:
 ";
     let graph = demes::loads(yaml).unwrap();
     let sf = graph.deme(0).epochs()[0].size_function();
-    assert!(matches!(sf, demes::specification::SizeFunction::Constant));
+    assert!(matches!(sf, demes::SizeFunction::Constant));
     let sf = graph.deme(0).epochs()[1].size_function();
-    assert!(matches!(sf, demes::specification::SizeFunction::Linear));
+    assert!(matches!(sf, demes::SizeFunction::Linear));
 }
 
 #[test]
@@ -949,7 +946,7 @@ demes:
     // we do not have support for resolve, etc.?
     // The issue is that the internal deme_map
     // is used in PartialEq, which may be a mistake?
-    let _g_from_json: demes::specification::Graph = serde_json::from_str(&json).unwrap();
+    let _g_from_json: demes::Graph = serde_json::from_str(&json).unwrap();
     // assert_eq!(g, g_from_json);
 }
 

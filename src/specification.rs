@@ -894,7 +894,7 @@ impl Epoch {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DemeData {
+pub(crate) struct DemeData {
     name: String,
     #[serde(default = "String::default")]
     description: String,

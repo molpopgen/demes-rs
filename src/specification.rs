@@ -1797,6 +1797,21 @@ impl Graph {
         });
     }
 
+    pub(crate) fn add_pulse(
+        &mut self,
+        sources: Option<Vec<String>>,
+        dest: Option<String>,
+        time: Option<Time>,
+        proportions: Option<Vec<Proportion>>,
+    ) {
+        self.pulses.push(Pulse {
+            sources,
+            dest,
+            time,
+            proportions,
+        });
+    }
+
     fn build_deme_map(&self) -> Result<DemeMap, DemesError> {
         let mut rv = DemeMap::default();
 

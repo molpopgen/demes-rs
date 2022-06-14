@@ -3,6 +3,7 @@ use crate::specification::DemeHistory;
 use crate::specification::EpochData;
 use crate::specification::Graph;
 use crate::specification::MigrationRate;
+use crate::specification::Proportion;
 use crate::specification::Time;
 use crate::specification::TimeUnits;
 use crate::DemesError;
@@ -48,6 +49,16 @@ impl GraphBuilder {
     ) {
         self.graph
             .add_migration(demes, source, dest, rate, start_time, end_time);
+    }
+
+    pub fn add_pulse(
+        &mut self,
+        sources: Option<Vec<String>>,
+        dest: Option<String>,
+        time: Option<Time>,
+        proportions: Option<Vec<Proportion>>,
+    ) {
+        self.graph.add_pulse(sources, dest, time, proportions);
     }
 }
 

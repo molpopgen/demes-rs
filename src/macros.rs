@@ -2,6 +2,12 @@
 
 macro_rules! impl_newtype_traits {
     ($type: ty) => {
+        impl From<f64> for $type {
+            fn from(value: f64) -> Self {
+                Self(value)
+            }
+        }
+
         impl From<$type> for f64 {
             fn from(value: $type) -> f64 {
                 value.0

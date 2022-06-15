@@ -10,19 +10,14 @@ struct ExpectedMigration {
 }
 
 impl ExpectedMigration {
-    fn new<
-        N: ToString,
-        M: TryInto<MigrationRate, Error = demes::DemesError>,
-        S: Into<Time>,
-        E: Into<Time>,
-    >(
+    fn new<N: ToString, M: Into<MigrationRate>, S: Into<Time>, E: Into<Time>>(
         source: N,
         dest: N,
         rate: M,
         start_time: S,
         end_time: E,
     ) -> Result<Self, demes::DemesError> {
-        let rate = rate.try_into()?;
+        let rate = rate.into();
         let start_time = start_time.into();
         let end_time = end_time.into();
         Ok(Self {

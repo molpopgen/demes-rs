@@ -19,12 +19,6 @@ use std::rc::Rc;
 #[serde(into = "TimeTrampoline")]
 pub struct Time(f64);
 
-impl From<f64> for Time {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
-
 impl Time {
     fn default_deme_start_time() -> Self {
         Self(f64::INFINITY)
@@ -133,21 +127,22 @@ impl PartialEq for HashableTime {
 impl Eq for HashableTime {}
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 #[repr(transparent)]
 /// Representation of deme sizes.
 /// The underlying `f64` must be non-negative, non-NaN.
 pub struct DemeSize(f64);
 
-impl TryFrom<f64> for DemeSize {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if value.is_nan() || value.is_infinite() || value <= 0.0 {
-            let msg = format!("deme sizes must be 0 <= d < Infinity, got: {}", value);
-            Err(DemesError::EpochError(msg))
+impl DemeSize {
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if self.0.is_nan() || self.0.is_infinite() || self.0 <= 0.0 {
+            let msg = format!("deme sizes must be 0 <= d < Infinity, got: {}", self.0);
+            Err(f(msg))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
@@ -156,21 +151,19 @@ impl_newtype_traits!(DemeSize);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 pub struct Proportion(f64);
 
-impl TryFrom<f64> for Proportion {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() || value <= 0.0 || value > 1.0 {
-            let msg = format!(
-                "ancestor proportions must be 0.0 < p <= 1.0, got: {}",
-                value
-            );
-            Err(DemesError::DemeError(msg))
+impl Proportion {
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if !self.0.is_finite() || self.0 <= 0.0 || self.0 > 1.0 {
+            let msg = format!("proportions must be 0.0 < p <= 1.0, got: {}", self.0);
+            Err(f(msg))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
@@ -262,18 +255,19 @@ impl Display for SizeFunction {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 pub struct CloningRate(f64);
 
-impl TryFrom<f64> for CloningRate {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            let msg = format!("cloning rate must be 0.0 <= C <= 1.0, got: {}", value);
-            Err(DemesError::EpochError(msg))
+impl CloningRate {
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
+            let msg = format!("cloning rate must be 0.0 <= C <= 1.0, got: {}", self.0);
+            Err(f(msg))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
@@ -288,25 +282,26 @@ impl_newtype_traits!(CloningRate);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 pub struct SelfingRate(f64);
 
-impl TryFrom<f64> for SelfingRate {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            let msg = format!("selfing rate must be 0.0 <= S <= 1.0, got: {}", value);
-            Err(DemesError::EpochError(msg))
+impl SelfingRate {
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
+            let msg = format!("selfing rate must be 0.0 <= S <= 1.0, got: {}", self.0);
+            Err(f(msg))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
 
 impl Default for SelfingRate {
     fn default() -> Self {
-        Self::try_from(0.0).unwrap()
+        Self::from(0.0)
     }
 }
 
@@ -314,25 +309,26 @@ impl_newtype_traits!(SelfingRate);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(try_from = "f64")]
+#[serde(from = "f64")]
 pub struct MigrationRate(f64);
 
-impl TryFrom<f64> for MigrationRate {
-    type Error = DemesError;
-
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        if !value.is_finite() || value.is_sign_negative() || value > 1.0 {
-            let msg = format!("migration rate must be 0.0 <= m <= 1.0, got: {value}");
-            Err(DemesError::MigrationError(msg))
+impl MigrationRate {
+    fn validate<F>(&self, f: F) -> Result<(), DemesError>
+    where
+        F: std::ops::FnOnce(String) -> DemesError,
+    {
+        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
+            let msg = format!("migration rate must be 0.0 <= m <= 1.0, got: {}", self.0);
+            Err(f(msg))
         } else {
-            Ok(Self(value))
+            Ok(())
         }
     }
 }
 
 impl Default for MigrationRate {
     fn default() -> Self {
-        Self::try_from(0.0).unwrap()
+        Self::from(0.0)
     }
 }
 
@@ -350,6 +346,23 @@ pub struct UnresolvedMigration {
 }
 
 impl UnresolvedMigration {
+    fn validate(&self) -> Result<(), DemesError> {
+        match self.start_time {
+            Some(value) => value.validate(DemesError::MigrationError)?,
+            None => (),
+        }
+        match self.end_time {
+            Some(value) => value.validate(DemesError::MigrationError)?,
+            None => (),
+        }
+        match self.rate {
+            Some(value) => value.validate(DemesError::MigrationError)?,
+            None => (),
+        }
+
+        Ok(())
+    }
+
     fn valid_asymmetric_or_err(&self) -> Result<(), DemesError> {
         let mut msg = Option::<String>::default();
 
@@ -556,6 +569,24 @@ pub struct UnresolvedPulse {
     pub proportions: Option<Vec<Proportion>>,
 }
 
+impl UnresolvedPulse {
+    fn validate(&self) -> Result<(), DemesError> {
+        match self.time {
+            Some(value) => value.validate(DemesError::PulseError)?,
+            None => (),
+        }
+
+        match &self.proportions {
+            Some(value) => value
+                .iter()
+                .try_for_each(|v| v.validate(DemesError::PulseError))?,
+            None => (),
+        }
+
+        Ok(())
+    }
+}
+
 impl Pulse {
     fn validate_deme_existence(&self, deme: &str, deme_map: &DemeMap) -> Result<(), DemesError> {
         match deme_map.get(deme) {
@@ -629,6 +660,9 @@ impl Pulse {
         }
 
         let proportions = self.0.proportions.as_ref().unwrap();
+        for p in proportions.iter() {
+            p.validate(DemesError::PulseError)?;
+        }
         let sources = self.0.sources.as_ref().unwrap();
         if proportions.len() != sources.len() {
             return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
@@ -747,6 +781,33 @@ pub struct UnresolvedEpoch {
     pub selfing_rate: Option<crate::specification::SelfingRate>,
 }
 
+impl UnresolvedEpoch {
+    fn validate(&self) -> Result<(), DemesError> {
+        match self.end_time {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => (),
+        }
+        match self.start_size {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => (),
+        }
+        match self.end_size {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => (),
+        }
+        match self.cloning_rate {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => (),
+        }
+        match self.selfing_rate {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => (),
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
@@ -785,22 +846,26 @@ impl Epoch {
     }
 
     fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        self.data.selfing_rate = match deme_defaults.epoch.selfing_rate {
-            Some(selfing_rate) => Some(selfing_rate),
-            None => match defaults.epoch.selfing_rate {
+        if self.data.selfing_rate.is_none() {
+            self.data.selfing_rate = match deme_defaults.epoch.selfing_rate {
                 Some(selfing_rate) => Some(selfing_rate),
-                None => Some(SelfingRate::default()),
-            },
+                None => match defaults.epoch.selfing_rate {
+                    Some(selfing_rate) => Some(selfing_rate),
+                    None => Some(SelfingRate::default()),
+                },
+            }
         }
     }
 
     fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        self.data.cloning_rate = match deme_defaults.epoch.cloning_rate {
-            Some(cloning_rate) => Some(cloning_rate),
-            None => match defaults.epoch.cloning_rate {
+        if self.data.cloning_rate.is_none() {
+            self.data.cloning_rate = match deme_defaults.epoch.cloning_rate {
                 Some(cloning_rate) => Some(cloning_rate),
-                None => Some(CloningRate::default()),
-            },
+                None => match defaults.epoch.cloning_rate {
+                    Some(cloning_rate) => Some(cloning_rate),
+                    None => Some(CloningRate::default()),
+                },
+            }
         }
     }
 
@@ -823,14 +888,14 @@ impl Epoch {
 
     fn validate_cloning_rate(&self) -> Result<(), DemesError> {
         match self.data.cloning_rate {
-            Some(_) => Ok(()),
+            Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError("cloning_rate is None".to_string())),
         }
     }
 
     fn validate_selfing_rate(&self) -> Result<(), DemesError> {
         match self.data.selfing_rate {
-            Some(_) => Ok(()),
+            Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError("selfing_rate is None".to_string())),
         }
     }
@@ -866,7 +931,25 @@ impl Epoch {
         }
     }
 
+    fn validate_sizes(&self) -> Result<(), DemesError> {
+        match self.data.start_size {
+            Some(value) => value.validate(DemesError::EpochError)?,
+            None => {
+                return Err(DemesError::EpochError(
+                    "epoch start_size is not resolved".to_string(),
+                ))
+            }
+        }
+        match self.data.end_size {
+            Some(value) => value.validate(DemesError::EpochError),
+            None => Err(DemesError::EpochError(
+                "epoch start_size is not resolved".to_string(),
+            )),
+        }
+    }
+
     fn validate(&self) -> Result<(), DemesError> {
+        self.validate_sizes()?;
         self.validate_end_time()?;
         self.validate_cloning_rate()?;
         self.validate_selfing_rate()?;
@@ -1282,6 +1365,7 @@ impl Deme {
 
     // Make the internal data match the MDM spec
     fn resolve(&mut self, deme_map: &DemeMap, defaults: &GraphDefaults) -> Result<(), DemesError> {
+        self.0.borrow().history.defaults.validate()?;
         self.apply_toplevel_defaults(defaults);
         self.validate_ancestor_uniqueness(deme_map)?;
         self.check_empty_epochs();
@@ -1343,6 +1427,9 @@ impl Deme {
         self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
 
         let proportions = self_borrow.history.proportions.as_ref().unwrap();
+        for p in proportions.iter() {
+            p.validate(DemesError::DemeError)?;
+        }
         if !proportions.is_empty() {
             let sum_proportions: f64 = proportions.iter().map(|p| f64::from(*p)).sum();
             // NOTE: this is same default as Python's math.isclose().
@@ -1534,12 +1621,6 @@ impl std::fmt::Display for TimeUnits {
 #[serde(from = "f64")]
 pub struct GenerationTime(f64);
 
-impl From<f64> for GenerationTime {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
-
 impl GenerationTime {
     fn validate(&self) -> Result<(), DemesError> {
         if !self.0.is_finite() || !self.0.is_sign_positive() || !self.0.gt(&0.0) {
@@ -1576,6 +1657,18 @@ pub struct GraphDefaults {
 }
 
 impl GraphDefaults {
+    // This fn exists so that we catch invalid inputs
+    // prior to resolution.  During resolution,
+    // we only visit the top-level defaults if needed.
+    // Thus, we will miss invalid inputs if we wait
+    // until resolution.
+    fn validate(&self) -> Result<(), DemesError> {
+        self.epoch.validate()?;
+        self.pulse.validate()?;
+        self.migration.validate()?;
+        self.deme.validate()
+    }
+
     fn apply_default_epoch_start_size(&self, start_size: Option<DemeSize>) -> Option<DemeSize> {
         if start_size.is_some() {
             return start_size;
@@ -1659,10 +1752,36 @@ pub struct TopLevelDemeDefaults {
     pub proportions: Option<Vec<Proportion>>,
 }
 
+impl TopLevelDemeDefaults {
+    fn validate(&self) -> Result<(), DemesError> {
+        match self.start_time {
+            Some(value) => value.validate(DemesError::DemeError)?,
+            None => (),
+        }
+
+        match &self.proportions {
+            Some(value) => {
+                value
+                    .iter()
+                    .try_for_each(|v| v.validate(DemesError::DemeError))?;
+            }
+            None => (),
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DemeDefaults {
     pub epoch: UnresolvedEpoch,
+}
+
+impl DemeDefaults {
+    fn validate(&self) -> Result<(), DemesError> {
+        self.epoch.validate()
+    }
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -2045,6 +2164,8 @@ impl Graph {
                 )));
             }
 
+            m.rate.validate(DemesError::MigrationError)?;
+
             match m.start_time {
                 None => {
                     return Err(DemesError::MigrationError(format!(
@@ -2142,6 +2263,7 @@ impl Graph {
             ));
         }
         std::mem::swap(&mut self.defaults, &mut self.input_defaults.defaults);
+        self.defaults.validate()?;
         self.deme_map = self.build_deme_map()?;
 
         self.demes
@@ -2233,12 +2355,12 @@ impl Graph {
 mod tests {
     use super::*;
 
-    #[test]
-    #[should_panic]
-    fn test_deme_size_zero() {
-        let yaml = "---\n0.0\n".to_string();
-        let _: DemeSize = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn test_deme_size_zero() {
+    //     let yaml = "---\n0.0\n".to_string();
+    //     let _: DemeSize = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
     #[test]
     fn test_size_function() {
@@ -2261,19 +2383,19 @@ mod tests {
         assert_eq!(cr.0, 1.0);
     }
 
-    #[test]
-    #[should_panic]
-    fn test_negative_cloning_rate() {
-        let yaml = "---\n-0.0\n".to_string();
-        let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn test_negative_cloning_rate() {
+    //     let yaml = "---\n-0.0\n".to_string();
+    //     let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
-    #[test]
-    #[should_panic]
-    fn test_selfing_rates_above_one() {
-        let yaml = "---\n1.1\n".to_string();
-        let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn test_selfing_rates_above_one() {
+    //     let yaml = "---\n1.1\n".to_string();
+    //     let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
     #[test]
     fn test_valid_selfing_rate() {
@@ -2285,19 +2407,19 @@ mod tests {
         assert_eq!(cr.0, 1.0);
     }
 
-    #[test]
-    #[should_panic]
-    fn test_negative_selfing_rate() {
-        let yaml = "---\n-0.0\n".to_string();
-        let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn test_negative_selfing_rate() {
+    //     let yaml = "---\n-0.0\n".to_string();
+    //     let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
-    #[test]
-    #[should_panic]
-    fn test_cloning_rates_above_one() {
-        let yaml = "---\n1.1\n".to_string();
-        let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn test_cloning_rates_above_one() {
+    //     let yaml = "---\n1.1\n".to_string();
+    //     let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
     #[test]
     fn test_epoch_using_defaults() {
@@ -2308,20 +2430,20 @@ mod tests {
         assert!(e.data.start_size.is_none());
     }
 
-    #[test]
-    #[should_panic]
-    fn epoch_infinite_end_time() {
-        let yaml = "---\nend_time: .inf\nend_size: 100\n".to_string();
-        let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        e.validate_end_time().unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn epoch_infinite_end_time() {
+    //     let yaml = "---\nend_time: .inf\nend_size: 100\n".to_string();
+    //     let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    //     e.validate_end_time().unwrap();
+    // }
 
-    #[test]
-    #[should_panic]
-    fn epoch_infinite_end_size() {
-        let yaml = "---\nend_time: 100.3\nend_size: .inf\n".to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn epoch_infinite_end_size() {
+    //     let yaml = "---\nend_time: 100.3\nend_size: .inf\n".to_string();
+    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
     #[test]
     #[should_panic]
@@ -2330,31 +2452,30 @@ mod tests {
         let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
     }
 
-    #[test]
-    #[should_panic]
-    fn epoch_bad_cloning_rate() {
-        let yaml =
-            "---\nend_time: 100.3\nend_size: 250\nsize_function: exponential\ncloning_rate: -0.0"
-                .to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn epoch_bad_cloning_rate() {
+    //     let yaml =
+    //         "---\nend_time: 100.3\nend_size: 250\nsize_function: exponential\ncloning_rate: -0.0"
+    //             .to_string();
+    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
-    #[test]
-    #[should_panic]
-    fn epoch_bad_selfing_rate() {
-        let yaml =
-            "---\nend_time: 100.3\nend_size: 250\nsize_function: constant\nselfing_rate: 1.01"
-                .to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
+    // #[test]
+    // #[should_panic]
+    // fn epoch_bad_selfing_rate() {
+    //     let yaml =
+    //         "---\nend_time: 100.3\nend_size: 250\nsize_function: constant\nselfing_rate: 1.01"
+    //             .to_string();
+    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
+    // }
 
     #[test]
     #[should_panic]
     fn epoch_invalid_field() {
         let yaml = "---\nstart_time: 1000\nend_time: 100.3\nend_size: 250\nsize_function: constant"
             .to_string();
-        let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        println!("{}", serde_yaml::to_string(&e).unwrap());
+        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
     }
 
     #[test]
@@ -2430,31 +2551,31 @@ mod tests {
         }
 
         {
-            let v = DemeSize::try_from(100.0).unwrap();
+            let v = DemeSize::from(100.0);
             assert_eq!(v, 100.0);
             assert_eq!(100.0, v);
         }
 
         {
-            let v = SelfingRate::try_from(1.0).unwrap();
+            let v = SelfingRate::from(1.0);
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = CloningRate::try_from(1.0).unwrap();
+            let v = CloningRate::from(1.0);
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = Proportion::try_from(1.0).unwrap();
+            let v = Proportion::from(1.0);
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = MigrationRate::try_from(1.0).unwrap();
+            let v = MigrationRate::from(1.0);
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
@@ -2467,7 +2588,7 @@ mod test_newtype_ordering {
 
     #[test]
     fn test_start_time() {
-        let s = Time::try_from(1e-3).unwrap();
+        let s = Time::from(1e-3);
         let sd = Time::default_deme_start_time();
         assert!(s < sd);
     }
@@ -2475,7 +2596,7 @@ mod test_newtype_ordering {
     #[test]
     #[should_panic]
     fn test_fraud_with_start_time() {
-        let s = Time::try_from(1e-3).unwrap();
+        let s = Time::from(1e-3);
         let sd = Time(f64::NAN);
         let _ = s < sd;
     }
@@ -2702,10 +2823,7 @@ demes:
         assert_eq!(g.pulses().len(), 1);
         assert_eq!(g.pulses()[0].sources(), vec!["A".to_string()]);
         assert_eq!(g.pulses()[0].dest(), "B");
-        assert_eq!(
-            g.pulses()[0].proportions(),
-            vec![Proportion::try_from(0.25).unwrap()]
-        );
+        assert_eq!(g.pulses()[0].proportions(), vec![Proportion::from(0.25)]);
         assert_eq!(f64::from(g.pulses()[0].time()), 100.0);
     }
 }

@@ -1109,17 +1109,6 @@ impl Deme {
                 }
                 None => Some(Time::default_deme_start_time()),
             };
-            //if mut_borrowed_self.start_time == Time::default_deme_start_time() {
-            //    mut_borrowed_self.start_time = deme_map
-            //        .get(ancestors.get(0).unwrap())
-            //        .unwrap()
-            //        .0
-            //        .borrow() // panic if deme_map doesn't contain name
-            //        .epochs
-            //        .last()
-            //        .unwrap() // panic if ancestor epochs are empty
-            //        .end_time
-            //        .unwrap();
             match mut_borrowed_self.history.start_time {
                 Some(start_time) => match start_time.err_if_not_valid_deme_start_time() {
                     Ok(_) => (),
@@ -2355,13 +2344,6 @@ impl Graph {
 mod tests {
     use super::*;
 
-    // #[test]
-    // #[should_panic]
-    // fn test_deme_size_zero() {
-    //     let yaml = "---\n0.0\n".to_string();
-    //     let _: DemeSize = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
     #[test]
     fn test_size_function() {
         let yaml = "---\nexponential\n".to_string();
@@ -2383,20 +2365,6 @@ mod tests {
         assert_eq!(cr.0, 1.0);
     }
 
-    // #[test]
-    // #[should_panic]
-    // fn test_negative_cloning_rate() {
-    //     let yaml = "---\n-0.0\n".to_string();
-    //     let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
-    // #[test]
-    // #[should_panic]
-    // fn test_selfing_rates_above_one() {
-    //     let yaml = "---\n1.1\n".to_string();
-    //     let _: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
     #[test]
     fn test_valid_selfing_rate() {
         let yaml = "---\n0.0\n".to_string();
@@ -2407,20 +2375,6 @@ mod tests {
         assert_eq!(cr.0, 1.0);
     }
 
-    // #[test]
-    // #[should_panic]
-    // fn test_negative_selfing_rate() {
-    //     let yaml = "---\n-0.0\n".to_string();
-    //     let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
-    // #[test]
-    // #[should_panic]
-    // fn test_cloning_rates_above_one() {
-    //     let yaml = "---\n1.1\n".to_string();
-    //     let _: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
     #[test]
     fn test_epoch_using_defaults() {
         let yaml = "---\nend_time: 1000\nend_size: 100\n".to_string();
@@ -2430,45 +2384,12 @@ mod tests {
         assert!(e.data.start_size.is_none());
     }
 
-    // #[test]
-    // #[should_panic]
-    // fn epoch_infinite_end_time() {
-    //     let yaml = "---\nend_time: .inf\nend_size: 100\n".to_string();
-    //     let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    //     e.validate_end_time().unwrap();
-    // }
-
-    // #[test]
-    // #[should_panic]
-    // fn epoch_infinite_end_size() {
-    //     let yaml = "---\nend_time: 100.3\nend_size: .inf\n".to_string();
-    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
     #[test]
     #[should_panic]
     fn epoch_bad_size_function() {
         let yaml = "---\nend_time: 100.3\nend_size: 250\nsize_function: ice cream".to_string();
         let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
     }
-
-    // #[test]
-    // #[should_panic]
-    // fn epoch_bad_cloning_rate() {
-    //     let yaml =
-    //         "---\nend_time: 100.3\nend_size: 250\nsize_function: exponential\ncloning_rate: -0.0"
-    //             .to_string();
-    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    // }
-
-    // #[test]
-    // #[should_panic]
-    // fn epoch_bad_selfing_rate() {
-    //     let yaml =
-    //         "---\nend_time: 100.3\nend_size: 250\nsize_function: constant\nselfing_rate: 1.01"
-    //             .to_string();
-    //     let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    // }
 
     #[test]
     #[should_panic]

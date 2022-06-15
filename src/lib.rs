@@ -89,6 +89,8 @@
 //!}
 //! ```
 
+#![warn(rustdoc::broken_intra_doc_links)]
+
 mod macros;
 
 mod builder;
@@ -103,16 +105,94 @@ pub use specification::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Build a [`Graph`](crate::Graph) from an in-memory [`str`](std::primitive::str).
+///
+/// # Errors
+///
+/// Returns [`DemesError`](crate::DemesError) in the event of invalid input.
+///
+/// # Examples
+///
+/// ```
+/// let yaml = "
+/// time_units: generations
+/// demes:
+///  - name: ancestor
+///    epochs:
+///     - start_size: 100
+///  - name: derived
+///    start_time: 50
+///    ancestors: [ancestor]
+///    epochs:
+///     - start_size: 10
+/// ";
+///
+/// let graph = demes::loads(yaml).unwrap();
+/// ```
 pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_str(yaml)
 }
 
+/// Build a [`Graph`](crate::Graph) from a type implementing
+/// [`Read`](std::io::Read).
+///
+/// # Errors
+///
+/// Returns [`DemesError`](crate::DemesError) in the event of invalid input.
+///
+/// # Examples
+///
+/// ```
+/// let yaml = "
+/// time_units: generations
+/// demes:
+///  - name: ancestor
+///    epochs:
+///     - start_size: 100
+///  - name: derived
+///    start_time: 50
+///    ancestors: [ancestor]
+///    epochs:
+///     - start_size: 10
+/// ";
+///
+/// // A slice of raw bytes implements std::io::BufReader
+/// // which implements Read
+/// let raw_bytes: &[u8] = yaml.as_bytes();
+///
+/// let graph = demes::load(raw_bytes).unwrap();
+/// assert_eq!(graph, demes::loads(yaml).unwrap());
+///
+/// // The more common use case will be to load from a file
+///
+/// // First, let's create a file
+/// // and write our buffer to it.
+/// {
+///     use std::io::prelude::*;
+///     let mut file = std::fs::File::create("model.yaml").unwrap();
+///     file.write_all(raw_bytes);
+/// }
+///
+///
+/// let mut file = std::fs::File::open("model.yaml").unwrap();
+/// let graph_from_file = demes::load(file).unwrap();
+/// assert_eq!(graph, graph_from_file);
+///
+/// // clean up
+/// std::fs::remove_file("model.yaml").unwrap();
+/// ```
 pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_reader(reader)
 }
 
 /// Return the package version given in the
 /// `Cargo.toml` file of this crate.
+///
+/// # Examples
+///
+/// ```
+/// let _ = demes::version();
+/// ```
 pub fn version() -> &'static str {
     VERSION
 }

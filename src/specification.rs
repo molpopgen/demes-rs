@@ -274,7 +274,7 @@ impl CloningRate {
 
 impl Default for CloningRate {
     fn default() -> Self {
-        Self::try_from(0.0).unwrap()
+        Self::from(0.0)
     }
 }
 
@@ -2525,7 +2525,7 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let t = Time::try_from(1.0).unwrap();
+        let t = Time::from(1.0);
         let f = format!("{}", t);
         assert!(f.contains("Time("));
     }

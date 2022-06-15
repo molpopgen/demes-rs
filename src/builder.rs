@@ -91,7 +91,7 @@ mod tests {
     fn add_deme_with_epochs() {
         let mut b = GraphBuilder::new_generations(Some(GraphDefaults::default()));
         let edata = UnresolvedEpoch {
-            start_size: Some(DemeSize::try_from(100.0).unwrap()),
+            start_size: Some(DemeSize::from(100.0)),
             ..Default::default()
         };
         b.add_deme("CEU", vec![edata], UnresolvedDemeHistory::default(), None);
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn use_proportion_for_proportions() {
-        let p = Proportion::try_from(0.5).unwrap();
+        let p = Proportion::from(0.5);
         let _ = UnresolvedDemeHistory {
             proportions: Some(vec![p, p]),
             ..Default::default()
@@ -111,7 +111,7 @@ mod tests {
     fn builder_deme_defaults() {
         let defaults = DemeDefaults {
             epoch: UnresolvedEpoch {
-                end_size: Some(DemeSize::try_from(100.).unwrap()),
+                end_size: Some(DemeSize::from(100.)),
                 ..Default::default()
             },
         };

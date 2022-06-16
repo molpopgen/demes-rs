@@ -13,6 +13,47 @@ use std::io::Read;
 use std::ops::Deref;
 use std::rc::Rc;
 
+/// Store time values.
+///
+/// This is a newtype wrapper for [`f64`](std::primitive::f64).
+///
+/// # Notes
+///
+/// * The units are in the [`TimeUnits`](crate::TimeUnits)
+///   of the [`Graph`](crate::Graph).
+/// * Invalid values are caught when a `Graph` is
+///   resolved.  Funcions that generate resolved graphs are:
+///    - [`loads`](crate::loads)
+///    - [`load`](crate::load)
+///    - [`GraphBuilder::resolve`](crate::GraphBuilder::resolve)
+///
+/// # Examples
+///
+/// ## In a `YAML` record
+///
+/// ```
+/// let yaml = "
+/// time_units: years
+/// generation_time: 25
+/// description: A deme that existed until 20 years ago.
+/// demes:
+///  - name: deme
+///    epochs:
+///     - start_size: 50
+///       end_time: 20
+/// ";
+/// demes::loads(yaml).unwrap();
+/// ```
+///
+/// ## Using rust code
+///
+/// Normally, one only needs to create a `Time` when
+/// working with [`GraphBuilder`](crate::GraphBuilder).
+///
+/// ```
+/// let t = demes::Time::from(0.0);
+/// assert_eq!(t, 0.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "TimeTrampoline")]
@@ -126,11 +167,48 @@ impl PartialEq for HashableTime {
 
 impl Eq for HashableTime {}
 
+/// The size of a [`Deme`](crate::Deme) at a given [`Time`](crate::Time).
+///
+/// This is a newtype wrapper for [`f64`](std::primitive::f64).
+///
+/// # Notes
+///
+/// * The size may take on non-integer values.
+///
+/// # Examples
+///
+/// ## In a `YAML` record
+///
+/// ```
+/// let yaml = "
+/// time_units: years
+/// generation_time: 25
+/// description:
+///   A deme of 50 individuals that grew to 100 individuals
+///   in the last 100 years.
+/// demes:
+///  - name: deme
+///    epochs:
+///     - start_size: 50
+///       end_time: 100
+///     - start_size: 50
+///       end_size: 100
+/// ";
+/// demes::loads(yaml).unwrap();
+/// ```
+///
+/// ## Using rust code
+///
+/// Normally, one only needs to create a `DemeSize` when
+/// working with [`GraphBuilder`](crate::GraphBuilder).
+///
+/// ```
+/// let t = demes::DemeSize::from(50.0);
+/// assert_eq!(t, 50.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(from = "f64")]
 #[repr(transparent)]
-/// Representation of deme sizes.
-/// The underlying `f64` must be non-negative, non-NaN.
 pub struct DemeSize(f64);
 
 impl DemeSize {
@@ -149,6 +227,83 @@ impl DemeSize {
 
 impl_newtype_traits!(DemeSize);
 
+/// An ancestry proportion.
+///
+/// This is a newtype wrapper for [`f64`](std::primitive::f64).
+///
+/// # Interpretation
+///
+/// With respect to a deme in an *offspring* time step,
+/// a proportion is the fraction of ancsestry from a given
+/// parental deme.
+///
+/// # Examples
+///
+/// ## In `YAML` input
+///
+/// ### Ancestral proportions of demes
+///
+/// ```
+/// let yaml = "
+/// time_units: generations
+/// description:
+///   An admixed deme appears 100 generations ago.
+///   Its initial ancestry is 90% from ancestor1
+///   and 10% from ancestor2.
+/// demes:
+///  - name: ancestor1
+///    epochs:
+///     - start_size: 50
+///       end_time: 100
+///  - name: ancestor2
+///    epochs:
+///     - start_size: 50
+///       end_time: 100
+///  - name: admixed
+///    ancestors: [ancestor1, ancestor2]
+///    proportions: [0.9, 0.1]
+///    start_time: 100
+///    epochs:
+///     - start_size: 200
+/// ";
+/// demes::loads(yaml).unwrap();
+/// ```
+///
+/// ### Pulse proportions
+///
+/// ```
+/// let yaml = "
+/// time_units: generations
+/// description:
+///    Two demes coexist without migration.
+///    Sixty three (63) generations ago,
+///    deme1 contributes 50% of ancestry
+///    to all individuals born in deme2.
+/// demes:
+///  - name: deme1
+///    epochs:
+///     - start_size: 50
+///  - name: deme2
+///    epochs:
+///     - start_size: 50
+/// pulses:
+///  - sources: [deme1]
+///    dest: deme2
+///    proportions: [0.5]
+///    time: 63
+/// ";
+/// demes::loads(yaml).unwrap();
+/// ```
+///
+/// ## Using rust code
+///
+/// Normally, one only needs to create a `Proportion` when
+/// working with [`GraphBuilder`](crate::GraphBuilder).
+///
+/// ```
+/// let t = demes::Proportion::from(0.5);
+/// assert_eq!(t, 0.5);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(from = "f64")]
@@ -170,6 +325,7 @@ impl Proportion {
 
 impl_newtype_traits!(Proportion);
 
+/// A half-open time interval `[present, past)`.
 #[derive(Clone, Copy, Debug)]
 pub struct TimeInterval {
     start_time: Time,
@@ -221,10 +377,12 @@ impl TimeInterval {
         self.contains(other)
     }
 
+    /// Return the resolved start time (past) of the interval.
     pub fn start_time(&self) -> Time {
         self.start_time
     }
 
+    /// Return the resolved end time (present) of the interval.
     pub fn end_time(&self) -> Time {
         self.end_time
     }
@@ -234,11 +392,70 @@ impl TimeInterval {
     }
 }
 
+/// Specify how deme sizes change during an [`Epoch`](crate::Epoch).
+///
+/// # Examples
+///
+/// ```
+/// let yaml = "
+/// time_units: years
+/// generation_time: 25
+/// description:
+///   A deme of 50 individuals that grew to 100 individuals
+///   in the last 100 years.
+///   Default behavior is that size changes are exponential.
+/// demes:
+///  - name: deme
+///    epochs:
+///     - start_size: 50
+///       end_time: 100
+///     - start_size: 50
+///       end_size: 100
+/// ";
+/// let graph = demes::loads(yaml).unwrap();
+/// let deme = graph.get_deme_from_name("deme").unwrap();
+/// assert_eq!(deme.num_epochs(), 2);
+/// let last_epoch = deme.get_epoch(1).unwrap();
+/// assert!(matches!(last_epoch.size_function(),
+///                  demes::SizeFunction::Exponential));
+/// let first_epoch = deme.get_epoch(0).unwrap();
+/// assert!(matches!(first_epoch.size_function(),
+///                  demes::SizeFunction::Constant));
+/// ```
+///
+/// Let's change the function to linear for the second
+/// epoch:
+///
+/// ```
+/// let yaml = "
+/// time_units: years
+/// generation_time: 25
+/// description:
+///   A deme of 50 individuals that grew to 100 individuals
+///   in the last 100 years.
+/// demes:
+///  - name: deme
+///    epochs:
+///     - start_size: 50
+///       end_time: 100
+///     - start_size: 50
+///       end_size: 100
+///       size_function: linear
+/// ";
+/// let graph = demes::loads(yaml).unwrap();
+/// let deme = graph.get_deme_from_name("deme").unwrap();
+/// let last_epoch = deme.get_epoch(1).unwrap();
+/// assert!(matches!(last_epoch.size_function(),
+///                  demes::SizeFunction::Linear));
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
+    #[allow(missing_docs)]
     Constant,
+    #[allow(missing_docs)]
     Exponential,
+    #[allow(missing_docs)]
     Linear,
 }
 
@@ -253,6 +470,7 @@ impl Display for SizeFunction {
     }
 }
 
+/// The cloning rate of an [`Epoch`](crate::Epoch).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(from = "f64")]
@@ -280,6 +498,7 @@ impl Default for CloningRate {
 
 impl_newtype_traits!(CloningRate);
 
+/// The selfing rate of an [`Epoch`](crate::Epoch).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(from = "f64")]
@@ -307,6 +526,14 @@ impl Default for SelfingRate {
 
 impl_newtype_traits!(SelfingRate);
 
+/// A migration rate.
+///
+/// # Examples
+///
+/// ## Using [`GraphBuilder`](crate::GraphBuilder)
+///
+/// * [`GraphBuilder::add_symmetric_migration`](crate::GraphBuilder::add_symmetric_migration)
+/// * [`GraphBuilder::add_asymmetric_migration`](crate::GraphBuilder::add_asymmetric_migration)
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(from = "f64")]
@@ -334,14 +561,41 @@ impl Default for MigrationRate {
 
 impl_newtype_traits!(MigrationRate);
 
+/// An unresolved migration epoch.
+///
+/// All input migrations are resolved to [`AsymmetricMigration`](crate::AsymmetricMigration)
+/// instances.
+///
+/// # Examples
+///
+/// ## [`GraphBuilder`](crate::GraphBuilder)
+///
+/// This type supports member field initialization using defaults.
+/// This form of initalization is used in:
+///
+/// * [`GraphDefaults`](crate::GraphDefaults)
+///
+/// ```
+/// let _ = demes::UnresolvedMigration{source: Some("A".to_string()),
+///                                    dest: Some("B".to_string()),
+///                                    rate: Some(demes::MigrationRate::from(0.2)),
+///                                    ..Default::default()
+///                                    };
+/// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedMigration {
+    /// The demes involved in symmetric migration epochs
     pub demes: Option<Vec<String>>,
+    /// The source deme of an asymmetric migration epoch
     pub source: Option<String>,
+    /// The destination deme of an asymmetric migration epoch
     pub dest: Option<String>,
+    /// The start time of a migration epoch
     pub start_time: Option<Time>,
+    /// The end time of a migration epoch
     pub end_time: Option<Time>,
+    /// The rate during a migration epoch
     pub rate: Option<MigrationRate>,
 }
 
@@ -404,6 +658,9 @@ impl UnresolvedMigration {
     }
 }
 
+/// An asymmetric migration epoch.
+///
+/// All input migrations are resolved to asymmetric migration instances.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct AsymmetricMigration {
     source: String,
@@ -430,21 +687,32 @@ impl AsymmetricMigration {
         Ok(())
     }
 
+    /// Get name of the source deme
     pub fn source(&self) -> &str {
         &self.source
     }
+
+    /// Get name of the destination deme
     pub fn dest(&self) -> &str {
         &self.dest
     }
+
+    /// Get the resolved migration rate
     pub fn rate(&self) -> MigrationRate {
         self.rate
     }
+
+    /// Resolved start [`Time`](crate::Time) of the migration epoch
     pub fn start_time(&self) -> Time {
         self.start_time.unwrap()
     }
+
+    /// Resolved end [`Time`](crate::Time) of the migration epoch
     pub fn end_time(&self) -> Time {
         self.end_time.unwrap()
     }
+
+    /// Resolved time interval of the migration epoch
     pub fn time_interval(&self) -> TimeInterval {
         TimeInterval {
             start_time: self.start_time(),
@@ -555,17 +823,23 @@ impl From<Migration> for UnresolvedMigration {
     }
 }
 
+/// A resolved Pulse event
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[repr(transparent)]
 pub struct Pulse(UnresolvedPulse);
 
+/// An unresolved Pulse event.
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedPulse {
+    #[allow(missing_docs)]
     pub sources: Option<Vec<String>>,
+    #[allow(missing_docs)]
     pub dest: Option<String>,
+    #[allow(missing_docs)]
     pub time: Option<Time>,
+    #[allow(missing_docs)]
     pub proportions: Option<Vec<Proportion>>,
 }
 
@@ -736,6 +1010,7 @@ impl Pulse {
         Ok(())
     }
 
+    /// Resolved time of the pulse
     pub fn time(&self) -> Time {
         match self.0.time {
             Some(time) => time,
@@ -743,6 +1018,7 @@ impl Pulse {
         }
     }
 
+    /// Resolved pulse source demes as slice
     pub fn sources(&self) -> &[String] {
         match &self.0.sources {
             Some(sources) => sources,
@@ -750,6 +1026,7 @@ impl Pulse {
         }
     }
 
+    /// Resolved pulse destination deme
     pub fn dest(&self) -> &str {
         match &self.0.dest {
             Some(dest) => dest,
@@ -757,6 +1034,7 @@ impl Pulse {
         }
     }
 
+    /// Resolved pulse proportions
     pub fn proportions(&self) -> &[Proportion] {
         match &self.0.proportions {
             Some(proportions) => proportions,
@@ -765,18 +1043,40 @@ impl Pulse {
     }
 }
 
+/// HDM representation of an epoch.
+///
+/// Direct construction of this type is useful in:
+/// * [`DemeDefaults`](crate::DemeDefaults)
+/// * [`GraphDefaults`](crate::GraphDefaults)
+///
+/// # Examples
+///
+/// This type supports field initialization with defaults:
+///
+/// ```
+/// let _ = demes::UnresolvedEpoch{
+///              start_size: Some(demes::DemeSize::from(1e6)),
+///              ..Default::default()
+///              };
+/// ```
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedEpoch {
+    #[allow(missing_docs)]
     pub end_time: Option<Time>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
+    #[allow(missing_docs)]
     pub start_size: Option<DemeSize>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
+    #[allow(missing_docs)]
     pub end_size: Option<DemeSize>,
+    #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size_function: Option<crate::specification::SizeFunction>,
+    #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloning_rate: Option<crate::specification::CloningRate>,
+    #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selfing_rate: Option<crate::specification::SelfingRate>,
 }
@@ -808,6 +1108,7 @@ impl UnresolvedEpoch {
     }
 }
 
+/// A resolved epoch
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
@@ -956,26 +1257,32 @@ impl Epoch {
         self.validate_size_function()
     }
 
+    /// The resolved size function
     pub fn size_function(&self) -> SizeFunction {
         self.data.size_function.unwrap()
     }
 
+    /// The resolved selfing rate
     pub fn selfing_rate(&self) -> SelfingRate {
         self.data.selfing_rate.unwrap()
     }
 
+    /// The resolved cloning rate
     pub fn cloning_rate(&self) -> CloningRate {
         self.data.cloning_rate.unwrap()
     }
 
+    /// The resolved end time
     pub fn end_time(&self) -> Time {
         self.data.end_time.unwrap()
     }
 
+    /// The resolved start size
     pub fn start_size(&self) -> DemeSize {
         self.data.start_size.unwrap()
     }
 
+    /// The resolved end size
     pub fn end_size(&self) -> DemeSize {
         self.data.end_size.unwrap()
     }
@@ -995,14 +1302,19 @@ pub(crate) struct DemeData {
     history: UnresolvedDemeHistory,
 }
 
+/// HDM data for a [`Deme`](crate::Deme)
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedDemeHistory {
+    #[allow(missing_docs)]
     pub ancestors: Option<Vec<String>>,
+    #[allow(missing_docs)]
     pub proportions: Option<Vec<Proportion>>,
+    #[allow(missing_docs)]
     pub start_time: Option<Time>,
     #[serde(default = "DemeDefaults::default")]
     #[serde(skip_serializing)]
+    #[allow(missing_docs)]
     pub defaults: DemeDefaults,
 }
 
@@ -1022,6 +1334,7 @@ impl Eq for DemeData {}
 
 pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
 
+/// A resolved deme.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Deme(DemePtr);
 
@@ -1435,6 +1748,7 @@ impl Deme {
 
     // Public API
 
+    /// The resolved time interval
     pub fn time_interval(&self) -> TimeInterval {
         TimeInterval {
             start_time: self.start_time(),
@@ -1442,19 +1756,25 @@ impl Deme {
         }
     }
 
+    /// The resolved start time
     pub fn start_time(&self) -> Time {
         self.0.borrow().history.start_time.unwrap()
     }
 
+    /// Deme name
     pub fn name(&self) -> Ref<'_, String> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| &b.name)
     }
 
+    /// Number of ancestors
     pub fn num_ancestors(&self) -> usize {
         self.0.borrow().history.ancestors.as_ref().unwrap().len()
     }
 
+    /// Names of ancestor demes.
+    ///
+    /// Empty of no ancestors.
     pub fn ancestor_names(&self) -> Ref<'_, [String]> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| match &b.history.ancestors {
@@ -1463,19 +1783,36 @@ impl Deme {
         })
     }
 
+    /// Description string
     pub fn description(&self) -> String {
         self.0.borrow().description.clone()
     }
 
+    /// Obtain the number of [`Epoch`](crate::Epoch) instances.
+    ///
+    /// # Examples
+    ///
+    /// See [`here`](crate::SizeFunction).
     pub fn num_epochs(&self) -> usize {
         self.0.borrow().epochs.len()
     }
 
+    /// Resolved epochs
     pub fn epochs(&self) -> Ref<'_, [Epoch]> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| b.epochs.as_slice())
     }
 
+    /// Returns a copy of the [`Epoch`](crate::Epoch) at index `epoch`.
+    ///
+    /// # Examples
+    ///
+    /// See [`here`](crate::SizeFunction) for examples.
+    pub fn get_epoch(&self, epoch: usize) -> Option<Epoch> {
+        self.0.borrow().epochs.get(epoch).copied()
+    }
+
+    /// Resolved proportions
     pub fn proportions(&self) -> Ref<'_, [Proportion]> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| match &b.history.proportions {
@@ -1484,19 +1821,26 @@ impl Deme {
         })
     }
 
+    /// Hash map of ancestor name to ancestor deme
     pub fn ancestors(&self) -> Ref<'_, DemeMap> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| &b.ancestor_map)
     }
 
+    /// Resolved start size
     pub fn start_size(&self) -> DemeSize {
         self.0.borrow().epochs[0].data.start_size.unwrap()
     }
 
+    /// Resolved end size
     pub fn end_size(&self) -> DemeSize {
         self.0.borrow().epochs[0].data.end_size.unwrap()
     }
 
+    /// Vector of resolved start sizes.
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
     pub fn start_sizes(&self) -> Vec<DemeSize> {
         self.0
             .borrow()
@@ -1506,6 +1850,10 @@ impl Deme {
             .collect()
     }
 
+    /// Vector of resolved start sizes
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
     pub fn end_sizes(&self) -> Vec<DemeSize> {
         self.0
             .borrow()
@@ -1515,6 +1863,10 @@ impl Deme {
             .collect()
     }
 
+    /// Vector of resolved end times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
     pub fn end_times(&self) -> Vec<Time> {
         self.0
             .borrow()
@@ -1524,6 +1876,10 @@ impl Deme {
             .collect()
     }
 
+    /// Vector of resolved start times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
     pub fn start_times(&self) -> Vec<Time> {
         let mut rv = vec![self.start_time()];
         let end_time = self.end_time();
@@ -1538,7 +1894,10 @@ impl Deme {
         rv
     }
 
-    // Will panic! if the deme is not properly resolved
+    /// End time of the deme.
+    ///
+    /// Obtained from the value stored in the most
+    /// recent epoch.
     pub fn end_time(&self) -> Time {
         self.0
             .borrow()
@@ -1564,12 +1923,17 @@ impl Eq for Deme {}
 
 type DemeMap = HashMap<String, Deme>;
 
+/// The time units of a graph
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(from = "String")]
 #[serde(into = "String")]
 pub enum TimeUnits {
+    #[allow(missing_docs)]
     Generations,
+    #[allow(missing_docs)]
     Years,
+    /// A "custom" time unit.  It is assumed
+    /// that client code knows what to do with this.
     Custom(String),
 }
 
@@ -1605,6 +1969,10 @@ impl std::fmt::Display for TimeUnits {
     }
 }
 
+/// Generation time.
+///
+/// If [`TimeUnits`] are in generations, this value
+/// must be 1.0.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(from = "f64")]
@@ -1632,16 +2000,22 @@ struct GraphDefaultInput {
     defaults: GraphDefaults,
 }
 
+/// Top-level defaults
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GraphDefaults {
+    #[allow(missing_docs)]
     #[serde(default = "UnresolvedEpoch::default")]
+    #[allow(missing_docs)]
     pub epoch: UnresolvedEpoch,
     #[serde(default = "UnresolvedMigration::default")]
+    #[allow(missing_docs)]
     pub migration: UnresolvedMigration,
     #[serde(default = "UnresolvedPulse::default")]
+    #[allow(missing_docs)]
     pub pulse: UnresolvedPulse,
     #[serde(default = "TopLevelDemeDefaults::default")]
+    #[allow(missing_docs)]
     pub deme: TopLevelDemeDefaults,
 }
 
@@ -1732,12 +2106,20 @@ impl GraphDefaults {
     }
 }
 
+/// Top-level defaults for a [`Deme`](crate::Deme).
+///
+/// This type is used as a member of
+/// [`GraphDefaults`](crate::GraphDefaults)
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TopLevelDemeDefaults {
+    #[allow(missing_docs)]
     pub description: Option<String>,
+    #[allow(missing_docs)]
     pub start_time: Option<Time>,
+    #[allow(missing_docs)]
     pub ancestors: Option<Vec<String>>,
+    #[allow(missing_docs)]
     pub proportions: Option<Vec<Proportion>>,
 }
 
@@ -1761,9 +2143,11 @@ impl TopLevelDemeDefaults {
     }
 }
 
+/// Deme-level defaults
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DemeDefaults {
+    #[allow(missing_docs)]
     pub epoch: UnresolvedEpoch,
 }
 
@@ -1773,6 +2157,34 @@ impl DemeDefaults {
     }
 }
 
+/// Top-level metadata
+///
+/// # Examples
+///
+/// ```
+/// #[derive(serde::Deserialize)]
+/// struct MyMetaData {
+///    foo: i32,
+///    bar: String
+/// }
+///
+/// let yaml = "
+/// time_units: generations
+/// metadata:
+///  foo: 1
+///  bar: bananas
+/// demes:
+///  - name: A
+///    epochs:
+///     - start_size: 100
+/// ";
+///
+/// let graph = demes::loads(yaml).unwrap();
+/// let yaml_metadata = graph.metadata().unwrap().as_yaml_string();
+/// let my_metadata: MyMetaData = serde_yaml::from_str(&yaml_metadata).unwrap();
+/// assert_eq!(my_metadata.foo, 1);
+/// assert_eq!(&my_metadata.bar, "bananas");
+/// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
     #[serde(flatten)]
@@ -1780,15 +2192,27 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// `true` if metadata is present, `false` otherwise
     fn is_empty(&self) -> bool {
         self.metadata.is_empty()
     }
 
+    /// Return the metadata as YAML
     pub fn as_yaml_string(&self) -> String {
         serde_yaml::to_string(&self.metadata).unwrap()
     }
 }
 
+/// A resolved demes Graph.
+///
+/// Instances of this type will be fully-resolved according to
+/// the machine data model described
+/// [here](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html#).
+///
+/// A graph cannot be directly initialized. See:
+/// * [`load`](crate::load)
+/// * [`loads`](crate::loads)
+/// * [`GraphBuilder`](crate::GraphBuilder)
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Graph {
@@ -2300,37 +2724,59 @@ impl Graph {
         Ok(())
     }
 
+    /// The number of [`Deme`](crate::Deme) instances in the graph.
     pub fn num_demes(&self) -> usize {
         self.demes.len()
     }
 
+    /// Obtain a reference to a [`Deme`](crate::Deme) by its name.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&Deme)` if `name` exists, `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// See [`here`](crate::SizeFunction).
     pub fn get_deme_from_name(&self, name: &str) -> Option<&Deme> {
         self.deme_map.get(name)
     }
 
+    /// Get the [`Deme`](crate::Deme) at index `at`.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `at` is out of range.
     pub fn deme(&self, at: usize) -> Deme {
         self.demes[at].clone()
     }
 
+    /// Get the [`Deme`](crate::Deme) instances via a slice.
     pub fn demes(&self) -> &[Deme] {
         &self.demes
     }
 
+    /// Get the [`GenerationTime`](crate::GenerationTime) for the graph.
     pub fn generation_time(&self) -> Option<GenerationTime> {
         self.generation_time
     }
 
+    /// Get the [`TimeUnits`](crate::TimeUnits) for the graph.
     pub fn time_units(&self) -> TimeUnits {
         self.time_units.clone()
     }
+
+    /// Get the migration events for the graph.
     pub fn migrations(&self) -> &[AsymmetricMigration] {
         &self.resolved_migrations
     }
 
+    /// Get the pulse events for the graph.
     pub fn pulses(&self) -> &[Pulse] {
         &self.pulses
     }
 
+    /// Get a copy of the top-level [`Metadata`](crate::Metadata).
     pub fn metadata(&self) -> Option<Metadata> {
         if self.metadata.metadata.is_empty() {
             None

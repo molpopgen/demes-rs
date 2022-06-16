@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 use crate::specification::Deme;
 use crate::specification::GenerationTime;
 use crate::specification::Graph;

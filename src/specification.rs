@@ -113,6 +113,24 @@ impl Time {
 
 impl_newtype_traits!(Time);
 
+// Workhorse behing Graph::to_generations
+fn convert_resolved_time_to_generations<F>(
+    generation_time: GenerationTime,
+    _: Option<i32>,
+    f: F,
+    message: &str,
+    input: &mut Option<Time>,
+) -> Result<(), DemesError>
+where
+    F: std::ops::FnOnce(String) -> DemesError,
+{
+    *input = match input {
+        Some(value) => Some(Time::from(value.0 / generation_time.0)),
+        None => return Err(f(message.to_string())),
+    };
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum TimeTrampoline {
@@ -671,6 +689,36 @@ pub struct AsymmetricMigration {
 }
 
 impl AsymmetricMigration {
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<i32>,
+    ) -> Result<(), DemesError> {
+        convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::MigrationError,
+            "start_time is not resolved",
+            &mut self.start_time,
+        )?;
+        convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::MigrationError,
+            "end_time is not resolved",
+            &mut self.end_time,
+        )?;
+
+        if self.end_time >= self.start_time {
+            Err(DemesError::MigrationError(
+                "conversion of migration times to generations resulted in a zero-length epoch"
+                    .to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     fn validate_deme_exists(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
         if !deme_map.contains_key(&self.source) {
             return Err(DemesError::MigrationError(format!(
@@ -859,6 +907,20 @@ impl UnresolvedPulse {
 
         Ok(())
     }
+
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<i32>,
+    ) -> Result<(), DemesError> {
+        convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::PulseError,
+            "time is not resolved",
+            &mut self.time,
+        )
+    }
 }
 
 impl Pulse {
@@ -1010,6 +1072,15 @@ impl Pulse {
         Ok(())
     }
 
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<i32>,
+    ) -> Result<(), DemesError> {
+        self.0
+            .resolved_time_to_generations(generation_time, rounding)
+    }
+
     /// Resolved time of the pulse
     pub fn time(&self) -> Time {
         match self.0.time {
@@ -1082,6 +1153,20 @@ pub struct UnresolvedEpoch {
 }
 
 impl UnresolvedEpoch {
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<i32>,
+    ) -> Result<(), DemesError> {
+        convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::EpochError,
+            "end_time is unresolved",
+            &mut self.end_time,
+        )
+    }
+
     fn validate(&self) -> Result<(), DemesError> {
         match self.end_time {
             Some(value) => value.validate(DemesError::EpochError)?,
@@ -1359,6 +1444,40 @@ impl Deme {
         };
         let ptr = DemePtr::new(RefCell::new(data));
         Self(ptr)
+    }
+
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<i32>,
+    ) -> Result<(), DemesError> {
+        {
+            let mut mut_deme_borrow = self.0.borrow_mut();
+            convert_resolved_time_to_generations(
+                generation_time,
+                rounding,
+                DemesError::DemeError,
+                &format!("start_time unresolved for deme: {}", mut_deme_borrow.name),
+                &mut mut_deme_borrow.history.start_time,
+            )?;
+            mut_deme_borrow.epochs.iter_mut().try_for_each(|epoch| {
+                epoch
+                    .data
+                    .resolved_time_to_generations(generation_time, rounding)
+            })?;
+        }
+        let starts = self.start_times();
+        let ends = self.end_times();
+
+        for (start, end) in starts.iter().zip(ends.iter()) {
+            if end >= start {
+                return Err(DemesError::EpochError(
+                    "conversion to generations resulted in an invalid Epoch".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     fn resolve_times(
@@ -2784,6 +2903,53 @@ impl Graph {
             Some(self.metadata.clone())
         }
     }
+
+    /// Convert the time units to generations.
+    ///
+    /// # Errors
+    ///
+    /// If the time unit of an event differs sufficiently in
+    /// magnitude from the `generation_time`, it is possible
+    /// that conversion results in epochs (or migration
+    /// durations) of length zero, which will return an error.
+    ///
+    /// If any field is unresolved, an error will be returned.
+    pub fn to_generations(self) -> Result<Self, DemesError> {
+        if matches!(self.time_units, TimeUnits::Generations) {
+            // no work to do
+            return Ok(self);
+        }
+
+        let mut converted = self;
+
+        let generation_time = match converted.generation_time {
+            Some(generation_time) => generation_time,
+            None => {
+                return Err(DemesError::GraphError(
+                    "generation_time is unresolved".to_string(),
+                ))
+            }
+        };
+
+        converted
+            .demes
+            .iter_mut()
+            .try_for_each(|deme| deme.resolved_time_to_generations(generation_time, None))?;
+
+        converted
+            .pulses
+            .iter_mut()
+            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, None))?;
+
+        converted
+            .resolved_migrations
+            .iter_mut()
+            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, None))?;
+
+        converted.time_units = TimeUnits::Generations;
+
+        Ok(converted)
+    }
 }
 
 #[cfg(test)]
@@ -3216,4 +3382,265 @@ mod test_infinity {
         assert!(time.0.is_infinite());
         assert!(time.0.is_sign_positive());
     }
+}
+
+#[cfg(test)]
+mod test_to_generations {
+    #[test]
+    fn test_raw_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        let deme = converted.deme(0);
+        assert_eq!(deme.end_time(), 4.0);
+        let deme = converted.deme(1);
+        assert_eq!(deme.start_time(), 4.0);
+    }
+
+    #[test]
+    fn test_demelevel_default_epoch_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        let deme = converted.deme(0);
+        assert_eq!(deme.end_time(), 0.4);
+        let deme = converted.deme(1);
+        assert_eq!(deme.start_time(), 0.4);
+    }
+
+    #[test]
+    fn test_pulse_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: one
+   epochs:
+    - start_size: 100
+ - name: two
+   epochs:
+    - start_size: 100
+pulses:
+ - sources: [one]
+   dest: two
+   proportions: [0.25]
+   time: 50
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        for p in converted.pulses().iter() {
+            assert_eq!(p.time(), 2.0);
+        }
+    }
+
+    #[test]
+    fn test_default_pulse_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+ pulse:
+  time: 50
+demes:
+ - name: one
+   epochs:
+    - start_size: 100
+ - name: two
+   epochs:
+    - start_size: 100
+pulses:
+ - sources: [one]
+   dest: two
+   proportions: [0.25]
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        for p in converted.pulses().iter() {
+            assert_eq!(p.time(), 2.0);
+        }
+    }
+
+    #[test]
+    fn test_migration_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: one
+   epochs:
+    - start_size: 100
+ - name: two
+   epochs:
+    - start_size: 100
+migrations:
+ - demes: [one, two]
+   rate: 0.25
+   start_time: 50
+   end_time: 10
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        for p in converted.migrations().iter() {
+            assert_eq!(p.start_time(), 50.0 / 25.0);
+            assert_eq!(p.end_time(), 10.0 / 25.0);
+        }
+    }
+
+    #[test]
+    fn test_default_migration_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+ migration:
+  start_time: 50
+  end_time: 10
+demes:
+ - name: one
+   epochs:
+    - start_size: 100
+ - name: two
+   epochs:
+    - start_size: 100
+migrations:
+ - demes: [one, two]
+   rate: 0.25
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        for p in converted.migrations().iter() {
+            assert_eq!(p.start_time(), 50.0 / 25.0);
+            assert_eq!(p.end_time(), 10.0 / 25.0);
+        }
+    }
+
+    #[test]
+    fn test_toplevel_default_epoch_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+defaults:
+ deme:
+   start_time: 100
+demes:
+ - name: ancestor
+   start_time: .inf
+   epochs:
+    - start_size: 100
+      end_time: 10
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_generations().unwrap();
+        assert!(matches!(
+            converted.time_units(),
+            super::TimeUnits::Generations
+        ));
+        let deme = converted.deme(0);
+        assert_eq!(deme.end_time(), 10.0 / 25.0);
+        let deme = converted.deme(1);
+        assert_eq!(deme.start_time(), 100.0 / 25.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_raw_conversion_to_zero_length_epoch() {
+        let yaml = "
+time_units: years
+generation_time: 1e300
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 1e-200
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let _ = g.to_generations().unwrap();
+    }
+
+    // This is a test we'd like to have, but:
+    // * f64.round() is half-away-from-zero.
+    // * we want round-half-to-even.
+    //    #[test]
+    //    fn test_raw_conversion_with_rounding() {
+    //        let yaml = "
+    //time_units: years
+    //generation_time: 25
+    //demes:
+    // - name: ancestor
+    //   epochs:
+    //    - start_size: 100
+    //      end_time: 10
+    // - name: derived
+    //   ancestors: [ancestor]
+    //   epochs:
+    //    - start_size: 100
+    //";
+    //        let g = crate::loads(yaml).unwrap();
+    //
+    //        // None == "no rounding". The anticipated
+    //        // type will be Option<Rounding>. (Name TBD)
+    //        let converted = g.to_generations().unwrap();
+    //        let deme = converted.deme(0);
+    //        assert_eq!(deme.end_time(), (10.0_f64 / 4.0).round());
+    //        let deme = converted.deme(1);
+    //        assert_eq!(deme.start_time(), (10.0_f64 / 4.0).round());
+    //    }
 }

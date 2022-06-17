@@ -113,10 +113,31 @@ impl Time {
 
 impl_newtype_traits!(Time);
 
+/// Specify rounding method for
+/// [`Graph::to_integer_generations`](crate::Graph::to_integer_generations)
+#[derive(Copy, Clone)]
+pub enum RoundTimeToInteger {
+    /// Use [`f64::round`](std::primitive::f64::round)
+    F64,
+}
+
+impl RoundTimeToInteger {
+    fn apply_rounding(&self, time: Time, generation_time: GenerationTime) -> Time {
+        let mut temp_time = time.0 / generation_time.0;
+
+        match self {
+            RoundTimeToInteger::F64 => {
+                temp_time = temp_time.round();
+            }
+        }
+        Time(temp_time)
+    }
+}
+
 // Workhorse behing Graph::to_generations
 fn convert_resolved_time_to_generations<F>(
     generation_time: GenerationTime,
-    _: Option<i32>,
+    rounding: Option<RoundTimeToInteger>,
     f: F,
     message: &str,
     input: &mut Option<Time>,
@@ -125,7 +146,10 @@ where
     F: std::ops::FnOnce(String) -> DemesError,
 {
     *input = match input {
-        Some(value) => Some(Time::from(value.0 / generation_time.0)),
+        Some(value) => match rounding {
+            Some(rounding_policy) => Some(rounding_policy.apply_rounding(*value, generation_time)),
+            None => Some(Time::from(value.0 / generation_time.0)),
+        },
         None => return Err(f(message.to_string())),
     };
     Ok(())
@@ -692,7 +716,7 @@ impl AsymmetricMigration {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<i32>,
+        rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
         convert_resolved_time_to_generations(
             generation_time,
@@ -911,7 +935,7 @@ impl UnresolvedPulse {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<i32>,
+        rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
         convert_resolved_time_to_generations(
             generation_time,
@@ -1075,7 +1099,7 @@ impl Pulse {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<i32>,
+        rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
         self.0
             .resolved_time_to_generations(generation_time, rounding)
@@ -1156,7 +1180,7 @@ impl UnresolvedEpoch {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<i32>,
+        rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
         convert_resolved_time_to_generations(
             generation_time,
@@ -1449,7 +1473,7 @@ impl Deme {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<i32>,
+        rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
         {
             let mut mut_deme_borrow = self.0.borrow_mut();
@@ -2904,17 +2928,10 @@ impl Graph {
         }
     }
 
-    /// Convert the time units to generations.
-    ///
-    /// # Errors
-    ///
-    /// If the time unit of an event differs sufficiently in
-    /// magnitude from the `generation_time`, it is possible
-    /// that conversion results in epochs (or migration
-    /// durations) of length zero, which will return an error.
-    ///
-    /// If any field is unresolved, an error will be returned.
-    pub fn to_generations(self) -> Result<Self, DemesError> {
+    fn convert_to_generations_details(
+        self,
+        round: Option<RoundTimeToInteger>,
+    ) -> Result<Self, DemesError> {
         if matches!(self.time_units, TimeUnits::Generations) {
             // no work to do
             return Ok(self);
@@ -2934,21 +2951,40 @@ impl Graph {
         converted
             .demes
             .iter_mut()
-            .try_for_each(|deme| deme.resolved_time_to_generations(generation_time, None))?;
+            .try_for_each(|deme| deme.resolved_time_to_generations(generation_time, round))?;
 
         converted
             .pulses
             .iter_mut()
-            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, None))?;
+            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, round))?;
 
         converted
             .resolved_migrations
             .iter_mut()
-            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, None))?;
+            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, round))?;
 
         converted.time_units = TimeUnits::Generations;
 
         Ok(converted)
+    }
+
+    /// Convert the time units to generations.
+    ///
+    /// # Errors
+    ///
+    /// If the time unit of an event differs sufficiently in
+    /// magnitude from the `generation_time`, it is possible
+    /// that conversion results in epochs (or migration
+    /// durations) of length zero, which will return an error.
+    ///
+    /// If any field is unresolved, an error will be returned.
+    pub fn to_generations(self) -> Result<Self, DemesError> {
+        self.convert_to_generations_details(None)
+    }
+
+    /// Convert the time units to generations, rounding the output to an integer value.
+    pub fn to_integer_generations(self, round: RoundTimeToInteger) -> Result<Graph, DemesError> {
+        self.convert_to_generations_details(Some(round))
     }
 }
 
@@ -3643,4 +3679,59 @@ demes:
     //        let deme = converted.deme(1);
     //        assert_eq!(deme.start_time(), (10.0_f64 / 4.0).round());
     //    }
+}
+
+#[cfg(test)]
+mod test_to_integer_generations {
+    use super::*;
+
+    #[test]
+    fn test_demelevel_default_epoch_conversion() {
+        let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 103
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+        let deme = converted.deme(0);
+        assert_eq!(deme.end_time(), (103_f64 / 25.0).round());
+        let deme = converted.deme(1);
+        assert_eq!(deme.start_time(), (103_f64 / 25.0).round());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_conversion_to_zero_length_epoch() {
+        let yaml = "
+time_units: years
+description: rounding results in epochs of length zero
+generation_time: 25
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 10
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+    }
 }

@@ -451,7 +451,6 @@ impl TimeInterval {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SizeFunction {
-    #[allow(missing_docs)]
     Constant,
     #[allow(missing_docs)]
     Exponential,

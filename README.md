@@ -35,3 +35,7 @@ cargo tarpaulin --tests --ignore-tests -o html
 ```
 
 Finally, open `tarpaulin-report.html` with your favorite browser.
+
+## Change log
+
+See [here](https://github.com/molpopgen/demes-rs/blob/main/CHANGELOG.md).

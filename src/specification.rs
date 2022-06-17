@@ -2829,6 +2829,15 @@ impl Graph {
         self.resolve_migrations()?;
         self.resolve_pulses()?;
         self.validate_migrations()?;
+
+        match self.generation_time {
+            Some(value) => value.validate()?,
+            None => {
+                if matches!(self.time_units, TimeUnits::Generations) {
+                    self.generation_time = Some(GenerationTime::from(1.));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -2841,11 +2850,6 @@ impl Graph {
             return Err(DemesError::GraphError(
                 "missing generation_time".to_string(),
             ));
-        }
-
-        match self.generation_time {
-            None => (),
-            Some(value) => value.validate()?,
         }
 
         if matches!(&self.time_units, TimeUnits::Generations) {
@@ -2932,11 +2936,6 @@ impl Graph {
         self,
         round: Option<RoundTimeToInteger>,
     ) -> Result<Self, DemesError> {
-        if matches!(self.time_units, TimeUnits::Generations) {
-            // no work to do
-            return Ok(self);
-        }
-
         let mut converted = self;
 
         let generation_time = match converted.generation_time {
@@ -2964,6 +2963,7 @@ impl Graph {
             .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, round))?;
 
         converted.time_units = TimeUnits::Generations;
+        converted.generation_time.replace(GenerationTime::from(1.));
 
         Ok(converted)
     }
@@ -3711,6 +3711,10 @@ demes:
         assert_eq!(deme.end_time(), (103_f64 / 25.0).round());
         let deme = converted.deme(1);
         assert_eq!(deme.start_time(), (103_f64 / 25.0).round());
+
+        let g2 = serde_yaml::to_string(&converted).unwrap();
+        let converted_from_str = crate::loads(&g2).unwrap();
+        assert_eq!(converted, converted_from_str);
     }
 
     #[test]
@@ -3733,5 +3737,32 @@ demes:
         let g = crate::loads(yaml).unwrap();
 
         g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+    }
+
+    #[test]
+    fn test_demelevel_epoch_conversion_non_integer_input_times() {
+        let yaml = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+        let g = crate::loads(yaml).unwrap();
+
+        // None == "no rounding". The anticipated
+        // type will be Option<Rounding>. (Name TBD)
+        let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+        let deme = converted.deme(0);
+        assert_eq!(deme.end_time(), 10.6_f64.round());
+        let deme = converted.deme(1);
+        assert_eq!(deme.start_time(), 10.6_f64.round());
     }
 }

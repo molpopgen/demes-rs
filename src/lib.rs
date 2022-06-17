@@ -1,93 +1,38 @@
 //! rust support for
 //! [demes](https://popsim-consortium.github.io/demes-spec-docs).
 //!
-//! # Example of YAML input
+//! # Introduction
 //!
-//! ```
-//!     let yaml = "
-//! description: The Gutenkunst et al. (2009) OOA model.
-//! doi:
-//! - https://doi.org/10.1371/journal.pgen.1000695
-//! time_units: years
-//! generation_time: 25
+//! This crate provides:
 //!
-//! demes:
-//! - name: ancestral
-//!   description: Equilibrium/root population
-//!   epochs:
-//!   - {end_time: 220e3, start_size: 7300}
-//! - name: AMH
-//!   description: Anatomically modern humans
-//!   ancestors: [ancestral]
-//!   epochs:
-//!   - {end_time: 140e3, start_size: 12300}
-//! - name: OOA
-//!   description: Bottleneck out-of-Africa population
-//!   ancestors: [AMH]
-//!   epochs:
-//!   - {end_time: 21.2e3, start_size: 2100}
-//! - name: YRI
-//!   description: Yoruba in Ibadan, Nigeria
-//!   ancestors: [AMH]
-//!   epochs:
-//!   - start_size: 12300
-//! - name: CEU
-//!   description: Utah Residents (CEPH) with Northern and Western European Ancestry
-//!   ancestors: [OOA]
-//!   epochs:
-//!   - {start_size: 1000, end_size: 29725}
-//! - name: CHB
-//!   description: Han Chinese in Beijing, China
-//!   ancestors: [OOA]
-//!   epochs:
-//!   - {start_size: 510, end_size: 54090}
+//! * Support for reading `YAML` descriptions of `demes` models.
+//!   See [`loads`](crate::loads) and [`load`](crate::load).
+//! * Support for building a demes model using `rust` code.
+//!   See [`GraphBuilder`](crate::GraphBuilder).
 //!
-//! migrations:
-//! - {demes: [YRI, OOA], rate: 25e-5}
-//! - {demes: [YRI, CEU], rate: 3e-5}
-//! - {demes: [YRI, CHB], rate: 1.9e-5}
-//! - {demes: [CEU, CHB], rate: 9.6e-5}
-//! ";
+//! The output of any of these operations is a fully-resolved
+//! [`Graph`](crate::Graph).
 //!
-//! let graph = match demes::loads(yaml) {
-//!     Ok(graph) => graph,
-//!     Err(e) => panic!("{}", e),
-//! };
+//! ## More information
 //!
-//! {
-//!     // round trip back into yaml
-//!     let yaml_from_graph = serde_yaml::to_string(&graph).unwrap();
-//!     let roundtripped_graph = demes::loads(&yaml_from_graph).unwrap();
-//!     assert_eq!(graph, roundtripped_graph);
-//! }
+//! * See [here](https://popsim-consortium.github.io/demes-spec-docs/main/introduction.html#) for
+//! an overview of `demes`.
 //!
+//! ## Technical details
 //!
-//!for deme in graph.demes() {
-//!    println!("{} {} {} {} {}",
-//!         deme.name(),
-//!         deme.start_time(),
-//!         deme.end_time(),
-//!         deme.start_size(),
-//!         deme.end_size());
-//!     // A HashMap maps ancestor name -> ancestor Deme
-//!     for ancestor in deme.ancestors().keys() {
-//!         println!("{} is an ancestor of {}", ancestor, deme.name());
-//!     }
-//!     // Ref<'_, [String]> of ancestor names
-//!     for ancestor in deme.ancestor_names().iter() {
-//!         println!("{} is an ancestor of {}", ancestor, deme.name());
-//!     }
-//!}
+//! * `YAML` and [`GraphBuilder`](crate::GraphBuilder) inputs
+//!   support the Human Data Model (HDM) described in the
+//!   demes
+//!   [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html)
+//! * A [`Graph`] is fully-resolved according to the Machine
+//!   Data Model (MDM) described in the
+//!   [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html).
+//!   
+//! # Known limitations
 //!
-//!for m in graph.migrations() {
-//!    println!("{} -> {} at rate {} from: {}, to: {}",
-//!        m.source(),
-//!        m.dest(),
-//!        m.rate(),
-//!        m.start_time(),
-//!        m.end_time());
-//!}
-//! ```
+//! * There are currently no convenience functions for exporting
+//!   a [`Graph`](crate::Graph) back into `YAML`.
+//!   However, this task is easily done via [serde_yaml::to_string].
 
 #![warn(missing_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]

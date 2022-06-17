@@ -1,5 +1,13 @@
 # Change log
 
+## 2022-06-17, Version 0.2.1
+
+Fix GitHub issues 126 and 127.
+
+### Commits
+- [[`a9b445f0a5`](https://github.com/molpopgen/demes-rs/commit/a9b445f0a527906b682b632422fd1f42a1797924)] Bump version to 0.2.1 (Kevin R. Thornton)
+- [[`e2133cbfb7`](https://github.com/molpopgen/demes-rs/commit/e2133cbfb747373881cc50ba2ce6fd4189e22473)] Fix bugs in converting Graph to generations: (#128) (Kevin R. Thornton)
+
 ## 2022-06-17, Version 0.2.0
 ### Commits
 - [[`fec9c650f2`](https://github.com/molpopgen/demes-rs/commit/fec9c650f2410f66cb2ba71d275a18bd798a3212)] rewrite main crate docs (#124) (Kevin R. Thornton)

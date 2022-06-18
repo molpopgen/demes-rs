@@ -60,10 +60,10 @@ demes:
             .unwrap();
         for d in g.demes() {
             for e in d.start_times() {
-                println!("{}", e);
+                println!("start time: {}", e);
             }
             for e in d.end_times() {
-                println!("{}", e);
+                println!("end time: {}", e);
             }
         }
         // let graph = ForwardGraph::new(demes_graph, None).unwrap();

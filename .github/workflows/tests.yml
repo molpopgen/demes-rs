@@ -47,6 +47,10 @@ jobs:
         run: |
             cargo test --all-features
             cargo test --all-features --examples
+      - name: test demes-forward
+        working-directory: demes-forward
+        run: |
+          cargo test
 
   fmt:
     name: rust fmt

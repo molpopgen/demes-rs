@@ -1490,16 +1490,22 @@ impl Deme {
                     .resolved_time_to_generations(generation_time, rounding)
             })?;
         }
+
         let starts = self.start_times();
         let ends = self.end_times();
 
-        for (start, end) in starts.iter().zip(ends.iter()) {
-            if end >= start {
-                return Err(DemesError::EpochError(
+        let valid = |w: (&Time, &Time)| {
+            if w.1 >= w.0 {
+                Err(DemesError::EpochError(
                     "conversion to generations resulted in an invalid Epoch".to_string(),
-                ));
+                ))
+            } else {
+                Ok(())
             }
-        }
+        };
+
+        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
+        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
 
         Ok(())
     }
@@ -3764,5 +3770,27 @@ demes:
         assert_eq!(deme.end_time(), 10.6_f64.round());
         let deme = converted.deme(1);
         assert_eq!(deme.start_time(), 10.6_f64.round());
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_second_epoch_length_when_integer_rounded() {
+        let yaml = "
+time_units: years
+description:
+  50/1000 = 0.05, rounds to zero.
+  Thus, the second epoch has length zero.
+generation_time: 1000.0
+demes:
+ - name: A
+   epochs:
+    - start_size: 200
+      end_time: 50
+    - start_size: 100
+";
+        let graph = crate::loads(yaml).unwrap();
+        let _ = graph
+            .to_integer_generations(RoundTimeToInteger::F64)
+            .unwrap();
     }
 }

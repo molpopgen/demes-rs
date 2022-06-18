@@ -7,6 +7,10 @@ impl ForwardGraph {
         graph: demes::Graph,
         rounding: Option<demes::RoundTimeToInteger>,
     ) -> Result<Self, demes::DemesError> {
+        let graph = match rounding {
+            Some(r) => graph.to_integer_generations(r)?,
+            None => graph.to_generations()?,
+        };
         Ok(Self { graph })
     }
 }
@@ -55,17 +59,6 @@ demes:
     #[should_panic]
     fn invalid_conversion_error() {
         let demes_graph = two_epoch_model_invalid_conversion_to_generations();
-        let g = demes_graph
-            .to_integer_generations(demes::RoundTimeToInteger::F64)
-            .unwrap();
-        for d in g.demes() {
-            for e in d.start_times() {
-                println!("start time: {}", e);
-            }
-            for e in d.end_times() {
-                println!("end time: {}", e);
-            }
-        }
-        // let graph = ForwardGraph::new(demes_graph, None).unwrap();
+        let graph = ForwardGraph::new(demes_graph, Some(demes::RoundTimeToInteger::F64)).unwrap();
     }
 }

@@ -58,11 +58,12 @@ demes:
     #[test]
     fn invalid_conversion_error() {
         let demes_graph = two_epoch_model_invalid_conversion_to_generations();
-        if let Err(crate::DemesForwardError::DemesError(demes::DemesError::EpochError(_))) =
-            ForwardGraph::new(demes_graph, Some(demes::RoundTimeToInteger::F64))
-        {
-        } else {
-            panic!("expected DemesError::EpochError!");
-        }
+        let result = ForwardGraph::new(demes_graph, Some(demes::RoundTimeToInteger::F64));
+        assert!(matches!(
+            result,
+            Err(crate::DemesForwardError::DemesError(
+                demes::DemesError::EpochError(_)
+            ))
+        ));
     }
 }

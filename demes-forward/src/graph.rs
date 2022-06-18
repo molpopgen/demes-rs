@@ -52,7 +52,7 @@ demes:
     #[test]
     fn initialize_graph() {
         let demes_graph = two_epoch_model();
-        let graph = ForwardGraph::new(demes_graph, None).unwrap();
+        ForwardGraph::new(demes_graph, None).unwrap();
     }
 
     #[test]
@@ -61,7 +61,6 @@ demes:
         if let Err(crate::DemesForwardError::DemesError(demes::DemesError::EpochError(_))) =
             ForwardGraph::new(demes_graph, Some(demes::RoundTimeToInteger::F64))
         {
-            ()
         } else {
             panic!("expected DemesError::EpochError!");
         }

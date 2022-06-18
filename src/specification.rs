@@ -3439,8 +3439,6 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 4.0);
@@ -3467,8 +3465,6 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 0.4);
@@ -3496,8 +3492,6 @@ pulses:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         for p in converted.pulses().iter() {
             assert_eq!(p.time(), 2.0);
@@ -3526,8 +3520,6 @@ pulses:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         for p in converted.pulses().iter() {
             assert_eq!(p.time(), 2.0);
@@ -3554,8 +3546,6 @@ migrations:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         for p in converted.migrations().iter() {
             assert_eq!(p.start_time(), 50.0 / 25.0);
@@ -3585,8 +3575,6 @@ migrations:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         for p in converted.migrations().iter() {
             assert_eq!(p.start_time(), 50.0 / 25.0);
@@ -3615,8 +3603,6 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_generations().unwrap();
         assert!(matches!(
             converted.time_units(),
@@ -3646,39 +3632,8 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let _ = g.to_generations().unwrap();
     }
-
-    // This is a test we'd like to have, but:
-    // * f64.round() is half-away-from-zero.
-    // * we want round-half-to-even.
-    //    #[test]
-    //    fn test_raw_conversion_with_rounding() {
-    //        let yaml = "
-    //time_units: years
-    //generation_time: 25
-    //demes:
-    // - name: ancestor
-    //   epochs:
-    //    - start_size: 100
-    //      end_time: 10
-    // - name: derived
-    //   ancestors: [ancestor]
-    //   epochs:
-    //    - start_size: 100
-    //";
-    //        let g = crate::loads(yaml).unwrap();
-    //
-    //        // None == "no rounding". The anticipated
-    //        // type will be Option<Rounding>. (Name TBD)
-    //        let converted = g.to_generations().unwrap();
-    //        let deme = converted.deme(0);
-    //        assert_eq!(deme.end_time(), (10.0_f64 / 4.0).round());
-    //        let deme = converted.deme(1);
-    //        assert_eq!(deme.start_time(), (10.0_f64 / 4.0).round());
-    //    }
 }
 
 #[cfg(test)]
@@ -3704,8 +3659,6 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), (103_f64 / 25.0).round());
@@ -3757,8 +3710,6 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        // None == "no rounding". The anticipated
-        // type will be Option<Rounding>. (Name TBD)
         let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 10.6_f64.round());

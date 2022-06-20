@@ -1,5 +1,12 @@
 # Change log
 
+## 2022-06-19, Version 0.2.2
+
+### Commits
+- [[`26d3426856`](https://github.com/molpopgen/demes-rs/commit/26d3426856cfb117c13fca8a34cbb17297fac9bb)] Bump version to 0.2.2 (Kevin R. Thornton)
+- [[`9b103bcaf7`](https://github.com/molpopgen/demes-rs/commit/9b103bcaf740ed7ddf0adf7b9d81f85b20dc5c57)] Fix bug in converting to integer generations for (#129) (Kevin R. Thornton)
+- [[`cac0a1c6ee`](https://github.com/molpopgen/demes-rs/commit/cac0a1c6ee2f863ddeb6de8cd8df0873d59f03c9)] Clean up comments from tests in specification.rs (#130) (Kevin R. Thornton)
+
 ## 2022-06-17, Version 0.2.1
 
 Fix GitHub issues 126 and 127.

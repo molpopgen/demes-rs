@@ -1923,7 +1923,7 @@ impl Deme {
 
     /// Names of ancestor demes.
     ///
-    /// Empty of no ancestors.
+    /// Empty if no ancestors.
     pub fn ancestor_names(&self) -> Ref<'_, [String]> {
         let borrow = self.0.borrow();
         Ref::map(borrow, |b| match &b.history.ancestors {

@@ -27,7 +27,12 @@ fn process_path(
         if !should_skip {
             let file = std::fs::File::open(name.clone()).unwrap();
             match demes::load(file) {
-                Ok(_) => successes.push(name.to_str().unwrap().to_owned()),
+                Ok(graph) => {
+                    let s = graph.as_string().unwrap();
+                    let round_trip = demes::loads(&s).unwrap();
+                    assert_eq!(graph, round_trip);
+                    successes.push(name.to_str().unwrap().to_owned());
+                }
                 Err(_) => failures.push(name.to_str().unwrap().to_owned()),
             }
         }

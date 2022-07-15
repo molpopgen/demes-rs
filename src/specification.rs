@@ -2415,6 +2415,12 @@ impl PartialEq for Graph {
 
 impl Eq for Graph {}
 
+impl std::fmt::Display for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string().unwrap())
+    }
+}
+
 impl Graph {
     pub(crate) fn new(
         time_units: TimeUnits,
@@ -2991,6 +2997,22 @@ impl Graph {
     /// Convert the time units to generations, rounding the output to an integer value.
     pub fn to_integer_generations(self, round: RoundTimeToInteger) -> Result<Graph, DemesError> {
         self.convert_to_generations_details(Some(round))
+    }
+
+    /// Return a representation of the graph as a string.
+    ///
+    /// The format is in YAML and corresponds to the MDM
+    /// representation of the data.
+    ///
+    /// # Error
+    ///
+    /// Will return an error if `serde_yaml::to_string`
+    /// returns an error.
+    pub fn as_string(&self) -> Result<String, DemesError> {
+        match serde_yaml::to_string(self) {
+            Ok(string) => Ok(string),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 

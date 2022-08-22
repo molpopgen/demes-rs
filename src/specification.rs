@@ -775,20 +775,72 @@ impl AsymmetricMigration {
     }
 
     /// Resolved start [`Time`](crate::Time) of the migration epoch
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the internal `Option<Time>` is `None`.
+    /// Library code should prefer [`AsymmetricMigration::get_start_time`].
     pub fn start_time(&self) -> Time {
-        self.start_time.unwrap()
+        self.get_start_time()
+            .expect("a resolved migration's start_time cannot be None")
+    }
+
+    /// Resolved start [`Time`](crate::Time) of the migration epoch
+    ///
+    /// # Note
+    ///
+    /// A return value of `None` means that there is a bug
+    /// somewhere and should be reported.
+    pub fn get_start_time(&self) -> Option<Time> {
+        self.start_time
     }
 
     /// Resolved end [`Time`](crate::Time) of the migration epoch
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the internal `Option<Time>` is `None`.
+    /// Library code should prefer [`AsymmetricMigration::get_end_time`].
     pub fn end_time(&self) -> Time {
-        self.end_time.unwrap()
+        self.get_end_time()
+            .expect("a resolved migration's end_time cannot be None")
+    }
+
+    /// Resolved end [`Time`](crate::Time) of the migration epoch
+    ///
+    /// # Note
+    ///
+    /// A return value of `None` means that there is a bug
+    /// somewhere and should be reported.
+    pub fn get_end_time(&self) -> Option<Time> {
+        self.end_time
     }
 
     /// Resolved time interval of the migration epoch
+    ///
+    /// # Panics
+    ///
+    /// This function panics if any internal `Option<Time>` is `None`.
+    /// Library code should prefer [`AsymmetricMigration::get_time_interval`].
     pub fn time_interval(&self) -> TimeInterval {
-        TimeInterval {
-            start_time: self.start_time(),
-            end_time: self.end_time(),
+        self.get_time_interval()
+            .expect("A resolved migrations's time_interval must not be None")
+    }
+
+    /// Resolved time interval of the migration epoch
+    ///
+    /// # Note
+    ///
+    /// A return value of `None` means that there is a bug
+    /// somewhere and should be reported.
+    pub fn get_time_interval(&self) -> Option<TimeInterval> {
+        if self.start_time.is_some() && self.end_time.is_some() {
+            Some(TimeInterval {
+                start_time: self.start_time.unwrap(),
+                end_time: self.end_time.unwrap(),
+            })
+        } else {
+            None
         }
     }
 }

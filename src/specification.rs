@@ -2532,7 +2532,7 @@ impl Graph {
         let mut rv = DemeMap::default();
 
         for deme in &self.demes {
-            if rv.contains_key(&deme.name().to_string()) {
+            if rv.contains_key(deme.name().deref()) {
                 return Err(DemesError::DemeError(format!(
                     "duplicate deme name: {}",
                     deme.name(),

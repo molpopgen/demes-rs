@@ -2336,8 +2336,25 @@ impl DemeDefaults {
 /// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "require_non_empty_metadata")]
     metadata: std::collections::BTreeMap<String, serde_yaml::Value>,
+}
+
+fn require_non_empty_metadata<'de, D>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, serde_yaml::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let buf = std::collections::BTreeMap::<String, serde_yaml::Value>::deserialize(deserializer)?;
+
+    if !buf.is_empty() {
+        Ok(buf)
+    } else {
+        Err(serde::de::Error::custom(
+            "metadata: cannot be an empty mapping".to_string(),
+        ))
+    }
 }
 
 impl Metadata {

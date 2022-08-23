@@ -140,19 +140,18 @@ fn convert_resolved_time_to_generations<F>(
     rounding: Option<RoundTimeToInteger>,
     f: F,
     message: &str,
-    input: &mut Option<Time>,
-) -> Result<(), DemesError>
+    input: Option<Time>,
+) -> Result<Time, DemesError>
 where
     F: std::ops::FnOnce(String) -> DemesError,
 {
-    *input = match input {
+    match input {
         Some(value) => match rounding {
-            Some(rounding_policy) => Some(rounding_policy.apply_rounding(*value, generation_time)),
-            None => Some(Time::from(value.0 / generation_time.0)),
+            Some(rounding_policy) => Ok(rounding_policy.apply_rounding(value, generation_time)),
+            None => Ok(Time::from(value.0 / generation_time.0)),
         },
-        None => return Err(f(message.to_string())),
-    };
-    Ok(())
+        None => Err(f(message.to_string())),
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -708,8 +707,8 @@ pub struct AsymmetricMigration {
     source: String,
     dest: String,
     rate: MigrationRate,
-    start_time: Option<Time>,
-    end_time: Option<Time>,
+    start_time: Time,
+    end_time: Time,
 }
 
 impl AsymmetricMigration {
@@ -718,19 +717,19 @@ impl AsymmetricMigration {
         generation_time: GenerationTime,
         rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
-        convert_resolved_time_to_generations(
+        self.start_time = convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::MigrationError,
             "start_time is not resolved",
-            &mut self.start_time,
+            Some(self.start_time),
         )?;
-        convert_resolved_time_to_generations(
+        self.end_time = convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::MigrationError,
             "end_time is not resolved",
-            &mut self.end_time,
+            Some(self.end_time),
         )?;
 
         if self.end_time >= self.start_time {
@@ -776,12 +775,12 @@ impl AsymmetricMigration {
 
     /// Resolved start [`Time`](crate::Time) of the migration epoch
     pub fn start_time(&self) -> Time {
-        self.start_time.unwrap()
+        self.start_time
     }
 
     /// Resolved end [`Time`](crate::Time) of the migration epoch
     pub fn end_time(&self) -> Time {
-        self.end_time.unwrap()
+        self.end_time
     }
 
     /// Resolved time interval of the migration epoch
@@ -832,8 +831,8 @@ impl SymmetricMigration {
 #[serde(try_from = "UnresolvedMigration")]
 #[serde(into = "UnresolvedMigration")]
 enum Migration {
-    Asymmetric(AsymmetricMigration),
-    Symmetric(SymmetricMigration),
+    Asymmetric(UnresolvedMigration),
+    Symmetric(UnresolvedMigration),
 }
 
 impl TryFrom<UnresolvedMigration> for Migration {
@@ -847,10 +846,11 @@ impl TryFrom<UnresolvedMigration> for Migration {
                 ))
             } else {
                 value.valid_asymmetric_or_err()?;
-                Ok(Migration::Asymmetric(AsymmetricMigration {
-                    source: value.source.unwrap(),
-                    dest: value.dest.unwrap(),
-                    rate: value.rate.unwrap(),
+                Ok(Migration::Asymmetric(UnresolvedMigration {
+                    demes: None,
+                    source: Some(value.source.unwrap()),
+                    dest: Some(value.dest.unwrap()),
+                    rate: Some(value.rate.unwrap()),
                     start_time: value.start_time,
                     end_time: value.end_time,
                 }))
@@ -862,12 +862,7 @@ impl TryFrom<UnresolvedMigration> for Migration {
             ))
         } else {
             value.valid_symmetric_or_err()?;
-            Ok(Migration::Symmetric(SymmetricMigration {
-                demes: value.demes.unwrap(),
-                rate: value.rate.unwrap(),
-                start_time: value.start_time,
-                end_time: value.end_time,
-            }))
+            Ok(Migration::Symmetric(value))
         }
     }
 }
@@ -875,22 +870,8 @@ impl TryFrom<UnresolvedMigration> for Migration {
 impl From<Migration> for UnresolvedMigration {
     fn from(value: Migration) -> Self {
         match value {
-            Migration::Symmetric(s) => UnresolvedMigration {
-                demes: Some(s.demes),
-                rate: Some(s.rate),
-                start_time: s.start_time,
-                end_time: s.end_time,
-                source: None,
-                dest: None,
-            },
-            Migration::Asymmetric(a) => UnresolvedMigration {
-                demes: None,
-                source: Some(a.source),
-                dest: Some(a.dest),
-                rate: Some(a.rate),
-                start_time: a.start_time,
-                end_time: a.end_time,
-            },
+            Migration::Symmetric(s) => s,
+            Migration::Asymmetric(a) => a,
         }
     }
 }
@@ -937,13 +918,17 @@ impl UnresolvedPulse {
         generation_time: GenerationTime,
         rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
-        convert_resolved_time_to_generations(
+        self.time = match convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::PulseError,
             "time is not resolved",
-            &mut self.time,
-        )
+            self.time,
+        ) {
+            Ok(time) => Some(time),
+            Err(e) => return Err(e),
+        };
+        Ok(())
     }
 }
 
@@ -1182,13 +1167,17 @@ impl UnresolvedEpoch {
         generation_time: GenerationTime,
         rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
-        convert_resolved_time_to_generations(
+        self.end_time = match convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::EpochError,
             "end_time is unresolved",
-            &mut self.end_time,
-        )
+            self.end_time,
+        ) {
+            Ok(time) => Some(time),
+            Err(e) => return Err(e),
+        };
+        Ok(())
     }
 
     fn validate(&self) -> Result<(), DemesError> {
@@ -1477,13 +1466,16 @@ impl Deme {
     ) -> Result<(), DemesError> {
         {
             let mut mut_deme_borrow = self.0.borrow_mut();
-            convert_resolved_time_to_generations(
+            mut_deme_borrow.history.start_time = match convert_resolved_time_to_generations(
                 generation_time,
                 rounding,
                 DemesError::DemeError,
                 &format!("start_time unresolved for deme: {}", mut_deme_borrow.name),
-                &mut mut_deme_borrow.history.start_time,
-            )?;
+                mut_deme_borrow.history.start_time,
+            ) {
+                Ok(time) => Some(time),
+                Err(e) => return Err(e),
+            };
             mut_deme_borrow.epochs.iter_mut().try_for_each(|epoch| {
                 epoch
                     .data
@@ -2544,42 +2536,70 @@ impl Graph {
         Ok(rv)
     }
 
-    fn resolve_asymmetric_migration(&mut self, a: AsymmetricMigration) -> Result<(), DemesError> {
-        let mut ac = a;
+    fn resolve_asymmetric_migration(
+        &mut self,
+        source: String,
+        dest: String,
+        rate: MigrationRate,
+        start_time: Option<Time>,
+        end_time: Option<Time>,
+    ) -> Result<(), DemesError> {
+        let source_deme = self.get_deme_from_name(&source).ok_or_else(|| {
+            crate::DemesError::MigrationError(format!("invalid source deme name {}", source))
+        })?;
+        let dest_deme = self.get_deme_from_name(&dest).ok_or_else(|| {
+            crate::DemesError::MigrationError(format!("invalid dest deme name {}", source))
+        })?;
 
-        let source = self.get_deme_from_name(&ac.source).unwrap();
-        let dest = self.get_deme_from_name(&ac.dest).unwrap();
-        match ac.start_time {
-            Some(_) => (),
-            None => {
-                ac.start_time = Some(std::cmp::min(source.start_time(), dest.start_time()));
-            }
-        }
+        let start_time = match start_time {
+            Some(t) => t,
+            None => std::cmp::min(source_deme.start_time(), dest_deme.start_time()),
+        };
 
-        match ac.end_time {
-            Some(_) => (),
-            None => {
-                ac.end_time = Some(std::cmp::max(source.end_time(), dest.end_time()));
-            }
-        }
+        let end_time = match end_time {
+            Some(t) => t,
+            None => std::cmp::max(source_deme.end_time(), dest_deme.end_time()),
+        };
 
-        self.resolved_migrations.push(ac);
+        let a = AsymmetricMigration {
+            source,
+            dest,
+            rate,
+            start_time,
+            end_time,
+        };
+
+        a.validate_deme_exists(&self.deme_map)?;
+
+        self.resolved_migrations.push(a);
 
         Ok(())
     }
 
     fn process_input_asymmetric_migration(
         &mut self,
-        a: &AsymmetricMigration,
+        u: &UnresolvedMigration,
     ) -> Result<(), DemesError> {
-        a.validate_deme_exists(&self.deme_map)?;
-        self.resolve_asymmetric_migration(a.clone())
+        self.resolve_asymmetric_migration(
+            u.source.clone().unwrap(),
+            u.dest.clone().unwrap(),
+            u.rate.unwrap(),
+            u.start_time,
+            u.end_time,
+        )
     }
 
     fn process_input_symmetric_migration(
         &mut self,
-        s: &SymmetricMigration,
+        u: &UnresolvedMigration,
     ) -> Result<(), DemesError> {
+        let s = SymmetricMigration {
+            demes: u.demes.clone().unwrap(),
+            rate: u.rate.unwrap(),
+            start_time: u.start_time,
+            end_time: u.end_time,
+        };
+
         s.validate_demes_exists_and_are_unique(&self.deme_map)?;
 
         // Each input SymmetricMigration becomes two AsymmetricMigration instances
@@ -2589,22 +2609,20 @@ impl Graph {
             let start_time = s.start_time;
             let end_time = s.end_time;
 
-            let a = AsymmetricMigration {
-                source: source_name.to_string(),
-                dest: dest_name.to_string(),
-                rate: s.rate,
+            self.resolve_asymmetric_migration(
+                source_name.to_string(),
+                dest_name.to_string(),
+                s.rate,
                 start_time,
                 end_time,
-            };
-            self.resolve_asymmetric_migration(a)?;
-            let a = AsymmetricMigration {
-                source: dest_name.to_string(),
-                dest: source_name.to_string(),
-                rate: s.rate,
+            )?;
+            self.resolve_asymmetric_migration(
+                dest_name.to_string(),
+                source_name.to_string(),
+                s.rate,
                 start_time,
                 end_time,
-            };
-            self.resolve_asymmetric_migration(a)?;
+            )?;
         }
 
         Ok(())
@@ -2751,68 +2769,50 @@ impl Graph {
 
             m.rate.validate(DemesError::MigrationError)?;
 
-            match m.start_time {
-                None => {
+            {
+                let interval = source.time_interval();
+                if !interval.contains_inclusive_start_exclusive_end(m.start_time) {
                     return Err(DemesError::MigrationError(format!(
-                        "invalid start_time: {:?} for migration between source: {} and dest: {}",
-                        m.start_time,
-                        source.name(),
-                        dest.name()
-                    )))
-                }
-                Some(start_time) => {
-                    let interval = source.time_interval();
-                    if !interval.contains_inclusive_start_exclusive_end(start_time) {
-                        return Err(DemesError::MigrationError(format!(
                             "migration start_time: {:?} does not overlap with existence of source deme {}",
-                            start_time,
+                            m.start_time,
                             source.name()
                         )));
-                    }
-                    let interval = dest.time_interval();
-                    if !interval.contains_inclusive_start_exclusive_end(start_time) {
-                        return Err(DemesError::MigrationError(format!(
-                            "migration start_time: {:?} does not overlap with existence of dest deme {}",
-                            start_time,
-                            dest.name()
-                        )));
-                    }
                 }
-            }
-            match m.end_time {
-                None => {
+                let interval = dest.time_interval();
+                if !interval.contains_inclusive_start_exclusive_end(m.start_time) {
                     return Err(DemesError::MigrationError(format!(
-                        "invalid end_time: {:?} for migration between source: {} and dest: {}",
-                        m.end_time,
-                        source.name(),
-                        dest.name()
-                    )))
-                }
-                Some(end_time) => {
-                    if !end_time.0.is_finite() {
-                        return Err(DemesError::MigrationError(format!(
-                            "invalid migration end_time: {:?}",
-                            end_time
-                        )));
-                    }
-                    let interval = source.time_interval();
-                    if !interval.contains_exclusive_start_inclusive_end(end_time) {
-                        return Err(DemesError::MigrationError(format!(
-                            "migration end_time: {:?} does not overlap with existence of source deme {}",
-                            end_time,
-                            source.name()
-                        )));
-                    }
-                    let interval = dest.time_interval();
-                    if !interval.contains_exclusive_start_inclusive_end(end_time) {
-                        return Err(DemesError::MigrationError(format!(
-                            "migration end_time: {:?} does not overlap with existence of dest deme {}",
-                            end_time,
+                            "migration start_time: {:?} does not overlap with existence of dest deme {}",
+                            m.start_time,
                             dest.name()
                         )));
-                    }
                 }
             }
+
+            {
+                if !m.end_time.0.is_finite() {
+                    return Err(DemesError::MigrationError(format!(
+                        "invalid migration end_time: {:?}",
+                        m.end_time
+                    )));
+                }
+                let interval = source.time_interval();
+                if !interval.contains_exclusive_start_inclusive_end(m.end_time) {
+                    return Err(DemesError::MigrationError(format!(
+                            "migration end_time: {:?} does not overlap with existence of source deme {}",
+                            m.end_time,
+                            source.name()
+                        )));
+                }
+                let interval = dest.time_interval();
+                if !interval.contains_exclusive_start_inclusive_end(m.end_time) {
+                    return Err(DemesError::MigrationError(format!(
+                        "migration end_time: {:?} does not overlap with existence of dest deme {}",
+                        m.end_time,
+                        dest.name()
+                    )));
+                }
+            }
+
             let interval = m.time_interval();
             if !interval.duration_greater_than_zero() {
                 return Err(DemesError::MigrationError(format!(

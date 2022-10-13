@@ -694,6 +694,29 @@ impl UnresolvedMigration {
             None => Ok(()),
         }
     }
+
+    fn resolved_rate_or_err(&self) -> Result<MigrationRate, DemesError> {
+        self.rate
+            .ok_or_else(|| DemesError::MigrationError("migration rate not resolved".to_string()))
+    }
+
+    fn resolved_dest_or_err(&self) -> Result<String, DemesError> {
+        match &self.dest {
+            Some(dest) => Ok(dest.to_string()),
+            None => Err(DemesError::MigrationError(
+                "migration dest not resolved".to_string(),
+            )),
+        }
+    }
+
+    fn resolved_source_or_err(&self) -> Result<String, DemesError> {
+        match &self.source {
+            Some(source) => Ok(source.to_string()),
+            None => Err(DemesError::MigrationError(
+                "migration source not resolved".to_string(),
+            )),
+        }
+    }
 }
 
 /// An asymmetric migration epoch.
@@ -845,9 +868,9 @@ impl TryFrom<UnresolvedMigration> for Migration {
                 value.valid_asymmetric_or_err()?;
                 Ok(Migration::Asymmetric(UnresolvedMigration {
                     demes: None,
-                    source: Some(value.source.unwrap()),
-                    dest: Some(value.dest.unwrap()),
-                    rate: Some(value.rate.unwrap()),
+                    source: Some(value.resolved_source_or_err()?),
+                    dest: Some(value.resolved_dest_or_err()?),
+                    rate: Some(value.resolved_rate_or_err()?),
                     start_time: value.start_time,
                     end_time: value.end_time,
                 }))

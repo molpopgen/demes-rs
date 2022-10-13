@@ -642,17 +642,14 @@ pub struct UnresolvedMigration {
 
 impl UnresolvedMigration {
     fn validate(&self) -> Result<(), DemesError> {
-        match self.start_time {
-            Some(value) => value.validate(DemesError::MigrationError)?,
-            None => (),
+        if let Some(value) = self.start_time {
+            value.validate(DemesError::MigrationError)?;
         }
-        match self.end_time {
-            Some(value) => value.validate(DemesError::MigrationError)?,
-            None => (),
+        if let Some(value) = self.end_time {
+            value.validate(DemesError::MigrationError)?;
         }
-        match self.rate {
-            Some(value) => value.validate(DemesError::MigrationError)?,
-            None => (),
+        if let Some(value) = self.rate {
+            value.validate(DemesError::MigrationError)?;
         }
 
         Ok(())
@@ -898,9 +895,8 @@ pub struct UnresolvedPulse {
 
 impl UnresolvedPulse {
     fn validate(&self) -> Result<(), DemesError> {
-        match self.time {
-            Some(value) => value.validate(DemesError::PulseError)?,
-            None => (),
+        if let Some(value) = self.time {
+            value.validate(DemesError::PulseError)?;
         }
 
         match &self.proportions {
@@ -1181,25 +1177,20 @@ impl UnresolvedEpoch {
     }
 
     fn validate(&self) -> Result<(), DemesError> {
-        match self.end_time {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => (),
+        if let Some(value) = self.end_time {
+            value.validate(DemesError::EpochError)?;
         }
-        match self.start_size {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => (),
+        if let Some(value) = self.start_size {
+            value.validate(DemesError::EpochError)?;
         }
-        match self.end_size {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => (),
+        if let Some(value) = self.end_size {
+            value.validate(DemesError::EpochError)?;
         }
-        match self.cloning_rate {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => (),
+        if let Some(value) = self.cloning_rate {
+            value.validate(DemesError::EpochError)?;
         }
-        match self.selfing_rate {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => (),
+        if let Some(value) = self.selfing_rate {
+            value.validate(DemesError::EpochError)?;
         }
 
         Ok(())
@@ -2266,9 +2257,8 @@ pub struct TopLevelDemeDefaults {
 
 impl TopLevelDemeDefaults {
     fn validate(&self) -> Result<(), DemesError> {
-        match self.start_time {
-            Some(value) => value.validate(DemesError::DemeError)?,
-            None => (),
+        if let Some(value) = self.start_time {
+            value.validate(DemesError::DemeError)?
         }
 
         match &self.proportions {
@@ -2882,15 +2872,12 @@ impl Graph {
         }
 
         if matches!(&self.time_units, TimeUnits::Generations) {
-            match self.generation_time {
-                Some(value) => {
-                    if !value.0.eq(&1.0) {
-                        return Err(DemesError::GraphError(
-                            "time units are generations but generation_time != 1.0".to_string(),
-                        ));
-                    }
+            if let Some(value) = self.generation_time {
+                if !value.0.eq(&1.0) {
+                    return Err(DemesError::GraphError(
+                        "time units are generations but generation_time != 1.0".to_string(),
+                    ));
                 }
-                None => (),
             }
         }
         self.pulses

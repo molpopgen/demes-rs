@@ -1520,10 +1520,7 @@ impl Deme {
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) -> Self {
-        let epochs = epochs
-            .into_iter()
-            .map(|data| Epoch::new_unresolved(data))
-            .collect_vec();
+        let epochs = epochs.into_iter().map(Epoch::new_unresolved).collect_vec();
         let description = match description {
             Some(desc) => desc.to_string(),
             None => String::default(),

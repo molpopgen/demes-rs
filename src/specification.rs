@@ -1181,6 +1181,7 @@ pub struct UnresolvedEpoch {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq)]
+#[serde(into = "UnresolvedEpoch")]
 struct ResolvedEpoch {
     pub end_time: Time,
     pub start_size: DemeSize,
@@ -1188,6 +1189,19 @@ struct ResolvedEpoch {
     pub size_function: crate::specification::SizeFunction,
     pub cloning_rate: crate::specification::CloningRate,
     pub selfing_rate: crate::specification::SelfingRate,
+}
+
+impl From<ResolvedEpoch> for UnresolvedEpoch {
+    fn from(value: ResolvedEpoch) -> Self {
+        Self {
+            end_time: Some(value.end_time),
+            start_size: Some(value.start_size),
+            end_size: Some(value.end_size),
+            size_function: Some(value.size_function),
+            cloning_rate: Some(value.cloning_rate),
+            selfing_rate: Some(value.selfing_rate),
+        }
+    }
 }
 
 impl Default for ResolvedEpoch {
@@ -1249,7 +1263,7 @@ impl UnresolvedEpoch {
 pub struct Epoch {
     #[serde(flatten, skip_serializing)]
     data: UnresolvedEpoch,
-    #[serde(skip_deserializing)]
+    #[serde(flatten, skip_deserializing, rename = "data")]
     resolved_data: ResolvedEpoch,
 }
 
@@ -3378,6 +3392,7 @@ demes:
         assert_eq!(g.num_demes(), 1);
 
         let y = serde_yaml::to_string(&g).unwrap();
+        println!("{}", y);
         let _ = Graph::new_resolved_from_str(&y).unwrap();
     }
 

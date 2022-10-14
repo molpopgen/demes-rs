@@ -1180,6 +1180,29 @@ pub struct UnresolvedEpoch {
     pub selfing_rate: Option<crate::specification::SelfingRate>,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq)]
+struct ResolvedEpoch {
+    pub end_time: Time,
+    pub start_size: DemeSize,
+    pub end_size: DemeSize,
+    pub size_function: crate::specification::SizeFunction,
+    pub cloning_rate: crate::specification::CloningRate,
+    pub selfing_rate: crate::specification::SelfingRate,
+}
+
+impl Default for ResolvedEpoch {
+    fn default() -> Self {
+        Self {
+            end_time: Time(f64::NAN),
+            start_size: DemeSize(f64::NAN),
+            end_size: DemeSize(f64::NAN),
+            size_function: SizeFunction::Constant,
+            cloning_rate: CloningRate(f64::NAN),
+            selfing_rate: SelfingRate(f64::NAN),
+        }
+    }
+}
+
 impl UnresolvedEpoch {
     fn resolved_time_to_generations(
         &mut self,
@@ -1224,11 +1247,20 @@ impl UnresolvedEpoch {
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing)]
     data: UnresolvedEpoch,
+    #[serde(skip_deserializing)]
+    resolved_data: ResolvedEpoch,
 }
 
 impl Epoch {
+    fn new_unresolved(data: UnresolvedEpoch) -> Self {
+        Self {
+            data,
+            ..Default::default()
+        }
+    }
+
     fn resolve_size_function(
         &mut self,
         defaults: &GraphDefaults,
@@ -1474,7 +1506,10 @@ impl Deme {
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) -> Self {
-        let epochs = epochs.into_iter().map(|data| Epoch { data }).collect_vec();
+        let epochs = epochs
+            .into_iter()
+            .map(|data| Epoch::new_unresolved(data))
+            .collect_vec();
         let description = match description {
             Some(desc) => desc.to_string(),
             None => String::default(),

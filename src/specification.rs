@@ -1328,6 +1328,16 @@ impl Epoch {
         }
     }
 
+    fn set_resolved_data(&mut self) -> Result<(), DemesError> {
+        match ResolvedEpoch::try_from(self.data) {
+            Ok(data) => {
+                self.resolved_data = data;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     fn resolve(
         &mut self,
         defaults: &GraphDefaults,
@@ -1335,7 +1345,8 @@ impl Epoch {
     ) -> Result<(), DemesError> {
         self.resolve_selfing_rate(defaults, deme_defaults);
         self.resolve_cloning_rate(defaults, deme_defaults);
-        self.resolve_size_function(defaults, deme_defaults)
+        self.resolve_size_function(defaults, deme_defaults)?;
+        self.set_resolved_data()
     }
 
     fn validate_end_time(&self) -> Result<(), DemesError> {

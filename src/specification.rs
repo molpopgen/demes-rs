@@ -656,43 +656,35 @@ impl UnresolvedMigration {
     }
 
     fn valid_asymmetric_or_err(&self) -> Result<(), DemesError> {
-        let mut msg = Option::<String>::default();
+        let source = self
+            .source
+            .as_ref()
+            .ok_or_else(|| DemesError::MigrationError("source is none".to_string()))?;
 
-        if self.source.is_none() {
-            msg = Some("source is None".to_string());
-        }
-        if self.dest.is_none() {
-            msg = Some("dest is None".to_string());
-        }
-        if self.rate.is_none() {
-            msg = Some(format!(
-                "rate from source: {} to dest: {} is None",
-                self.source.as_ref().unwrap(),
-                self.dest.as_ref().unwrap(),
-            ));
-        };
+        let dest = self
+            .dest
+            .as_ref()
+            .ok_or_else(|| DemesError::MigrationError("dest is none".to_string()))?;
 
-        match msg {
-            Some(message) => Err(DemesError::MigrationError(message)),
-            None => Ok(()),
-        }
+        self.rate.ok_or_else(|| {
+            DemesError::MigrationError(format!(
+                "rate frmm source: {} to dest: {} is None",
+                source, dest,
+            ))
+        })?;
+
+        Ok(())
     }
 
     fn valid_symmetric_or_err(&self) -> Result<(), DemesError> {
-        let mut msg = Option::<String>::default();
-        if self.demes.is_none() {
-            msg = Some("demes is None".to_string());
-        }
-        if self.rate.is_none() {
-            msg = Some(format!(
-                "migration rate among {:?} is None",
-                self.demes.as_ref().unwrap()
-            ));
-        };
-        match msg {
-            Some(message) => Err(DemesError::MigrationError(message)),
-            None => Ok(()),
-        }
+        let demes = self
+            .demes
+            .as_ref()
+            .ok_or_else(|| DemesError::MigrationError("demes is None".to_string()))?;
+        self.rate.ok_or_else(|| {
+            DemesError::MigrationError(format!("migration rate among {:?} is None", demes,))
+        })?;
+        Ok(())
     }
 
     fn resolved_rate_or_err(&self) -> Result<MigrationRate, DemesError> {

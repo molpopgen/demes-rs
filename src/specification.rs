@@ -1384,7 +1384,18 @@ impl Epoch {
         self.data.cloning_rate.unwrap()
     }
 
+    fn end_time_resolved_or_else<F: FnOnce() -> DemesError>(
+        &self,
+        err: F,
+    ) -> Result<Time, DemesError> {
+        self.data.end_time.ok_or_else(err)
+    }
+
     /// The resolved end time
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the `end_time` is unresolved.
     pub fn end_time(&self) -> Time {
         self.data.end_time.unwrap()
     }
@@ -1540,9 +1551,11 @@ impl Deme {
             .history
             .ancestors
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| DemesError::DemeError("unexpected None for deme ancestors".to_string()))?
             .is_empty()
-            && self.start_time() != Time::default_deme_start_time()
+            && self.start_time_resolved_or(|| {
+                DemesError::DemeError(format!("deme {}: start_time unresolved", self.name()))
+            })? != Time::default_deme_start_time()
         {
             return Err(DemesError::DemeError(format!(
                 "deme {} has finite start time but no ancestors",
@@ -1553,24 +1566,26 @@ impl Deme {
         if self.num_ancestors() == 1 {
             let mut mut_borrowed_self = self.0.borrow_mut();
 
-            let ancestors = mut_borrowed_self.history.ancestors.as_ref().unwrap();
-
             mut_borrowed_self.history.start_time = match mut_borrowed_self.history.start_time {
                 Some(start_time) => {
                     if start_time == Time::default_deme_start_time() {
-                        Some(
-                            deme_map
-                                .get(ancestors.get(0).unwrap())
-                                .unwrap()
-                                .0
-                                .borrow() // panic if deme_map doesn't contain name
-                                .epochs
-                                .last()
-                                .unwrap() // panic if ancestor epochs are empty
-                                .data
-                                .end_time
-                                .unwrap(),
-                        )
+                        // NOTE: this mess is necessary to avoid "already mutably borrowed" error.
+                        let first_ancestor_name = &mut_borrowed_self
+                            .history
+                            .ancestors
+                            .as_ref()
+                            .ok_or_else(|| {
+                                DemesError::DemeError("ancestors are None".to_string())
+                            })?[0];
+                        let first_ancestor_deme =
+                            deme_map.get(first_ancestor_name).ok_or_else(|| {
+                                DemesError::DemeError(
+                                    "fatal error: ancestor maps to no Deme object".to_string(),
+                                )
+                            })?;
+                        let first_ancestor_deme_last_epoch_end_time =
+                            first_ancestor_deme.get_end_time()?;
+                        Some(first_ancestor_deme_last_epoch_end_time)
                     } else {
                         Some(start_time)
                     }
@@ -1591,10 +1606,15 @@ impl Deme {
             }
         }
 
-        for ancestor in self.0.borrow().history.ancestors.as_ref().unwrap() {
-            let a = deme_map.get(ancestor).unwrap();
+        for ancestor in self.get_ancestor_names()?.iter() {
+            let a = deme_map.get(ancestor).ok_or_else(|| {
+                DemesError::DemeError(format!(
+                    "ancestor {} not present in global deme map",
+                    ancestor
+                ))
+            })?;
             let t = a.time_interval();
-            if !t.contains_start_time(self.0.borrow().history.start_time.unwrap()) {
+            if !t.contains_start_time(self.get_start_time()?) {
                 return Err(DemesError::DemeError(format!(
                     "Ancestor {} does not exist at deme {}'s start_time",
                     ancestor,
@@ -1609,7 +1629,10 @@ impl Deme {
             let mut self_borrow = self.0.borrow_mut();
             // NOTE: cloning the defaults to make borrow checker happy.
             let self_defaults = self_borrow.history.defaults.clone();
-            let mut last_epoch_ref = self_borrow.epochs.last_mut().unwrap();
+            let mut last_epoch_ref = self_borrow
+                .epochs
+                .last_mut()
+                .ok_or_else(|| DemesError::DemeError("epochs are empty".to_string()))?;
             if last_epoch_ref.data.end_time.is_none() {
                 last_epoch_ref.data.end_time = match self_defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
@@ -1637,16 +1660,21 @@ impl Deme {
             }
         }
 
-        let mut last_time = f64::from(self.0.borrow().history.start_time.unwrap());
+        let mut last_time =
+            f64::from(
+                self.0.borrow().history.start_time.ok_or_else(|| {
+                    DemesError::DemeError("unresolved deme start_time".to_string())
+                })?,
+            );
         for (i, epoch) in self.0.borrow().epochs.iter().enumerate() {
-            if epoch.data.end_time.is_none() {
-                return Err(DemesError::EpochError(format!(
+            let end_time = f64::from(epoch.end_time_resolved_or_else(|| {
+                DemesError::EpochError(format!(
                     "deme: {}, epoch: {} end time must be specified",
                     self.name(),
                     i
-                )));
-            }
-            let end_time = f64::from(epoch.data.end_time.unwrap());
+                ))
+            })?);
+
             if end_time >= last_time {
                 return Err(DemesError::EpochError(
                     "Epoch end times must be listed in decreasing order".to_string(),
@@ -1911,6 +1939,13 @@ impl Deme {
         }
     }
 
+    fn start_time_resolved_or<F: FnOnce() -> DemesError>(
+        &self,
+        err: F,
+    ) -> Result<Time, DemesError> {
+        self.0.borrow().history.start_time.ok_or_else(err)
+    }
+
     /// The resolved start time
     pub fn start_time(&self) -> Time {
         self.0.borrow().history.start_time.unwrap()
@@ -1927,15 +1962,31 @@ impl Deme {
         self.0.borrow().history.ancestors.as_ref().unwrap().len()
     }
 
+    // NOTE: it seems odd that ancestors is Option<Vec<String>>.
+    //       Wouldn't Vec<String> suffice?
+    fn get_ancestor_names(&self) -> Result<Ref<'_, [String]>, DemesError> {
+        let borrow = self.0.borrow();
+        if borrow.history.ancestors.is_some() {
+            Ok(Ref::map(borrow, |b| match &b.history.ancestors {
+                Some(ancestors) => ancestors.as_slice(),
+                None => &[],
+            }))
+        } else {
+            Err(DemesError::DemeError(format!(
+                "deme {} ancestors is None",
+                self.name()
+            )))
+        }
+    }
+
     /// Names of ancestor demes.
     ///
     /// Empty if no ancestors.
     pub fn ancestor_names(&self) -> Ref<'_, [String]> {
-        let borrow = self.0.borrow();
-        Ref::map(borrow, |b| match &b.history.ancestors {
-            Some(ancestors) => ancestors.as_slice(),
-            None => panic!("proportions is None"),
-        })
+        match self.get_ancestor_names() {
+            Ok(a) => a,
+            Err(e) => panic!("{}", e),
+        }
     }
 
     /// Description string
@@ -2049,20 +2100,43 @@ impl Deme {
         rv
     }
 
-    /// End time of the deme.
-    ///
-    /// Obtained from the value stored in the most
-    /// recent epoch.
-    pub fn end_time(&self) -> Time {
+    fn get_start_time(&self) -> Result<Time, DemesError> {
+        self.0.borrow().history.start_time.ok_or_else(|| {
+            DemesError::DemeError(format!("deme {} start_time is unresolved", self.name()))
+        })
+    }
+
+    fn get_end_time(&self) -> Result<Time, DemesError> {
         self.0
             .borrow()
             .epochs
             .last()
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name())))?
             .data
             .end_time
-            .unwrap()
+            .ok_or_else(|| {
+                DemesError::DemeError(format!(
+                    "last epoch of deme {} end_time unresolved",
+                    self.name()
+                ))
+            })
+    }
+
+    /// End time of the deme.
+    ///
+    /// Obtained from the value stored in the most
+    /// recent epoch.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the end time is unresolved
+    /// or if the deme has no epochs.
+    pub fn end_time(&self) -> Time {
+        match self.get_end_time() {
+            Ok(time) => time,
+            Err(e) => panic!("{}", e),
+        }
     }
 }
 

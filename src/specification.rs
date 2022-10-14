@@ -1430,6 +1430,12 @@ pub(crate) struct DemeData {
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedDemeHistory {
     #[allow(missing_docs)]
+    // NOTE: we use option here because
+    // an empty vector in the input means
+    // "no ancestors" (i.e., the demes themselves are
+    // the most ancient).
+    // When there are toplevel deme defaults,
+    // we only fill them in when this value is None
     pub ancestors: Option<Vec<String>>,
     #[allow(missing_docs)]
     pub proportions: Option<Vec<Proportion>>,
@@ -1793,21 +1799,19 @@ impl Deme {
 
     fn apply_toplevel_defaults(&mut self, defaults: &GraphDefaults) {
         let mut borrowed_self = self.0.borrow_mut();
-        borrowed_self.history.ancestors = match &borrowed_self.history.ancestors {
-            Some(ancestors) => Some(ancestors.to_vec()),
-            None => match &defaults.deme.ancestors {
+        if borrowed_self.history.ancestors.is_none() {
+            borrowed_self.history.ancestors = match &defaults.deme.ancestors {
                 Some(ancestors) => Some(ancestors.to_vec()),
                 None => Some(vec![]),
-            },
-        };
+            }
+        }
 
-        borrowed_self.history.proportions = match &borrowed_self.history.proportions {
-            Some(proportions) => Some(proportions.to_vec()),
-            None => match &defaults.deme.proportions {
+        if borrowed_self.history.proportions.is_none() {
+            borrowed_self.history.proportions = match &defaults.deme.proportions {
                 Some(proportions) => Some(proportions.to_vec()),
                 None => Some(vec![]),
-            },
-        };
+            }
+        }
     }
 
     fn validate_ancestor_uniqueness(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
@@ -1962,8 +1966,6 @@ impl Deme {
         self.0.borrow().history.ancestors.as_ref().unwrap().len()
     }
 
-    // NOTE: it seems odd that ancestors is Option<Vec<String>>.
-    //       Wouldn't Vec<String> suffice?
     fn get_ancestor_names(&self) -> Result<Ref<'_, [String]>, DemesError> {
         let borrow = self.0.borrow();
         if borrow.history.ancestors.is_some() {

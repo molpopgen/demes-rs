@@ -1204,6 +1204,33 @@ impl From<ResolvedEpoch> for UnresolvedEpoch {
     }
 }
 
+impl TryFrom<UnresolvedEpoch> for ResolvedEpoch {
+    type Error = DemesError;
+
+    fn try_from(value: UnresolvedEpoch) -> Result<Self, Self::Error> {
+        Ok(Self {
+            end_time: value
+                .end_time
+                .ok_or_else(|| DemesError::EpochError("end_time is not resolved".to_string()))?,
+            start_size: value
+                .start_size
+                .ok_or_else(|| DemesError::EpochError("start_size is not resolved".to_string()))?,
+            end_size: value
+                .end_size
+                .ok_or_else(|| DemesError::EpochError("end_size is not resolved".to_string()))?,
+            size_function: value.size_function.ok_or_else(|| {
+                DemesError::EpochError("size_function is not resolved".to_string())
+            })?,
+            cloning_rate: value.cloning_rate.ok_or_else(|| {
+                DemesError::EpochError("cloning_rate is not resolved".to_string())
+            })?,
+            selfing_rate: value.selfing_rate.ok_or_else(|| {
+                DemesError::EpochError("selfing_rate is not resolved".to_string())
+            })?,
+        })
+    }
+}
+
 impl Default for ResolvedEpoch {
     fn default() -> Self {
         Self {
@@ -1730,13 +1757,15 @@ impl Deme {
                 })?,
             );
         for (i, epoch) in self.0.borrow().epochs.iter().enumerate() {
-            let end_time = f64::from(epoch.end_time_resolved_or_else(|| {
+            let epoch_end_time = epoch.end_time_resolved_or_else(|| {
                 DemesError::EpochError(format!(
                     "deme: {}, epoch: {} end time must be specified",
                     self.name(),
                     i
                 ))
-            })?);
+            })?;
+            epoch_end_time.validate(DemesError::EpochError)?;
+            let end_time = f64::from(epoch_end_time);
 
             if end_time >= last_time {
                 return Err(DemesError::EpochError(
@@ -1744,7 +1773,6 @@ impl Deme {
                 ));
             }
             last_time = end_time;
-            epoch.end_time().validate(DemesError::EpochError)?;
         }
 
         Ok(())

@@ -1443,17 +1443,17 @@ impl Epoch {
     ///
     /// Will panic if the `end_time` is unresolved.
     pub fn end_time(&self) -> Time {
-        self.data.end_time.unwrap()
+        self.resolved_data.end_time
     }
 
     /// The resolved start size
     pub fn start_size(&self) -> DemeSize {
-        self.data.start_size.unwrap()
+        self.resolved_data.start_size
     }
 
     /// The resolved end size
     pub fn end_size(&self) -> DemeSize {
-        self.data.end_size.unwrap()
+        self.resolved_data.end_size
     }
 }
 

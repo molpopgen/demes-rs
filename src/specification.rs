@@ -947,11 +947,8 @@ impl Pulse {
     fn validate_deme_existence(&self, deme: &str, deme_map: &DemeMap) -> Result<(), DemesError> {
         match deme_map.get(deme) {
             Some(d) => {
-                let t = d.time_interval();
-                let time = match self.0.time {
-                    Some(t) => t,
-                    None => return Err(DemesError::PulseError("time is None".to_string())),
-                };
+                let t = d.get_time_interval()?;
+                let time = self.get_time()?;
                 if !t.contains_inclusive(time) {
                     return Err(DemesError::PulseError(format!(
                         "deme {} does not exist at time of pulse",
@@ -980,8 +977,15 @@ impl Pulse {
             None => return Err(DemesError::PulseError("time is None".to_string())),
         }
 
-        for source_name in self.0.sources.as_ref().unwrap() {
-            let source = deme_map.get(source_name).unwrap();
+        let sources = self
+            .0
+            .sources
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("pulse sources is None".to_string()))?;
+        for source_name in sources {
+            let source = deme_map.get(source_name).ok_or_else(|| {
+                DemesError::PulseError(format!("invalid pulse source: {}", source_name))
+            })?;
 
             let ti = source.time_interval();
 
@@ -994,7 +998,10 @@ impl Pulse {
             }
         }
 
-        let dest = deme_map.get(self.dest()).unwrap();
+        let dest_name = self.get_dest()?;
+        let dest = deme_map
+            .get(dest_name)
+            .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {}", dest_name)))?;
         let ti = dest.time_interval();
         if !ti.contains_inclusive_start_exclusive_end(self.time()) {
             return Err(DemesError::PulseError(format!(
@@ -1015,11 +1022,11 @@ impl Pulse {
             return Err(DemesError::PulseError("sources is None".to_string()));
         }
 
-        let proportions = self.0.proportions.as_ref().unwrap();
+        let proportions = self.get_proportions()?;
         for p in proportions.iter() {
             p.validate(DemesError::PulseError)?;
         }
-        let sources = self.0.sources.as_ref().unwrap();
+        let sources = self.get_sources()?;
         if proportions.len() != sources.len() {
             return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
         }
@@ -1039,8 +1046,9 @@ impl Pulse {
     }
 
     fn dest_is_not_source(&self) -> Result<(), DemesError> {
-        let dest = self.0.dest.as_ref().unwrap();
-        if self.0.sources.as_ref().unwrap().contains(dest) {
+        let dest = self.get_dest()?;
+        let sources = self.get_sources()?;
+        if sources.iter().any(|s| s.as_str() == dest) {
             Err(DemesError::PulseError(format!(
                 "dest: {} is also listed as a source",
                 dest
@@ -1051,15 +1059,16 @@ impl Pulse {
     }
 
     fn sources_are_unique(&self) -> Result<(), DemesError> {
-        let mut sources = HashSet::<String>::default();
-        for source in self.0.sources.as_ref().unwrap() {
-            if sources.contains(source) {
+        let mut unique_sources = HashSet::<String>::default();
+        let sources = self.get_sources()?;
+        for source in sources {
+            if unique_sources.contains(source) {
                 return Err(DemesError::PulseError(format!(
                     "source: {} listed multiple times",
                     source
                 )));
             }
-            sources.insert(source.clone());
+            unique_sources.insert(source.clone());
         }
         Ok(())
     }
@@ -1071,7 +1080,7 @@ impl Pulse {
         // returning Err if this is not true
         assert!(self.0.sources.is_some());
 
-        let sources = self.0.sources.as_ref().unwrap();
+        let sources = self.get_sources()?;
         sources
             .iter()
             .try_for_each(|source| self.validate_deme_existence(source, deme_map))?;
@@ -1081,7 +1090,7 @@ impl Pulse {
             .as_ref()
             .ok_or_else(|| DemesError::PulseError("dest is None".to_string()))?;
 
-        self.validate_deme_existence(self.0.dest.as_ref().unwrap(), deme_map)?;
+        self.validate_deme_existence(self.get_dest()?, deme_map)?;
         self.dest_is_not_source()?;
         self.sources_are_unique()?;
         self.validate_pulse_time(deme_map)
@@ -1101,12 +1110,26 @@ impl Pulse {
             .resolved_time_to_generations(generation_time, rounding)
     }
 
+    fn get_time(&self) -> Result<Time, DemesError> {
+        self.0
+            .time
+            .ok_or_else(|| DemesError::PulseError("time is None".to_string()))
+    }
+
     /// Resolved time of the pulse
     pub fn time(&self) -> Time {
         match self.0.time {
             Some(time) => time,
             None => panic!("pulse time is None"),
         }
+    }
+
+    fn get_sources(&self) -> Result<&[String], DemesError> {
+        Ok(self
+            .0
+            .sources
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("sources are None".to_string()))?)
     }
 
     /// Resolved pulse source demes as slice
@@ -1117,12 +1140,28 @@ impl Pulse {
         }
     }
 
+    fn get_dest(&self) -> Result<&str, DemesError> {
+        Ok(self
+            .0
+            .dest
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("pulse dest is None".to_string()))?)
+    }
+
     /// Resolved pulse destination deme
     pub fn dest(&self) -> &str {
         match &self.0.dest {
             Some(dest) => dest,
             None => panic!("pulse dest is None"),
         }
+    }
+
+    fn get_proportions(&self) -> Result<&[Proportion], DemesError> {
+        Ok(self
+            .0
+            .proportions
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("proportions are None".to_string()))?)
     }
 
     /// Resolved pulse proportions
@@ -1926,6 +1965,15 @@ impl Deme {
     }
 
     // Public API
+
+    fn get_time_interval(&self) -> Result<TimeInterval, DemesError> {
+        let start_time = self.get_start_time()?;
+        let end_time = self.get_end_time()?;
+        Ok(TimeInterval {
+            start_time,
+            end_time,
+        })
+    }
 
     /// The resolved time interval
     pub fn time_interval(&self) -> TimeInterval {

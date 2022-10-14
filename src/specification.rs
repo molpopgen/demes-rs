@@ -3392,7 +3392,6 @@ demes:
         assert_eq!(g.num_demes(), 1);
 
         let y = serde_yaml::to_string(&g).unwrap();
-        println!("{}", y);
         let _ = Graph::new_resolved_from_str(&y).unwrap();
     }
 

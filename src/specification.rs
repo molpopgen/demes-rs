@@ -2758,9 +2758,14 @@ impl Graph {
         u: &UnresolvedMigration,
     ) -> Result<(), DemesError> {
         self.resolve_asymmetric_migration(
-            u.source.clone().unwrap(),
-            u.dest.clone().unwrap(),
-            u.rate.unwrap(),
+            u.source.clone().ok_or_else(|| {
+                DemesError::MigrationError("migration source is None".to_string())
+            })?,
+            u.dest
+                .clone()
+                .ok_or_else(|| DemesError::MigrationError("migration dest is None".to_string()))?,
+            u.rate
+                .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?,
             u.start_time,
             u.end_time,
         )
@@ -2771,8 +2776,13 @@ impl Graph {
         u: &UnresolvedMigration,
     ) -> Result<(), DemesError> {
         let s = SymmetricMigration {
-            demes: u.demes.clone().unwrap(),
-            rate: u.rate.unwrap(),
+            demes: u
+                .demes
+                .clone()
+                .ok_or_else(|| DemesError::MigrationError("migration demes is None".to_string()))?,
+            rate: u
+                .rate
+                .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?,
             start_time: u.start_time,
             end_time: u.end_time,
         };
@@ -2933,8 +2943,12 @@ impl Graph {
 
     fn validate_migrations(&self) -> Result<(), DemesError> {
         for m in &self.resolved_migrations {
-            let source = self.get_deme_from_name(&m.source).unwrap();
-            let dest = self.get_deme_from_name(&m.dest).unwrap();
+            let source = self.get_deme_from_name(&m.source).ok_or_else(|| {
+                DemesError::MigrationError(format!("invalid migration source: {}", m.source))
+            })?;
+            let dest = self.get_deme_from_name(&m.dest).ok_or_else(|| {
+                DemesError::MigrationError(format!("invalid migration dest: {}", m.dest))
+            })?;
 
             if *source.name() == *dest.name() {
                 return Err(DemesError::MigrationError(format!(
@@ -3013,6 +3027,8 @@ impl Graph {
             .try_for_each(|pulse| pulse.resolve(&self.defaults))?;
         // NOTE: the sort_by flips the order to b, a
         // to put more ancient events at the front.
+        // FIXME: we cannot remove this unwrap
+        // unless we define Time as fully-ordered.
         self.pulses
             .sort_by(|a, b| b.0.time.partial_cmp(&a.0.time).unwrap());
         Ok(())

@@ -1347,8 +1347,8 @@ impl Epoch {
     fn validate_size_function(&self) -> Result<(), DemesError> {
         let mut msg: Option<String> = None;
 
-        let start_size = self.data.start_size.unwrap();
-        let end_size = self.data.end_size.unwrap();
+        let start_size = self.get_start_size()?;
+        let end_size = self.get_end_size()?;
 
         match self.data.size_function {
             Some(size_function) => {
@@ -1431,9 +1431,21 @@ impl Epoch {
         self.data.end_time.unwrap()
     }
 
+    fn get_start_size(&self) -> Result<DemeSize, DemesError> {
+        self.data
+            .start_size
+            .ok_or_else(|| DemesError::EpochError("start_size is None".to_string()))
+    }
+
     /// The resolved start size
     pub fn start_size(&self) -> DemeSize {
         self.data.start_size.unwrap()
+    }
+
+    fn get_end_size(&self) -> Result<DemeSize, DemesError> {
+        self.data
+            .end_size
+            .ok_or_else(|| DemesError::EpochError("end_size is None".to_string()))
     }
 
     /// The resolved end size

@@ -1743,7 +1743,9 @@ impl Deme {
         let mut self_borrow = self.0.borrow_mut();
         let self_defaults = self_borrow.history.defaults.clone();
         let epoch_sizes = {
-            let mut temp_epoch = self_borrow.epochs.get_mut(0).unwrap();
+            let mut temp_epoch = self_borrow.epochs.get_mut(0).ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} has no epochs", self.name()))
+            })?;
 
             temp_epoch.data.start_size = match temp_epoch.data.start_size {
                 Some(start_size) => Some(start_size),
@@ -1771,12 +1773,25 @@ impl Deme {
             (temp_epoch.data.start_size, temp_epoch.data.end_size)
         };
 
+        let epoch_start_size = epoch_sizes.0.ok_or_else(|| {
+            DemesError::DemeError(format!(
+                "first epoch of {} has unresolved start_size",
+                self.name()
+            ))
+        })?;
+        let epoch_end_size = epoch_sizes.1.ok_or_else(|| {
+            DemesError::DemeError(format!(
+                "first epoch of {} has unresolved end_size",
+                self.name()
+            ))
+        })?;
+
         match self_borrow.history.start_time {
             Some(start_time) => {
                 if start_time == Time::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
                     let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
-                    self_borrow.name, f64::from(epoch_sizes.0.unwrap()), f64::from(epoch_sizes.1.unwrap()),
+                    self_borrow.name, f64::from(epoch_start_size), f64::from(epoch_end_size),
                 );
                     return Err(DemesError::EpochError(msg));
                 }
@@ -1816,10 +1831,14 @@ impl Deme {
     }
 
     fn resolve_proportions(&mut self) -> Result<(), DemesError> {
+        let num_ancestors = self.num_ancestors();
         let mut borrowed_self = self.0.borrow_mut();
 
-        let num_ancestors = borrowed_self.history.ancestors.as_ref().unwrap().len();
-        let proportions = borrowed_self.history.proportions.as_mut().unwrap();
+        let proportions = borrowed_self
+            .history
+            .proportions
+            .as_mut()
+            .ok_or_else(|| DemesError::DemeError("proportions is None".to_string()))?;
 
         if proportions.is_empty() && num_ancestors == 1 {
             proportions.push(Proportion(1.0));
@@ -1914,8 +1933,14 @@ impl Deme {
 
         let mut ancestor_map = DemeMap::default();
         let mut mut_self_borrow = self.0.borrow_mut();
-        for ancestor in mut_self_borrow.history.ancestors.as_ref().unwrap().iter() {
-            ancestor_map.insert(ancestor.clone(), deme_map.get(ancestor).unwrap().clone());
+        let ancestors = mut_self_borrow.history.ancestors.as_ref().ok_or_else(|| {
+            DemesError::DemeError(format!("deme {}: ancestors are None", self.name()))
+        })?;
+        for ancestor in ancestors {
+            let deme = deme_map.get(ancestor).ok_or_else(|| {
+                DemesError::DemeError(format!("invalid ancestor of {}: {}", self.name(), ancestor))
+            })?;
+            ancestor_map.insert(ancestor.clone(), deme.clone());
         }
         mut_self_borrow.ancestor_map = ancestor_map;
         Ok(())
@@ -1934,7 +1959,14 @@ impl Deme {
     // Names must be valid Python identifiers
     // https://docs.python.org/3/reference/lexical_analysis.html#identifiers
     pub(crate) fn validate_name(&self) -> Result<(), DemesError> {
-        let python_identifier = regex::Regex::new(r"^[^\d\W]\w*$").unwrap();
+        let python_identifier = match regex::Regex::new(r"^[^\d\W]\w*$") {
+            Ok(p) => p,
+            Err(_) => {
+                return Err(DemesError::DemeError(
+                    "failed to biuld python_identifier regex".to_string(),
+                ))
+            }
+        };
         if python_identifier.is_match(&self.name().to_string()) {
             Ok(())
         } else {
@@ -1958,7 +1990,11 @@ impl Deme {
 
         self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
 
-        let proportions = self_borrow.history.proportions.as_ref().unwrap();
+        let proportions = self_borrow
+            .history
+            .proportions
+            .as_ref()
+            .ok_or_else(|| DemesError::DemeError("proportions is None".to_string()))?;
         for p in proportions.iter() {
             p.validate(DemesError::DemeError)?;
         }

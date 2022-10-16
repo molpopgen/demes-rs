@@ -944,44 +944,44 @@ impl UnresolvedPulse {
 }
 
 impl Pulse {
-    fn validate_deme_existence(&self, deme: &str, deme_map: &DemeMap) -> Result<(), DemesError> {
-        match deme_map.get(deme) {
+    fn validate_destination_deme_existence(
+        &self,
+        dest: &str,
+        deme_map: &DemeMap,
+        time: Time,
+    ) -> Result<(), DemesError> {
+        match deme_map.get(dest) {
             Some(d) => {
                 let t = d.get_time_interval()?;
-                let time = self.get_time()?;
                 if !t.contains_inclusive(time) {
                     return Err(DemesError::PulseError(format!(
-                        "deme {} does not exist at time of pulse",
-                        deme,
+                        "destination deme {} does not exist at time of pulse",
+                        dest,
                     )));
                 }
                 Ok(())
             }
             None => Err(DemesError::PulseError(format!(
                 "pulse deme {} is invalid",
-                deme
+                dest
             ))),
         }
     }
 
-    fn validate_pulse_time(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        match self.0.time {
-            Some(time) => {
-                if !time.is_valid_pulse_time() {
-                    return Err(DemesError::PulseError(format!(
-                        "invalid pulse time: {}",
-                        time.0
-                    )));
-                }
-            }
-            None => return Err(DemesError::PulseError("time is None".to_string())),
+    fn validate_pulse_time(
+        &self,
+        deme_map: &DemeMap,
+        time: Time,
+        dest: &str,
+        sources: &[String],
+    ) -> Result<(), DemesError> {
+        if !time.is_valid_pulse_time() {
+            return Err(DemesError::PulseError(format!(
+                "invalid pulse time: {}",
+                time.0
+            )));
         }
 
-        let sources = self
-            .0
-            .sources
-            .as_ref()
-            .ok_or_else(|| DemesError::PulseError("pulse sources is None".to_string()))?;
         for source_name in sources {
             let source = deme_map.get(source_name).ok_or_else(|| {
                 DemesError::PulseError(format!("invalid pulse source: {}", source_name))
@@ -989,44 +989,37 @@ impl Pulse {
 
             let ti = source.time_interval();
 
-            if !ti.contains_exclusive_start_inclusive_end(self.time()) {
+            if !ti.contains_exclusive_start_inclusive_end(time) {
                 return Err(DemesError::PulseError(format!(
                     "pulse at time: {:?} does not overlap with source: {}",
-                    self.time(),
-                    source_name
+                    time, source_name
                 )));
             }
         }
 
-        let dest_name = self.get_dest()?;
-        let dest = deme_map
-            .get(dest_name)
-            .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {}", dest_name)))?;
-        let ti = dest.time_interval();
-        if !ti.contains_inclusive_start_exclusive_end(self.time()) {
+        let dest_deme = deme_map
+            .get(dest)
+            .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {}", dest)))?;
+        let ti = dest_deme.time_interval();
+        if !ti.contains_inclusive_start_exclusive_end(time) {
             return Err(DemesError::PulseError(format!(
                 "pulse at time: {:?} does not overlap with dest: {}",
-                self.time(),
-                dest.name(),
+                time,
+                dest_deme.name(),
             )));
         }
 
         Ok(())
     }
 
-    fn validate_proportions(&self) -> Result<(), DemesError> {
+    fn validate_proportions(&self, sources: &[String]) -> Result<(), DemesError> {
         if self.0.proportions.is_none() {
             return Err(DemesError::PulseError("proportions is None".to_string()));
         }
-        if self.0.sources.is_none() {
-            return Err(DemesError::PulseError("sources is None".to_string()));
-        }
-
         let proportions = self.get_proportions()?;
         for p in proportions.iter() {
             p.validate(DemesError::PulseError)?;
         }
-        let sources = self.get_sources()?;
         if proportions.len() != sources.len() {
             return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
         }
@@ -1045,9 +1038,7 @@ impl Pulse {
         Ok(())
     }
 
-    fn dest_is_not_source(&self) -> Result<(), DemesError> {
-        let dest = self.get_dest()?;
-        let sources = self.get_sources()?;
+    fn dest_is_not_source(&self, dest: &str, sources: &[String]) -> Result<(), DemesError> {
         if sources.iter().any(|s| s.as_str() == dest) {
             Err(DemesError::PulseError(format!(
                 "dest: {} is also listed as a source",
@@ -1058,9 +1049,8 @@ impl Pulse {
         }
     }
 
-    fn sources_are_unique(&self) -> Result<(), DemesError> {
+    fn sources_are_unique(&self, sources: &[String]) -> Result<(), DemesError> {
         let mut unique_sources = HashSet::<String>::default();
-        let sources = self.get_sources()?;
         for source in sources {
             if unique_sources.contains(source) {
                 return Err(DemesError::PulseError(format!(
@@ -1074,26 +1064,19 @@ impl Pulse {
     }
 
     fn validate(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        self.validate_proportions()?;
-
-        // NOTE: validate proportions is taking care of
-        // returning Err if this is not true
-        assert!(self.0.sources.is_some());
-
+        let dest = self.get_dest()?;
         let sources = self.get_sources()?;
-        sources
-            .iter()
-            .try_for_each(|source| self.validate_deme_existence(source, deme_map))?;
+        let time = self.get_time()?;
+        self.validate_proportions(sources)?;
 
-        self.0
-            .dest
-            .as_ref()
-            .ok_or_else(|| DemesError::PulseError("dest is None".to_string()))?;
+        sources.iter().try_for_each(|source| {
+            self.validate_destination_deme_existence(source, deme_map, time)
+        })?;
 
-        self.validate_deme_existence(self.get_dest()?, deme_map)?;
-        self.dest_is_not_source()?;
-        self.sources_are_unique()?;
-        self.validate_pulse_time(deme_map)
+        self.validate_destination_deme_existence(dest, deme_map, time)?;
+        self.dest_is_not_source(dest, sources)?;
+        self.sources_are_unique(sources)?;
+        self.validate_pulse_time(deme_map, time, dest, sources)
     }
 
     fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {

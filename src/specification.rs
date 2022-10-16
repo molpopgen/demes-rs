@@ -2498,7 +2498,7 @@ impl DemeDefaults {
 /// ";
 ///
 /// let graph = demes::loads(yaml).unwrap();
-/// let yaml_metadata = graph.metadata().unwrap().as_yaml_string();
+/// let yaml_metadata = graph.metadata().unwrap().as_yaml_string().unwrap();
 /// let my_metadata: MyMetaData = serde_yaml::from_str(&yaml_metadata).unwrap();
 /// assert_eq!(my_metadata.foo, 1);
 /// assert_eq!(&my_metadata.bar, "bananas");
@@ -2533,8 +2533,8 @@ impl Metadata {
     }
 
     /// Return the metadata as YAML
-    pub fn as_yaml_string(&self) -> String {
-        serde_yaml::to_string(&self.metadata).unwrap()
+    pub fn as_yaml_string(&self) -> Result<String, serde_yaml::Error> {
+        serde_yaml::to_string(&self.metadata)
     }
 }
 

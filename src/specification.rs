@@ -2708,7 +2708,7 @@ impl Graph {
             crate::DemesError::MigrationError(format!("invalid source deme name {}", source))
         })?;
         let dest_deme = self.get_deme_from_name(&dest).ok_or_else(|| {
-            crate::DemesError::MigrationError(format!("invalid dest deme name {}", source))
+            crate::DemesError::MigrationError(format!("invalid dest deme name {}", dest))
         })?;
 
         let start_time = match start_time {

@@ -2774,7 +2774,13 @@ impl Graph {
 
         // Each input SymmetricMigration becomes two AsymmetricMigration instances
         for (source_name, dest_name) in s.demes.iter().tuple_combinations() {
-            assert_ne!(source_name, dest_name);
+            // FIXME: this should be handled in an object constructor
+            if source_name == dest_name {
+                return Err(DemesError::MigrationError(format!(
+                    "source/dest demes must differ: {}",
+                    source_name
+                )));
+            }
 
             let start_time = s.start_time;
             let end_time = s.end_time;

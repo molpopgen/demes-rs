@@ -1251,24 +1251,18 @@ impl Epoch {
         if self.data.size_function.is_some() {
             return Ok(());
         }
-        match self.data.start_size {
-            Some(start_size) => match self.data.end_size {
-                Some(end_size) => {
-                    if start_size.0 == end_size.0 {
-                        self.data.size_function = Some(SizeFunction::Constant);
-                    } else {
-                        self.data.size_function = defaults.apply_epoch_size_function_defaults(
-                            self.data.size_function,
-                            deme_defaults,
-                        );
-                    }
-                    Ok(())
+        let start_size = self.get_start_size()?;
+        match self.data.end_size {
+            Some(end_size) => {
+                if start_size.0 == end_size.0 {
+                    self.data.size_function = Some(SizeFunction::Constant);
+                } else {
+                    self.data.size_function = defaults
+                        .apply_epoch_size_function_defaults(self.data.size_function, deme_defaults);
                 }
-                None => Err(DemesError::EpochError("Epoch end_size is None".to_string())),
-            },
-            None => Err(DemesError::EpochError(
-                "Epoch start size is None".to_string(),
-            )),
+                Ok(())
+            }
+            None => Err(DemesError::EpochError("Epoch end_size is None".to_string())),
         }
     }
 

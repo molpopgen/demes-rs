@@ -1300,58 +1300,87 @@ impl Epoch {
         self.resolve_size_function(defaults, deme_defaults)
     }
 
-    fn validate_end_time(&self) -> Result<(), DemesError> {
+    fn validate_end_time(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         match self.data.end_time {
             Some(time) => time.err_if_not_valid_epoch_end_time(),
-            None => Err(DemesError::EpochError("end time is None".to_string())),
+            None => Err(DemesError::EpochError(format!(
+                "deme {}, epoch {}: end time is None",
+                deme_name, index
+            ))),
         }
     }
 
-    fn validate_cloning_rate(&self) -> Result<(), DemesError> {
+    fn validate_cloning_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         match self.data.cloning_rate {
             Some(value) => value.validate(DemesError::EpochError),
-            None => Err(DemesError::EpochError("cloning_rate is None".to_string())),
+            None => Err(DemesError::EpochError(format!(
+                "deme {}, epoch {}:cloning_rate is None",
+                deme_name, index
+            ))),
         }
     }
 
-    fn validate_selfing_rate(&self) -> Result<(), DemesError> {
+    fn validate_selfing_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         match self.data.selfing_rate {
             Some(value) => value.validate(DemesError::EpochError),
-            None => Err(DemesError::EpochError("selfing_rate is None".to_string())),
+            None => Err(DemesError::EpochError(format!(
+                "deme {}, epoch {}: selfing_rate is None",
+                deme_name, index
+            ))),
         }
     }
 
     fn validate_size_function(
         &self,
+        index: usize,
+        deme_name: &str,
         start_size: DemeSize,
         end_size: DemeSize,
     ) -> Result<(), DemesError> {
-        let size_function = self
-            .data
-            .size_function
-            .ok_or_else(|| DemesError::EpochError("size function is None".to_string()))?;
+        let size_function = self.data.size_function.ok_or_else(|| {
+            DemesError::EpochError(format!(
+                "deme {}, epoch {}:size function is None",
+                deme_name, index
+            ))
+        })?;
 
         let is_constant = matches!(size_function, SizeFunction::Constant);
 
         if (is_constant && start_size != end_size) || (!is_constant && start_size == end_size) {
             Err(DemesError::EpochError(format!(
-                "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
-                self.data.start_size, self.data.end_size, size_function
+                "deme {}, index{}: start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
+                deme_name, index, self.data.start_size, self.data.end_size, size_function
             )))
         } else {
             Ok(())
         }
     }
 
-    fn validate(&self) -> Result<(), DemesError> {
-        let start_size = self.get_start_size()?;
+    fn validate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
+        let start_size = match self.get_start_size() {
+            Ok(x) => x,
+            Err(_) => {
+                return Err(DemesError::EpochError(format!(
+                    "deme {}, epoch {}: start_size is None",
+                    deme_name, index
+                )))
+            }
+        };
         start_size.validate(DemesError::EpochError)?;
-        let end_size = self.get_end_size()?;
+        let end_size = match self.get_end_size() {
+            Ok(x) => x,
+            Err(_) => {
+                return Err(DemesError::EpochError(format!(
+                    "deme {}, epoch {}: end_size is None",
+                    deme_name, index
+                )))
+            }
+        };
         end_size.validate(DemesError::EpochError)?;
-        self.validate_end_time()?;
-        self.validate_cloning_rate()?;
-        self.validate_selfing_rate()?;
-        self.validate_size_function(start_size, end_size)
+        self.validate_end_time(index, deme_name)?;
+        self.validate_cloning_rate(index, deme_name)?;
+        self.validate_selfing_rate(index, deme_name)?;
+        self.validate_size_function(index, deme_name, start_size, end_size)
     }
 
     /// The resolved size function
@@ -1915,7 +1944,11 @@ impl Deme {
             )));
         }
 
-        self_borrow.epochs.iter().try_for_each(|e| e.validate())?;
+        self_borrow
+            .epochs
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, e)| e.validate(i, &self.name()))?;
 
         let proportions = self_borrow
             .history

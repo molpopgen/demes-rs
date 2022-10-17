@@ -1321,60 +1321,37 @@ impl Epoch {
         }
     }
 
-    fn validate_size_function(&self) -> Result<(), DemesError> {
-        let mut msg: Option<String> = None;
+    fn validate_size_function(
+        &self,
+        start_size: DemeSize,
+        end_size: DemeSize,
+    ) -> Result<(), DemesError> {
+        let size_function = self
+            .data
+            .size_function
+            .ok_or_else(|| DemesError::EpochError("size function is None".to_string()))?;
 
-        let start_size = self.get_start_size()?;
-        let end_size = self.get_end_size()?;
+        let is_constant = matches!(size_function, SizeFunction::Constant);
 
-        match self.data.size_function {
-            Some(size_function) => {
-                if matches!(size_function, SizeFunction::Constant) {
-                    if start_size != end_size {
-                        msg = Some(
-                            "start_size != end_size paired with size_function: constant"
-                                .to_string(),
-                        );
-                    }
-                } else if start_size == end_size {
-                    msg = Some(format!(
+        if (is_constant && start_size != end_size) || (!is_constant && start_size == end_size) {
+            Err(DemesError::EpochError(format!(
                 "start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
                 self.data.start_size, self.data.end_size, size_function
-            ));
-                }
-            }
-            None => msg = Some("size_function is None".to_string()),
-        }
-
-        match msg {
-            Some(error_msg) => Err(DemesError::EpochError(error_msg)),
-            None => Ok(()),
-        }
-    }
-
-    fn validate_sizes(&self) -> Result<(), DemesError> {
-        match self.data.start_size {
-            Some(value) => value.validate(DemesError::EpochError)?,
-            None => {
-                return Err(DemesError::EpochError(
-                    "epoch start_size is not resolved".to_string(),
-                ))
-            }
-        }
-        match self.data.end_size {
-            Some(value) => value.validate(DemesError::EpochError),
-            None => Err(DemesError::EpochError(
-                "epoch start_size is not resolved".to_string(),
-            )),
+            )))
+        } else {
+            Ok(())
         }
     }
 
     fn validate(&self) -> Result<(), DemesError> {
-        self.validate_sizes()?;
+        let start_size = self.get_start_size()?;
+        start_size.validate(DemesError::EpochError)?;
+        let end_size = self.get_end_size()?;
+        end_size.validate(DemesError::EpochError)?;
         self.validate_end_time()?;
         self.validate_cloning_rate()?;
         self.validate_selfing_rate()?;
-        self.validate_size_function()
+        self.validate_size_function(start_size, end_size)
     }
 
     /// The resolved size function

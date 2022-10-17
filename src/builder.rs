@@ -8,6 +8,7 @@ use crate::specification::Time;
 use crate::specification::TimeUnits;
 use crate::specification::UnresolvedDemeHistory;
 use crate::specification::UnresolvedEpoch;
+use crate::specification::UnresolvedGraph;
 use crate::DemesError;
 
 /// This type allows building a [`Graph`](crate::Graph) using code
@@ -21,7 +22,7 @@ use crate::DemesError;
 ///   are the primary reasons.
 /// * All error checks are delayed until resolution.
 pub struct GraphBuilder {
-    graph: Graph,
+    graph: UnresolvedGraph,
 }
 
 impl GraphBuilder {
@@ -37,7 +38,7 @@ impl GraphBuilder {
         defaults: Option<GraphDefaults>,
     ) -> Self {
         Self {
-            graph: Graph::new(time_units, generation_time, defaults),
+            graph: UnresolvedGraph::new(time_units, generation_time, defaults),
         }
     }
 
@@ -46,7 +47,7 @@ impl GraphBuilder {
     /// This function works by calling [`GraphBuilder::new`](crate::GraphBuilder::new).
     pub fn new_generations(defaults: Option<GraphDefaults>) -> Self {
         Self {
-            graph: Graph::new(TimeUnits::Generations, None, defaults),
+            graph: UnresolvedGraph::new(TimeUnits::Generations, None, defaults),
         }
     }
 
@@ -237,7 +238,7 @@ impl GraphBuilder {
     pub fn resolve(self) -> Result<Graph, DemesError> {
         let mut builder = self;
         builder.graph.resolve()?;
-        Ok(builder.graph)
+        builder.graph.try_into()
     }
 }
 

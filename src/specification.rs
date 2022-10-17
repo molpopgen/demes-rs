@@ -2498,19 +2498,9 @@ impl Metadata {
     }
 }
 
-/// A resolved demes Graph.
-///
-/// Instances of this type will be fully-resolved according to
-/// the machine data model described
-/// [here](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html#).
-///
-/// A graph cannot be directly initialized. See:
-/// * [`load`](crate::load)
-/// * [`loads`](crate::loads)
-/// * [`GraphBuilder`](crate::GraphBuilder)
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct Graph {
+pub(crate) struct UnresolvedGraph {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2543,31 +2533,7 @@ pub struct Graph {
     deme_map: DemeMap,
 }
 
-// NOTE: the manual implementation
-// skips over stuff that's only used by the HDM.
-// We are testing equality of the MDM only.
-impl PartialEq for Graph {
-    fn eq(&self, other: &Self) -> bool {
-        self.description == other.description
-            && self.doi == other.doi
-            && self.time_units == other.time_units
-            && self.generation_time == other.generation_time
-            && self.demes == other.demes
-            && self.resolved_migrations == other.resolved_migrations
-            && self.metadata == other.metadata
-            && self.pulses == other.pulses
-    }
-}
-
-impl Eq for Graph {}
-
-impl std::fmt::Display for Graph {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_string().unwrap())
-    }
-}
-
-impl Graph {
+impl UnresolvedGraph {
     pub(crate) fn new(
         time_units: TimeUnits,
         generation_time: Option<GenerationTime>,
@@ -2593,30 +2559,6 @@ impl Graph {
             pulses: Vec::<Pulse>::default(),
             deme_map: DemeMap::default(),
         }
-    }
-
-    pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
-        let g: Self = serde_yaml::from_str(yaml)?;
-        Ok(g)
-    }
-
-    pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
-        let g: Self = serde_yaml::from_reader(reader)?;
-        Ok(g)
-    }
-
-    pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
-        let mut graph = Self::new_from_str(yaml)?;
-        graph.resolve()?;
-        graph.validate()?;
-        Ok(graph)
-    }
-
-    pub(crate) fn new_resolved_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
-        let mut graph = Self::new_from_reader(reader)?;
-        graph.resolve()?;
-        graph.validate()?;
-        Ok(graph)
     }
 
     pub(crate) fn add_deme(&mut self, deme: Deme) {
@@ -2681,10 +2623,10 @@ impl Graph {
         start_time: Option<Time>,
         end_time: Option<Time>,
     ) -> Result<(), DemesError> {
-        let source_deme = self.get_deme_from_name(&source).ok_or_else(|| {
+        let source_deme = self.deme_map.get(&source).ok_or_else(|| {
             crate::DemesError::MigrationError(format!("invalid source deme name {}", source))
         })?;
-        let dest_deme = self.get_deme_from_name(&dest).ok_or_else(|| {
+        let dest_deme = self.deme_map.get(&dest).ok_or_else(|| {
             crate::DemesError::MigrationError(format!("invalid dest deme name {}", dest))
         })?;
 
@@ -2909,10 +2851,10 @@ impl Graph {
 
     fn validate_migrations(&self) -> Result<(), DemesError> {
         for m in &self.resolved_migrations {
-            let source = self.get_deme_from_name(&m.source).ok_or_else(|| {
+            let source = self.deme_map.get(&m.source).ok_or_else(|| {
                 DemesError::MigrationError(format!("invalid migration source: {}", m.source))
             })?;
-            let dest = self.get_deme_from_name(&m.dest).ok_or_else(|| {
+            let dest = self.deme_map.get(&m.dest).ok_or_else(|| {
                 DemesError::MigrationError(format!("invalid migration dest: {}", m.dest))
             })?;
 
@@ -3055,7 +2997,109 @@ impl Graph {
 
         Ok(())
     }
+}
 
+/// A resolved demes Graph.
+///
+/// Instances of this type will be fully-resolved according to
+/// the machine data model described
+/// [here](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html#).
+///
+/// A graph cannot be directly initialized. See:
+/// * [`load`](crate::load)
+/// * [`loads`](crate::loads)
+/// * [`GraphBuilder`](crate::GraphBuilder)
+#[derive(Serialize, Debug)]
+#[serde(deny_unknown_fields, try_from = "UnresolvedGraph")]
+pub struct Graph {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    doi: Option<Vec<String>>,
+    #[serde(default = "Metadata::default")]
+    #[serde(skip_serializing_if = "Metadata::is_empty")]
+    metadata: Metadata,
+    time_units: TimeUnits,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generation_time: Option<GenerationTime>,
+    pub(crate) demes: Vec<Deme>,
+    #[serde(default = "Vec::<AsymmetricMigration>::default")]
+    #[serde(rename = "migrations")]
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Vec::<AsymmetricMigration>::is_empty")]
+    resolved_migrations: Vec<AsymmetricMigration>,
+    #[serde(default = "Vec::<Pulse>::default")]
+    pulses: Vec<Pulse>,
+    #[serde(skip)]
+    deme_map: DemeMap,
+}
+
+// NOTE: the manual implementation
+// skips over stuff that's only used by the HDM.
+// We are testing equality of the MDM only.
+impl PartialEq for Graph {
+    fn eq(&self, other: &Self) -> bool {
+        self.description == other.description
+            && self.doi == other.doi
+            && self.time_units == other.time_units
+            && self.generation_time == other.generation_time
+            && self.demes == other.demes
+            && self.resolved_migrations == other.resolved_migrations
+            && self.metadata == other.metadata
+            && self.pulses == other.pulses
+    }
+}
+
+impl Eq for Graph {}
+
+impl std::fmt::Display for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string().unwrap())
+    }
+}
+
+impl TryFrom<UnresolvedGraph> for Graph {
+    type Error = DemesError;
+
+    fn try_from(value: UnresolvedGraph) -> Result<Self, Self::Error> {
+        Ok(Self {
+            description: value.description,
+            doi: value.doi,
+            metadata: value.metadata,
+            time_units: value.time_units,
+            generation_time: value.generation_time,
+            demes: value.demes,
+            resolved_migrations: value.resolved_migrations,
+            pulses: value.pulses,
+            deme_map: value.deme_map,
+        })
+    }
+}
+
+impl Graph {
+    pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
+        let mut g: UnresolvedGraph = serde_yaml::from_str(yaml)?;
+        g.resolve()?;
+        g.validate()?;
+        g.try_into()
+    }
+
+    pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let mut g: UnresolvedGraph = serde_yaml::from_reader(reader)?;
+        g.resolve()?;
+        g.validate()?;
+        g.try_into()
+    }
+
+    pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
+        let graph = Self::new_from_str(yaml)?;
+        Ok(graph)
+    }
+
+    pub(crate) fn new_resolved_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let graph = Self::new_from_reader(reader)?;
+        Ok(graph)
+    }
     /// The number of [`Deme`](crate::Deme) instances in the graph.
     pub fn num_demes(&self) -> usize {
         self.demes.len()

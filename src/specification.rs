@@ -1402,9 +1402,9 @@ pub(crate) struct DemeData {
     // the most ancient).
     // When there are toplevel deme defaults,
     // we only fill them in when this value is None
-    pub ancestors: Vec<String>,
-    pub proportions: Vec<Proportion>,
-    pub start_time: Time,
+    ancestors: Vec<String>,
+    proportions: Vec<Proportion>,
+    start_time: Time,
 }
 
 /// HDM data for a [`Deme`](crate::Deme)

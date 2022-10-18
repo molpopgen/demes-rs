@@ -1474,7 +1474,7 @@ impl TryFrom<HDMDemeData> for DemeData {
             start_time: value.start_time.ok_or_else(|| {
                 DemesError::DemeError(format!("start time of deme {} is not resolved", value.name))
             })?,
-            end_time: value.get_end_time(&value.name)?
+            end_time: value.get_end_time(&value.name)?,
         })
     }
 }
@@ -3204,8 +3204,12 @@ impl Graph {
     /// # Examples
     ///
     /// See [`here`](crate::SizeFunction).
+    ///
+    /// # Complexity
+    ///
+    /// `O(n)` (linear)
     pub fn get_deme_from_name(&self, name: &str) -> Option<&Deme> {
-        self.deme_map.get(name)
+        self.demes.iter().find(|d| d.0.borrow().name == name)
     }
 
     /// Get the [`Deme`](crate::Deme) at index `at`.

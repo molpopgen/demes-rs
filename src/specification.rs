@@ -2198,7 +2198,7 @@ impl HDMDeme {
     }
 }
 
-impl PartialEq for Deme {
+impl PartialEq for HDMDeme {
     fn eq(&self, other: &Self) -> bool {
         let sborrow = self.0.borrow();
         let oborrow = other.0.borrow();
@@ -2206,9 +2206,9 @@ impl PartialEq for Deme {
     }
 }
 
-impl Eq for Deme {}
+impl Eq for HDMDeme {}
 
-type DemeMap = HashMap<String, Deme>;
+type DemeMap = HashMap<String, HDMDeme>;
 
 fn deme_name_exists<F: FnOnce(String) -> DemesError>(
     map: &DemeMap,

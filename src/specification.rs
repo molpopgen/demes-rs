@@ -1458,8 +1458,9 @@ impl TryFrom<HDMDemeData> for DemeData {
     type Error = DemesError;
 
     fn try_from(value: HDMDemeData) -> Result<Self, Self::Error> {
+        let end_time = value.get_end_time(&value.name)?;
         Ok(Self {
-            name: value.name,
+            name: value.name.clone(),
             description: value.description,
             epochs: value.epochs,
             ancestors: value.ancestors.ok_or_else(|| {
@@ -1474,12 +1475,12 @@ impl TryFrom<HDMDemeData> for DemeData {
             start_time: value.start_time.ok_or_else(|| {
                 DemesError::DemeError(format!("start time of deme {} is not resolved", value.name))
             })?,
-            end_time: value.get_end_time(&value.name)?,
+            end_time,
         })
     }
 }
 
-impl PartialEq for HDMDemeData {
+impl PartialEq for DemeData {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.description == other.description
@@ -1487,13 +1488,12 @@ impl PartialEq for HDMDemeData {
             && self.proportions == other.proportions
             && self.start_time == other.start_time
             && self.epochs == other.epochs
-            && self.ancestor_map == other.ancestor_map
     }
 }
 
-impl Eq for HDMDemeData {}
+impl Eq for DemeData {}
 
-pub(crate) type HDMDemePtr = Rc<RefCell<HDMDemeData>>;
+type HDMDemePtr = Rc<RefCell<HDMDemeData>>;
 pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -2144,7 +2144,7 @@ impl HDMDeme {
     }
 }
 
-impl PartialEq for HDMDeme {
+impl PartialEq for Deme {
     fn eq(&self, other: &Self) -> bool {
         let sborrow = self.0.borrow();
         let oborrow = other.0.borrow();
@@ -2152,7 +2152,7 @@ impl PartialEq for HDMDeme {
     }
 }
 
-impl Eq for HDMDeme {}
+impl Eq for Deme {}
 
 impl HDMDemeData {
     fn get_end_time(&self, name: &str) -> Result<Time, DemesError> {

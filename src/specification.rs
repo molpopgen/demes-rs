@@ -889,15 +889,19 @@ impl From<Migration> for UnresolvedMigration {
 }
 
 /// A resolved Pulse event
-#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[repr(transparent)]
-pub struct Pulse(UnresolvedPulse);
+pub struct Pulse {
+    sources: Vec<String>,
+    dest: String,
+    time: Time,
+    proportions: Vec<Proportion>,
+}
 
 /// An unresolved Pulse event.
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct UnresolvedPulse {
+pub struct HDMPulse {
     #[allow(missing_docs)]
     pub sources: Option<Vec<String>>,
     #[allow(missing_docs)]
@@ -908,8 +912,28 @@ pub struct UnresolvedPulse {
     pub proportions: Option<Vec<Proportion>>,
 }
 
-impl UnresolvedPulse {
-    fn validate(&self) -> Result<(), DemesError> {
+impl TryFrom<HDMPulse> for Pulse {
+    type Error = DemesError;
+    fn try_from(value: HDMPulse) -> Result<Self, Self::Error> {
+        Ok(Self {
+            sources: value.sources.ok_or_else(|| {
+                DemesError::PulseError("pulse sources are unresolved".to_string())
+            })?,
+            dest: value
+                .dest
+                .ok_or_else(|| DemesError::PulseError("pulse dest are unresolved".to_string()))?,
+            time: value
+                .time
+                .ok_or_else(|| DemesError::PulseError("pulse time are unresolved".to_string()))?,
+            proportions: value.proportions.ok_or_else(|| {
+                DemesError::PulseError("pulse proportions are unresolved".to_string())
+            })?,
+        })
+    }
+}
+
+impl HDMPulse {
+    fn validate_as_default(&self) -> Result<(), DemesError> {
         if let Some(value) = self.time {
             value.validate(DemesError::PulseError)?;
         }
@@ -924,48 +948,61 @@ impl UnresolvedPulse {
         Ok(())
     }
 
-    fn resolved_time_to_generations(
-        &mut self,
-        generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
-    ) -> Result<(), DemesError> {
-        self.time = match convert_resolved_time_to_generations(
-            generation_time,
-            rounding,
-            DemesError::PulseError,
-            "time is not resolved",
-            self.time,
-        ) {
-            Ok(time) => Some(time),
-            Err(e) => return Err(e),
-        };
+    fn get_proportions(&self) -> Result<&[Proportion], DemesError> {
+        Ok(self
+            .proportions
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("proportions are None".to_string()))?)
+    }
+
+    fn get_time(&self) -> Result<Time, DemesError> {
+        self.time
+            .ok_or_else(|| DemesError::PulseError("time is None".to_string()))
+    }
+
+    fn get_sources(&self) -> Result<&[String], DemesError> {
+        Ok(self
+            .sources
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("sources are None".to_string()))?)
+    }
+
+    fn get_dest(&self) -> Result<&str, DemesError> {
+        Ok(self
+            .dest
+            .as_ref()
+            .ok_or_else(|| DemesError::PulseError("pulse dest is None".to_string()))?)
+    }
+
+    fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
+        defaults.apply_pulse_defaults(self);
         Ok(())
     }
-}
 
-impl Pulse {
-    fn validate_destination_deme_existence(
-        &self,
-        dest: &str,
-        deme_map: &DemeMap,
-        time: Time,
-    ) -> Result<(), DemesError> {
-        match deme_map.get(dest) {
-            Some(d) => {
-                let t = d.get_time_interval()?;
-                if !t.contains_inclusive(time) {
-                    return Err(DemesError::PulseError(format!(
-                        "destination deme {} does not exist at time of pulse",
-                        dest,
-                    )));
-                }
-                Ok(())
-            }
-            None => Err(DemesError::PulseError(format!(
-                "pulse deme {} is invalid",
-                dest
-            ))),
+    fn validate_proportions(&self, sources: &[String]) -> Result<(), DemesError> {
+        if self.proportions.is_none() {
+            return Err(DemesError::PulseError("proportions is None".to_string()));
         }
+        let proportions = self.get_proportions()?;
+        for p in proportions.iter() {
+            p.validate(DemesError::PulseError)?;
+        }
+        if proportions.len() != sources.len() {
+            return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
+        }
+
+        let sum_proportions = proportions
+            .iter()
+            .fold(0.0, |sum, &proportion| sum + proportion.0);
+
+        if !(1e-9..1.0 + 1e-9).contains(&sum_proportions) {
+            return Err(DemesError::PulseError(format!(
+                "pulse proportions must sum to 0.0 < p < 1.0, got: {}",
+                sum_proportions
+            )));
+        }
+
+        Ok(())
     }
 
     fn validate_pulse_time(
@@ -1012,30 +1049,28 @@ impl Pulse {
         Ok(())
     }
 
-    fn validate_proportions(&self, sources: &[String]) -> Result<(), DemesError> {
-        if self.0.proportions.is_none() {
-            return Err(DemesError::PulseError("proportions is None".to_string()));
+    fn validate_destination_deme_existence(
+        &self,
+        dest: &str,
+        deme_map: &DemeMap,
+        time: Time,
+    ) -> Result<(), DemesError> {
+        match deme_map.get(dest) {
+            Some(d) => {
+                let t = d.get_time_interval()?;
+                if !t.contains_inclusive(time) {
+                    return Err(DemesError::PulseError(format!(
+                        "destination deme {} does not exist at time of pulse",
+                        dest,
+                    )));
+                }
+                Ok(())
+            }
+            None => Err(DemesError::PulseError(format!(
+                "pulse deme {} is invalid",
+                dest
+            ))),
         }
-        let proportions = self.get_proportions()?;
-        for p in proportions.iter() {
-            p.validate(DemesError::PulseError)?;
-        }
-        if proportions.len() != sources.len() {
-            return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
-        }
-
-        let sum_proportions = proportions
-            .iter()
-            .fold(0.0, |sum, &proportion| sum + proportion.0);
-
-        if !(1e-9..1.0 + 1e-9).contains(&sum_proportions) {
-            return Err(DemesError::PulseError(format!(
-                "pulse proportions must sum to 0.0 < p < 1.0, got: {}",
-                sum_proportions
-            )));
-        }
-
-        Ok(())
     }
 
     fn dest_is_not_source(&self, dest: &str, sources: &[String]) -> Result<(), DemesError> {
@@ -1078,81 +1113,42 @@ impl Pulse {
         self.sources_are_unique(sources)?;
         self.validate_pulse_time(deme_map, time, dest, sources)
     }
+}
 
-    fn resolve(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
-        defaults.apply_pulse_defaults(self);
-        Ok(())
-    }
-
+impl Pulse {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
         rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
-        self.0
-            .resolved_time_to_generations(generation_time, rounding)
-    }
-
-    fn get_time(&self) -> Result<Time, DemesError> {
-        self.0
-            .time
-            .ok_or_else(|| DemesError::PulseError("time is None".to_string()))
+        self.time = convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::PulseError,
+            "pulse time is note resolved",
+            Some(self.time),
+        )?;
+        Ok(())
     }
 
     /// Resolved time of the pulse
     pub fn time(&self) -> Time {
-        match self.0.time {
-            Some(time) => time,
-            None => panic!("pulse time is None"),
-        }
-    }
-
-    fn get_sources(&self) -> Result<&[String], DemesError> {
-        Ok(self
-            .0
-            .sources
-            .as_ref()
-            .ok_or_else(|| DemesError::PulseError("sources are None".to_string()))?)
+        self.time
     }
 
     /// Resolved pulse source demes as slice
     pub fn sources(&self) -> &[String] {
-        match &self.0.sources {
-            Some(sources) => sources,
-            None => panic!("sources are None"),
-        }
-    }
-
-    fn get_dest(&self) -> Result<&str, DemesError> {
-        Ok(self
-            .0
-            .dest
-            .as_ref()
-            .ok_or_else(|| DemesError::PulseError("pulse dest is None".to_string()))?)
+        &self.sources
     }
 
     /// Resolved pulse destination deme
     pub fn dest(&self) -> &str {
-        match &self.0.dest {
-            Some(dest) => dest,
-            None => panic!("pulse dest is None"),
-        }
-    }
-
-    fn get_proportions(&self) -> Result<&[Proportion], DemesError> {
-        Ok(self
-            .0
-            .proportions
-            .as_ref()
-            .ok_or_else(|| DemesError::PulseError("proportions are None".to_string()))?)
+        &self.dest
     }
 
     /// Resolved pulse proportions
     pub fn proportions(&self) -> &[Proportion] {
-        match &self.0.proportions {
-            Some(proportions) => proportions,
-            None => panic!("proportions are None"),
-        }
+        &self.proportions
     }
 }
 
@@ -2290,9 +2286,9 @@ pub struct GraphDefaults {
     #[serde(default = "UnresolvedMigration::default")]
     #[allow(missing_docs)]
     pub migration: UnresolvedMigration,
-    #[serde(default = "UnresolvedPulse::default")]
+    #[serde(default = "HDMPulse::default")]
     #[allow(missing_docs)]
-    pub pulse: UnresolvedPulse,
+    pub pulse: HDMPulse,
     #[serde(default = "TopLevelDemeDefaults::default")]
     #[allow(missing_docs)]
     pub deme: TopLevelDemeDefaults,
@@ -2306,7 +2302,7 @@ impl GraphDefaults {
     // until resolution.
     fn validate(&self) -> Result<(), DemesError> {
         self.epoch.validate()?;
-        self.pulse.validate()?;
+        self.pulse.validate_as_default()?;
         self.migration.validate()?;
         self.deme.validate()
     }
@@ -2369,18 +2365,18 @@ impl GraphDefaults {
         }
     }
 
-    fn apply_pulse_defaults(&self, other: &mut Pulse) {
-        if other.0.time.is_none() {
-            other.0.time = self.pulse.time;
+    fn apply_pulse_defaults(&self, other: &mut HDMPulse) {
+        if other.time.is_none() {
+            other.time = self.pulse.time;
         }
-        if other.0.sources.is_none() {
-            other.0.sources = self.pulse.sources.clone();
+        if other.sources.is_none() {
+            other.sources = self.pulse.sources.clone();
         }
-        if other.0.dest.is_none() {
-            other.0.dest = self.pulse.dest.clone();
+        if other.dest.is_none() {
+            other.dest = self.pulse.dest.clone();
         }
-        if other.0.proportions.is_none() {
-            other.0.proportions = self.pulse.proportions.clone();
+        if other.proportions.is_none() {
+            other.proportions = self.pulse.proportions.clone();
         }
     }
 }
@@ -2527,8 +2523,8 @@ pub(crate) struct UnresolvedGraph {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Vec::<AsymmetricMigration>::is_empty")]
     resolved_migrations: Vec<AsymmetricMigration>,
-    #[serde(default = "Vec::<Pulse>::default")]
-    pulses: Vec<Pulse>,
+    #[serde(default = "Vec::<HDMPulse>::default")]
+    pulses: Vec<HDMPulse>,
     #[serde(skip)]
     deme_map: DemeMap,
 }
@@ -2556,7 +2552,7 @@ impl UnresolvedGraph {
             demes: Vec::<Deme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),
-            pulses: Vec::<Pulse>::default(),
+            pulses: Vec::<HDMPulse>::default(),
             deme_map: DemeMap::default(),
         }
     }
@@ -2591,12 +2587,12 @@ impl UnresolvedGraph {
         time: Option<Time>,
         proportions: Option<Vec<Proportion>>,
     ) {
-        self.pulses.push(Pulse(UnresolvedPulse {
+        self.pulses.push(HDMPulse {
             sources,
             dest,
             time,
             proportions,
-        }));
+        });
     }
 
     fn build_deme_map(&self) -> Result<DemeMap, DemesError> {
@@ -2926,9 +2922,9 @@ impl UnresolvedGraph {
     }
 
     fn resolve_pulses(&mut self) -> Result<(), DemesError> {
-        if self.pulses.is_empty() && self.defaults.pulse != UnresolvedPulse::default() {
+        if self.pulses.is_empty() && self.defaults.pulse != HDMPulse::default() {
             let c = self.defaults.pulse.clone();
-            self.pulses.push(Pulse(c));
+            self.pulses.push(c);
         }
         self.pulses
             .iter_mut()
@@ -2938,7 +2934,7 @@ impl UnresolvedGraph {
         // FIXME: we cannot remove this unwrap
         // unless we define Time as fully-ordered.
         self.pulses
-            .sort_by(|a, b| b.0.time.partial_cmp(&a.0.time).unwrap());
+            .sort_by(|a, b| b.time.partial_cmp(&a.time).unwrap());
         Ok(())
     }
 
@@ -3062,6 +3058,10 @@ impl TryFrom<UnresolvedGraph> for Graph {
     type Error = DemesError;
 
     fn try_from(value: UnresolvedGraph) -> Result<Self, Self::Error> {
+        let mut pulses = vec![];
+        for p in value.pulses {
+            pulses.push(Pulse::try_from(p)?);
+        }
         Ok(Self {
             description: value.description,
             doi: value.doi,
@@ -3070,7 +3070,7 @@ impl TryFrom<UnresolvedGraph> for Graph {
             generation_time: value.generation_time,
             demes: value.demes,
             resolved_migrations: value.resolved_migrations,
-            pulses: value.pulses,
+            pulses,
             deme_map: value.deme_map,
         })
     }

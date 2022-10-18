@@ -754,22 +754,6 @@ impl AsymmetricMigration {
         }
     }
 
-    fn validate_deme_exists(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        if !deme_map.contains_key(&self.source) {
-            return Err(DemesError::MigrationError(format!(
-                "source deme {} is not defined in the graph",
-                &self.source
-            )));
-        }
-        if !deme_map.contains_key(&self.dest) {
-            return Err(DemesError::MigrationError(format!(
-                "dest deme {} is not defined in the graph",
-                &self.dest
-            )));
-        }
-        Ok(())
-    }
-
     /// Get name of the source deme
     pub fn source(&self) -> &str {
         &self.source
@@ -810,33 +794,6 @@ struct SymmetricMigration {
     rate: MigrationRate,
     start_time: Option<Time>,
     end_time: Option<Time>,
-}
-
-impl SymmetricMigration {
-    fn validate_demes_exists_and_are_unique(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        if self.demes.len() < 2 {
-            return Err(DemesError::MigrationError(
-                "the demes field of a migration mut contain at least two demes".to_string(),
-            ));
-        }
-        let mut s = HashSet::<String>::default();
-        for name in &self.demes {
-            if s.contains(name) {
-                return Err(DemesError::MigrationError(format!(
-                    "deme name {} present multiple times",
-                    name
-                )));
-            }
-            s.insert(name.to_string());
-            if !deme_map.contains_key(name) {
-                return Err(DemesError::MigrationError(format!(
-                    "deme name {} is not defined in the graph",
-                    name
-                )));
-            }
-        }
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -2198,6 +2155,18 @@ impl Eq for Deme {}
 
 type DemeMap = HashMap<String, Deme>;
 
+fn deme_name_exists<F: FnOnce(String) -> DemesError>(
+    map: &DemeMap,
+    name: &str,
+    err: F,
+) -> Result<(), DemesError> {
+    if !map.contains_key(name) {
+        Err(err(format!("deme {} does not exist", name)))
+    } else {
+        Ok(())
+    }
+}
+
 /// The time units of a graph
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(from = "String")]
@@ -2636,6 +2605,9 @@ impl UnresolvedGraph {
             None => std::cmp::max(source_deme.end_time(), dest_deme.end_time()),
         };
 
+        deme_name_exists(&self.deme_map, &source, DemesError::MigrationError)?;
+        deme_name_exists(&self.deme_map, &dest, DemesError::MigrationError)?;
+
         let a = AsymmetricMigration {
             source,
             dest,
@@ -2643,8 +2615,6 @@ impl UnresolvedGraph {
             start_time,
             end_time,
         };
-
-        a.validate_deme_exists(&self.deme_map)?;
 
         self.resolved_migrations.push(a);
 
@@ -2673,44 +2643,46 @@ impl UnresolvedGraph {
         &mut self,
         u: &UnresolvedMigration,
     ) -> Result<(), DemesError> {
-        let s = SymmetricMigration {
-            demes: u
-                .demes
-                .clone()
-                .ok_or_else(|| DemesError::MigrationError("migration demes is None".to_string()))?,
-            rate: u
-                .rate
-                .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?,
-            start_time: u.start_time,
-            end_time: u.end_time,
-        };
+        let demes = u
+            .demes
+            .as_ref()
+            .ok_or_else(|| DemesError::MigrationError("migration demes is None".to_string()))?;
 
-        s.validate_demes_exists_and_are_unique(&self.deme_map)?;
+        if demes.len() < 2 {
+            return Err(DemesError::MigrationError(
+                "the demes field of a migration mut contain at least two demes".to_string(),
+            ));
+        }
+
+        let rate = u
+            .rate
+            .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?;
 
         // Each input SymmetricMigration becomes two AsymmetricMigration instances
-        for (source_name, dest_name) in s.demes.iter().tuple_combinations() {
-            // FIXME: this should be handled in an object constructor
+        for (source_name, dest_name) in demes.iter().tuple_combinations() {
             if source_name == dest_name {
                 return Err(DemesError::MigrationError(format!(
                     "source/dest demes must differ: {}",
                     source_name
                 )));
             }
+            deme_name_exists(&self.deme_map, source_name, DemesError::MigrationError)?;
+            deme_name_exists(&self.deme_map, dest_name, DemesError::MigrationError)?;
 
-            let start_time = s.start_time;
-            let end_time = s.end_time;
+            let start_time = u.start_time;
+            let end_time = u.end_time;
 
             self.resolve_asymmetric_migration(
                 source_name.to_string(),
                 dest_name.to_string(),
-                s.rate,
+                rate,
                 start_time,
                 end_time,
             )?;
             self.resolve_asymmetric_migration(
                 dest_name.to_string(),
                 source_name.to_string(),
-                s.rate,
+                rate,
                 start_time,
                 end_time,
             )?;

@@ -1440,11 +1440,11 @@ impl PartialEq for DemeData {
 
 impl Eq for DemeData {}
 
-pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
+pub(crate) type UnresolvedDemePtr = Rc<RefCell<DemeData>>;
 
 /// A resolved deme.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Deme(DemePtr);
+pub struct Deme(UnresolvedDemePtr);
 
 impl Deme {
     pub(crate) fn new_via_builder(
@@ -1465,7 +1465,7 @@ impl Deme {
             description,
             ..Default::default()
         };
-        let ptr = DemePtr::new(RefCell::new(data));
+        let ptr = UnresolvedDemePtr::new(RefCell::new(data));
         Self(ptr)
     }
 

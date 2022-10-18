@@ -1390,18 +1390,21 @@ impl Epoch {
     }
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DemeData {
     name: String,
-    #[serde(default = "String::default")]
     description: String,
-    #[serde(skip)]
-    ancestor_map: DemeMap,
-    #[serde(default = "Vec::<Epoch>::default")]
     epochs: Vec<Epoch>,
-    #[serde(flatten)]
-    history: UnresolvedDemeHistory,
+    // NOTE: we use option here because
+    // an empty vector in the input means
+    // "no ancestors" (i.e., the demes themselves are
+    // the most ancient).
+    // When there are toplevel deme defaults,
+    // we only fill them in when this value is None
+    pub ancestors: Vec<String>,
+    pub proportions: Vec<Proportion>,
+    pub start_time: Time,
 }
 
 /// HDM data for a [`Deme`](crate::Deme)
@@ -1428,7 +1431,7 @@ pub struct UnresolvedDemeHistory {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct HDMDeme {
+struct HDMDemeData {
     name: String,
     #[serde(default = "String::default")]
     description: String,

@@ -1426,6 +1426,30 @@ pub struct UnresolvedDemeHistory {
     pub defaults: DemeDefaults,
 }
 
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HDMDeme {
+    name: String,
+    #[serde(default = "String::default")]
+    description: String,
+    #[serde(skip)]
+    ancestor_map: DemeMap,
+    #[serde(default = "Vec::<Epoch>::default")]
+    epochs: Vec<Epoch>,
+    // NOTE: we use option here because
+    // an empty vector in the input means
+    // "no ancestors" (i.e., the demes themselves are
+    // the most ancient).
+    // When there are toplevel deme defaults,
+    // we only fill them in when this value is None
+    ancestors: Option<Vec<String>>,
+    proportions: Option<Vec<Proportion>>,
+    start_time: Option<Time>,
+    #[serde(default = "DemeDefaults::default")]
+    #[serde(skip_serializing)]
+    defaults: DemeDefaults,
+}
+
 impl PartialEq for DemeData {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name

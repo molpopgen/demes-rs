@@ -1405,6 +1405,7 @@ pub(crate) struct DemeData {
     ancestors: Vec<String>,
     proportions: Vec<Proportion>,
     start_time: Time,
+    end_time: Time,
 }
 
 /// HDM data for a [`Deme`](crate::Deme)
@@ -1473,6 +1474,7 @@ impl TryFrom<HDMDemeData> for DemeData {
             start_time: value.start_time.ok_or_else(|| {
                 DemesError::DemeError(format!("start time of deme {} is not resolved", value.name))
             })?,
+            end_time: value.get_end_time(&value.name)?
         })
     }
 }
@@ -1492,7 +1494,7 @@ impl PartialEq for HDMDemeData {
 impl Eq for HDMDemeData {}
 
 pub(crate) type HDMDemePtr = Rc<RefCell<HDMDemeData>>;
-pub(crate) type DemePtr = Rc<DemeData>;
+pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HDMDeme(HDMDemePtr);
@@ -1525,49 +1527,6 @@ impl HDMDeme {
         };
         let ptr = HDMDemePtr::new(RefCell::new(data));
         Self(ptr)
-    }
-
-    fn resolved_time_to_generations(
-        &mut self,
-        generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
-    ) -> Result<(), DemesError> {
-        {
-            let mut mut_deme_borrow = self.0.borrow_mut();
-            mut_deme_borrow.start_time = match convert_resolved_time_to_generations(
-                generation_time,
-                rounding,
-                DemesError::DemeError,
-                &format!("start_time unresolved for deme: {}", mut_deme_borrow.name),
-                mut_deme_borrow.start_time,
-            ) {
-                Ok(time) => Some(time),
-                Err(e) => return Err(e),
-            };
-            mut_deme_borrow.epochs.iter_mut().try_for_each(|epoch| {
-                epoch
-                    .data
-                    .resolved_time_to_generations(generation_time, rounding)
-            })?;
-        }
-
-        let starts = self.start_times();
-        let ends = self.end_times();
-
-        let valid = |w: (&Time, &Time)| {
-            if w.1 >= w.0 {
-                Err(DemesError::EpochError(
-                    "conversion to generations resulted in an invalid Epoch".to_string(),
-                ))
-            } else {
-                Ok(())
-            }
-        };
-
-        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
-        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
-
-        Ok(())
     }
 
     fn resolve_times(
@@ -2165,20 +2124,7 @@ impl HDMDeme {
     }
 
     fn get_end_time(&self) -> Result<Time, DemesError> {
-        self.0
-            .borrow()
-            .epochs
-            .last()
-            .as_ref()
-            .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name())))?
-            .data
-            .end_time
-            .ok_or_else(|| {
-                DemesError::DemeError(format!(
-                    "last epoch of deme {} end_time unresolved",
-                    self.name()
-                ))
-            })
+        self.0.borrow().get_end_time(&self.0.borrow().name)
     }
 
     /// End time of the deme.
@@ -2207,6 +2153,117 @@ impl PartialEq for HDMDeme {
 }
 
 impl Eq for HDMDeme {}
+
+impl HDMDemeData {
+    fn get_end_time(&self, name: &str) -> Result<Time, DemesError> {
+        self.epochs
+            .last()
+            .as_ref()
+            .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", name)))?
+            .data
+            .end_time
+            .ok_or_else(|| {
+                DemesError::DemeError(format!("last epoch of deme {} end_time unresolved", name))
+            })
+    }
+}
+
+impl Deme {
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<RoundTimeToInteger>,
+    ) -> Result<(), DemesError> {
+        {
+            let mut mut_deme_borrow = self.0.borrow_mut();
+            mut_deme_borrow.start_time = match convert_resolved_time_to_generations(
+                generation_time,
+                rounding,
+                DemesError::DemeError,
+                &format!("start_time unresolved for deme: {}", mut_deme_borrow.name),
+                Some(mut_deme_borrow.start_time),
+            ) {
+                Ok(time) => time,
+                Err(e) => return Err(e),
+            };
+            mut_deme_borrow.epochs.iter_mut().try_for_each(|epoch| {
+                epoch
+                    .data
+                    .resolved_time_to_generations(generation_time, rounding)
+            })?;
+        }
+
+        let starts = self.start_times();
+        let ends = self.end_times();
+
+        let valid = |w: (&Time, &Time)| {
+            if w.1 >= w.0 {
+                Err(DemesError::EpochError(
+                    "conversion to generations resulted in an invalid Epoch".to_string(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+
+        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
+        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
+
+        Ok(())
+    }
+
+    /// Vector of resolved end times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn end_times(&self) -> Vec<Time> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.end_time())
+            .collect()
+    }
+
+    /// Vector of resolved start times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn start_times(&self) -> Vec<Time> {
+        let mut rv = vec![self.start_time()];
+        let end_time = self.end_time();
+        let self_borrow = self.0.borrow();
+
+        self_borrow.epochs.iter().for_each(|epoch| {
+            let epoch_end = epoch.end_time();
+            if epoch_end != end_time {
+                rv.push(epoch_end);
+            }
+        });
+        rv
+    }
+
+    /// The resolved start time
+    pub fn start_time(&self) -> Time {
+        self.0.borrow().start_time
+    }
+
+    /// The resolved start time
+    pub fn end_time(&self) -> Time {
+        self.0.borrow().end_time
+    }
+
+    /// Deme name
+    pub fn name(&self) -> Ref<'_, String> {
+        let borrow = self.0.borrow();
+        Ref::map(borrow, |b| &b.name)
+    }
+
+    /// Number of ancestors
+    pub fn num_ancestors(&self) -> usize {
+        self.0.borrow().ancestors.len()
+    }
+}
 
 type DemeMap = HashMap<String, HDMDeme>;
 
@@ -2573,7 +2630,7 @@ impl UnresolvedGraph {
             doi: Option::<Vec<String>>::default(),
             defaults: GraphDefaults::default(),
             metadata: Metadata::default(),
-            demes: Vec::<Deme>::default(),
+            demes: Vec::<HDMDeme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),
             pulses: Vec::<HDMPulse>::default(),
@@ -2581,7 +2638,7 @@ impl UnresolvedGraph {
         }
     }
 
-    pub(crate) fn add_deme(&mut self, deme: Deme) {
+    pub(crate) fn add_deme(&mut self, deme: HDMDeme) {
         self.demes.push(deme);
     }
 
@@ -3092,7 +3149,7 @@ impl TryFrom<UnresolvedGraph> for Graph {
         let mut demes = vec![];
         for deme in value.demes.into_iter() {
             let d = DemeData::try_from(deme.0.take())?;
-            let rc = Rc::new(d);
+            let rc = Rc::new(RefCell::new(d));
             demes.push(Deme(rc));
         }
         Ok(Self {

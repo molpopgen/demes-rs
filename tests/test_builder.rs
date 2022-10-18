@@ -9,7 +9,7 @@ use demes::TopLevelDemeDefaults;
 use demes::UnresolvedDemeHistory;
 use demes::UnresolvedEpoch;
 use demes::UnresolvedMigration;
-use demes::UnresolvedPulse;
+use demes::HDMPulse;
 
 #[test]
 fn builder_toplevel_pulse_defaults() {
@@ -29,7 +29,7 @@ demes:
     let graph_from_yaml = demes::loads(yaml).unwrap();
 
     let toplevel_defaults = GraphDefaults {
-        pulse: UnresolvedPulse {
+        pulse: HDMPulse {
             sources: Some(vec!["A".to_string()]),
             dest: Some("B".to_string()),
             proportions: Some(vec![Proportion::try_from(0.25).unwrap()]),

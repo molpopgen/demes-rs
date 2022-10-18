@@ -1453,6 +1453,30 @@ struct HDMDemeData {
     defaults: DemeDefaults,
 }
 
+impl TryFrom<HDMDemeData> for DemeData {
+    type Error = DemesError;
+
+    fn try_from(value: HDMDemeData) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: value.name,
+            description: value.description,
+            epochs: value.epochs,
+            ancestors: value.ancestors.ok_or_else(|| {
+                DemesError::DemeError(format!("ancestors of deme {} are not resolved", value.name))
+            })?,
+            proportions: value.proportions.ok_or_else(|| {
+                DemesError::DemeError(format!(
+                    "ancestry proportions for deme {} are not resolved",
+                    value.name
+                ))
+            })?,
+            start_time: value.start_time.ok_or_else(|| {
+                DemesError::DemeError(format!("start time of deme {} is not resolved", value.name))
+            })?,
+        })
+    }
+}
+
 impl PartialEq for HDMDemeData {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
@@ -1467,13 +1491,17 @@ impl PartialEq for HDMDemeData {
 
 impl Eq for HDMDemeData {}
 
-pub(crate) type UnresolvedDemePtr = Rc<RefCell<HDMDemeData>>;
+pub(crate) type HDMDemePtr = Rc<RefCell<HDMDemeData>>;
+pub(crate) type DemePtr = Rc<DemeData>;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HDMDeme(HDMDemePtr);
 
 /// A resolved deme.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Deme(UnresolvedDemePtr);
+#[derive(Clone, Debug, Serialize)]
+pub struct Deme(DemePtr);
 
-impl Deme {
+impl HDMDeme {
     pub(crate) fn new_via_builder(
         name: &str,
         epochs: Vec<UnresolvedEpoch>,
@@ -1495,7 +1523,7 @@ impl Deme {
             defaults: history.defaults,
             ..Default::default()
         };
-        let ptr = UnresolvedDemePtr::new(RefCell::new(data));
+        let ptr = HDMDemePtr::new(RefCell::new(data));
         Self(ptr)
     }
 
@@ -2509,7 +2537,7 @@ pub(crate) struct UnresolvedGraph {
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
-    pub(crate) demes: Vec<Deme>,
+    pub(crate) demes: Vec<HDMDeme>,
     #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_serializing)]
@@ -3061,13 +3089,19 @@ impl TryFrom<UnresolvedGraph> for Graph {
         for p in value.pulses {
             pulses.push(Pulse::try_from(p)?);
         }
+        let mut demes = vec![];
+        for deme in value.demes.into_iter() {
+            let d = DemeData::try_from(deme.0.take())?;
+            let rc = Rc::new(d);
+            demes.push(Deme(rc));
+        }
         Ok(Self {
             description: value.description,
             doi: value.doi,
             metadata: value.metadata,
             time_units: value.time_units,
             generation_time: value.generation_time,
-            demes: value.demes,
+            demes,
             resolved_migrations: value.resolved_migrations,
             pulses,
             deme_map: value.deme_map,

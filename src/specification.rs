@@ -1571,8 +1571,8 @@ impl Deme {
     /// Will panic if the end time is unresolved
     /// or if the deme has no epochs.
     pub fn end_time(&self) -> Time {
-        // FIXME: this should ultimately be panic-proof
-        self.epochs.last().unwrap().end_time()
+        assert!(!self.epochs.is_empty());
+        self.epochs[self.epochs.len() - 1].end_time()
     }
 
     /// Hash map of ancestor name to ancestor deme
@@ -1587,7 +1587,8 @@ impl Deme {
 
     /// Resolved end size
     pub fn end_size(&self) -> DemeSize {
-        self.epochs[0].end_size()
+        assert!(!self.epochs.is_empty());
+        self.epochs[self.epochs.len() - 1].end_size()
     }
 
     /// Names of ancestor demes.

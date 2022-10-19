@@ -2035,15 +2035,6 @@ impl HDMDeme {
         self.0.borrow().epochs.get(epoch).copied()
     }
 
-    /// Resolved proportions
-    pub fn proportions(&self) -> Ref<'_, [Proportion]> {
-        let borrow = self.0.borrow();
-        Ref::map(borrow, |b| match &b.proportions {
-            Some(proportions) => proportions.as_slice(),
-            None => panic!("proportions is None"),
-        })
-    }
-
     /// Hash map of ancestor name to ancestor deme
     pub fn ancestors(&self) -> Ref<'_, DemeMap> {
         let borrow = self.0.borrow();
@@ -2058,32 +2049,6 @@ impl HDMDeme {
     /// Resolved end size
     pub fn end_size(&self) -> DemeSize {
         self.0.borrow().epochs[0].data.end_size.unwrap()
-    }
-
-    /// Vector of resolved start sizes.
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn start_sizes(&self) -> Vec<DemeSize> {
-        self.0
-            .borrow()
-            .epochs
-            .iter()
-            .map(|epoch| epoch.start_size())
-            .collect()
-    }
-
-    /// Vector of resolved start sizes
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn end_sizes(&self) -> Vec<DemeSize> {
-        self.0
-            .borrow()
-            .epochs
-            .iter()
-            .map(|epoch| epoch.end_size())
-            .collect()
     }
 
     /// Vector of resolved end times
@@ -2262,6 +2227,38 @@ impl Deme {
     /// Number of ancestors
     pub fn num_ancestors(&self) -> usize {
         self.0.borrow().ancestors.len()
+    }
+
+    /// Vector of resolved start sizes.
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn start_sizes(&self) -> Vec<DemeSize> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.start_size())
+            .collect()
+    }
+
+    /// Vector of resolved start sizes
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn end_sizes(&self) -> Vec<DemeSize> {
+        self.0
+            .borrow()
+            .epochs
+            .iter()
+            .map(|epoch| epoch.end_size())
+            .collect()
+    }
+
+    /// Resolved proportions
+    pub fn proportions(&self) -> Ref<'_, [Proportion]> {
+        let borrow = self.0.borrow();
+        Ref::map(borrow, |b| b.proportions.as_slice())
     }
 }
 
@@ -3384,51 +3381,6 @@ mod tests {
         let yaml = "---\nstart_time: 1000\nend_time: 100.3\nend_size: 250\nsize_function: constant"
             .to_string();
         let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    fn load_deme_with_two_epochs() {
-        let yaml = "---\nname: A great deme!\nepochs:\n - start_size: 500\n   end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert!(d.description().is_empty());
-        assert_eq!(d.num_epochs(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_epochs_no_start_size() {
-        let yaml = "---\nname: A great deme!\nepochs:\n - end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert!(d.description().is_empty());
-        assert_eq!(d.num_epochs(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_ancestors() {
-        let yaml = "---\nname: A great deme!\nancestors: [Eleven, ApplePie]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert_eq!(d.num_ancestors(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_proportions() {
-        let yaml = "---\nname: A great deme!\nproportions: [0.5, 0.5]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert_eq!(d.proportions().len(), 2);
-        assert!(d.proportions().iter().all(|p| p.0 == 0.5));
-    }
-
-    #[test]
-    #[should_panic]
-    fn load_deme_with_invalid_proportions() {
-        let yaml = "---\nname: A great deme!\nproportions: [0.0, 0.5]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(&*d.name(), "A great deme!");
-        assert_eq!(d.proportions().len(), 2);
-        assert!(d.proportions().iter().all(|p| p.0 == 0.5));
     }
 
     #[test]

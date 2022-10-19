@@ -128,13 +128,14 @@ demes:
     assert_eq!(g.demes().len(), 2);
 
     for d in g.demes() {
-        if *d.name() == "A" {
+        if d.name() == "A" {
             assert_eq!(d.num_ancestors(), 0);
         } else {
             assert_eq!(d.num_ancestors(), 1);
 
-            // iterate over ancestor HashMap of {ancestor name => ancestor Deme}
-            for (name, deme) in d.ancestors().iter() {
+            // iterate over ancestor HashMap of {ancestor name => ancestor Deme index}
+            for (name, index) in d.ancestors().iter() {
+                let deme = g.deme(*index);
                 assert_eq!(name, "A");
                 assert_eq!(*deme.name(), *name);
                 assert_eq!(deme.num_ancestors(), 0);
@@ -142,9 +143,6 @@ demes:
 
             // Iterate over just the names
             assert!(d.ancestors().keys().all(|ancestor| *ancestor == "A"));
-
-            // Iterate ignoring the names
-            assert!(d.ancestors().values().all(|deme| *deme.name() == "A"));
 
             // With only 1 ancestor, there is exactly 1 proportion
             // represeting 100% ancestry
@@ -170,7 +168,7 @@ demes:
 
     // .deme(at) returns a strong reference,
     // thus increasing the reference count
-    assert_eq!(*g.deme(0).name(), "A");
+    assert_eq!(g.deme(0).name(), "A");
     assert_graph_equality_after_round_trip!(g);
 }
 

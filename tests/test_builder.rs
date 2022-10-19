@@ -2,6 +2,7 @@ use demes::DemeSize;
 use demes::GenerationTime;
 use demes::GraphBuilder;
 use demes::GraphDefaults;
+use demes::HDMPulse;
 use demes::Proportion;
 use demes::Time;
 use demes::TimeUnits;
@@ -9,7 +10,6 @@ use demes::TopLevelDemeDefaults;
 use demes::UnresolvedDemeHistory;
 use demes::UnresolvedEpoch;
 use demes::UnresolvedMigration;
-use demes::HDMPulse;
 
 #[test]
 fn builder_toplevel_pulse_defaults() {

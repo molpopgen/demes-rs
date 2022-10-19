@@ -626,6 +626,7 @@ demes:
         .map(|size| f64::from(*size))
         .collect::<Vec<f64>>();
     assert_eq!(end_sizes, expected_end_sizes);
+    assert_eq!(g.deme(0).end_size(), 2.0);
     let expected_start_times = vec![f64::INFINITY, 100., 3., 2., 1.];
     let start_times = g
         .deme(0)

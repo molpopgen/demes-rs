@@ -13,7 +13,6 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-itertools = "~0.10"
 thiserror = "~1"
 serde = { version = "~1", features = ["derive", "rc"] }
 serde_yaml = "~0.9"

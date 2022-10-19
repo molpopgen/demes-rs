@@ -3,7 +3,6 @@
 //! in terms of rust structs.
 
 use crate::DemesError;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -1452,7 +1451,10 @@ impl Deme {
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) -> Self {
-        let epochs = epochs.into_iter().map(|data| Epoch { data }).collect_vec();
+        let epochs = epochs
+            .into_iter()
+            .map(|data| Epoch { data })
+            .collect::<Vec<_>>();
         let description = match description {
             Some(desc) => desc.to_string(),
             None => String::default(),
@@ -2629,33 +2631,35 @@ impl UnresolvedGraph {
             .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?;
 
         // Each input SymmetricMigration becomes two AsymmetricMigration instances
-        for (source_name, dest_name) in demes.iter().tuple_combinations() {
-            if source_name == dest_name {
-                return Err(DemesError::MigrationError(format!(
-                    "source/dest demes must differ: {}",
-                    source_name
-                )));
+        for (i, source_name) in demes.iter().enumerate().take(demes.len() - 1) {
+            for dest_name in demes.iter().skip(i + 1) {
+                if source_name == dest_name {
+                    return Err(DemesError::MigrationError(format!(
+                        "source/dest demes must differ: {}",
+                        source_name
+                    )));
+                }
+                deme_name_exists(&self.deme_map, source_name, DemesError::MigrationError)?;
+                deme_name_exists(&self.deme_map, dest_name, DemesError::MigrationError)?;
+
+                let start_time = u.start_time;
+                let end_time = u.end_time;
+
+                self.resolve_asymmetric_migration(
+                    source_name.to_string(),
+                    dest_name.to_string(),
+                    rate,
+                    start_time,
+                    end_time,
+                )?;
+                self.resolve_asymmetric_migration(
+                    dest_name.to_string(),
+                    source_name.to_string(),
+                    rate,
+                    start_time,
+                    end_time,
+                )?;
             }
-            deme_name_exists(&self.deme_map, source_name, DemesError::MigrationError)?;
-            deme_name_exists(&self.deme_map, dest_name, DemesError::MigrationError)?;
-
-            let start_time = u.start_time;
-            let end_time = u.end_time;
-
-            self.resolve_asymmetric_migration(
-                source_name.to_string(),
-                dest_name.to_string(),
-                rate,
-                start_time,
-                end_time,
-            )?;
-            self.resolve_asymmetric_migration(
-                dest_name.to_string(),
-                source_name.to_string(),
-                rate,
-                start_time,
-                end_time,
-            )?;
         }
 
         Ok(())

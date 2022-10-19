@@ -863,7 +863,7 @@ pub struct Pulse {
 /// An unresolved Pulse event.
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct HDMPulse {
+pub struct UnresolvedPulse {
     #[allow(missing_docs)]
     pub sources: Option<Vec<String>>,
     #[allow(missing_docs)]
@@ -874,9 +874,9 @@ pub struct HDMPulse {
     pub proportions: Option<Vec<Proportion>>,
 }
 
-impl TryFrom<HDMPulse> for Pulse {
+impl TryFrom<UnresolvedPulse> for Pulse {
     type Error = DemesError;
-    fn try_from(value: HDMPulse) -> Result<Self, Self::Error> {
+    fn try_from(value: UnresolvedPulse) -> Result<Self, Self::Error> {
         Ok(Self {
             sources: value.sources.ok_or_else(|| {
                 DemesError::PulseError("pulse sources are unresolved".to_string())
@@ -894,7 +894,7 @@ impl TryFrom<HDMPulse> for Pulse {
     }
 }
 
-impl HDMPulse {
+impl UnresolvedPulse {
     fn validate_as_default(&self) -> Result<(), DemesError> {
         if let Some(value) = self.time {
             value.validate(DemesError::PulseError)?;
@@ -970,7 +970,7 @@ impl HDMPulse {
     fn validate_pulse_time(
         &self,
         deme_map: &DemeMap,
-        demes: &[HDMDeme],
+        demes: &[UnresolvedDeme],
         time: Time,
         dest: &str,
         sources: &[String],
@@ -1014,7 +1014,7 @@ impl HDMPulse {
         &self,
         dest: &str,
         deme_map: &DemeMap,
-        demes: &[HDMDeme],
+        demes: &[UnresolvedDeme],
         time: Time,
     ) -> Result<(), DemesError> {
         match get_deme!(dest, deme_map, demes) {
@@ -1060,7 +1060,7 @@ impl HDMPulse {
         Ok(())
     }
 
-    fn validate(&self, deme_map: &DemeMap, demes: &[HDMDeme]) -> Result<(), DemesError> {
+    fn validate(&self, deme_map: &DemeMap, demes: &[UnresolvedDeme]) -> Result<(), DemesError> {
         let dest = self.get_dest()?;
         let sources = self.get_sources()?;
         let time = self.get_time()?;
@@ -1429,7 +1429,7 @@ impl UnresolvedEpoch {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct HDMDeme {
+pub(crate) struct UnresolvedDeme {
     name: String,
     #[serde(default = "String::default")]
     description: String,
@@ -1623,10 +1623,10 @@ impl Deme {
     }
 }
 
-impl TryFrom<HDMDeme> for Deme {
+impl TryFrom<UnresolvedDeme> for Deme {
     type Error = DemesError;
 
-    fn try_from(value: HDMDeme) -> Result<Self, Self::Error> {
+    fn try_from(value: UnresolvedDeme) -> Result<Self, Self::Error> {
         let mut epochs = vec![];
         for hdm_epoch in value.epochs.into_iter() {
             let e = Epoch::try_from(hdm_epoch)?;
@@ -1684,7 +1684,7 @@ pub struct UnresolvedDemeHistory {
     pub defaults: DemeDefaults,
 }
 
-impl PartialEq for HDMDeme {
+impl PartialEq for UnresolvedDeme {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.description == other.description
@@ -1696,9 +1696,9 @@ impl PartialEq for HDMDeme {
     }
 }
 
-impl Eq for HDMDeme {}
+impl Eq for UnresolvedDeme {}
 
-impl HDMDeme {
+impl UnresolvedDeme {
     pub(crate) fn new_via_builder(
         name: &str,
         epochs: Vec<UnresolvedEpoch>,
@@ -1721,7 +1721,7 @@ impl HDMDeme {
     fn resolve_times(
         &mut self,
         deme_map: &DemeMap,
-        demes: &[HDMDeme],
+        demes: &[UnresolvedDeme],
         defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
         // apply top-level default if it exists
@@ -2012,7 +2012,7 @@ impl HDMDeme {
     fn resolve(
         &mut self,
         deme_map: &DemeMap,
-        demes: &[HDMDeme],
+        demes: &[UnresolvedDeme],
         defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
         self.history.defaults.validate()?;
@@ -2270,9 +2270,9 @@ pub struct GraphDefaults {
     #[serde(default = "UnresolvedMigration::default")]
     #[allow(missing_docs)]
     pub migration: UnresolvedMigration,
-    #[serde(default = "HDMPulse::default")]
+    #[serde(default = "UnresolvedPulse::default")]
     #[allow(missing_docs)]
-    pub pulse: HDMPulse,
+    pub pulse: UnresolvedPulse,
     #[serde(default = "TopLevelDemeDefaults::default")]
     #[allow(missing_docs)]
     pub deme: TopLevelDemeDefaults,
@@ -2349,7 +2349,7 @@ impl GraphDefaults {
         }
     }
 
-    fn apply_pulse_defaults(&self, other: &mut HDMPulse) {
+    fn apply_pulse_defaults(&self, other: &mut UnresolvedPulse) {
         if other.time.is_none() {
             other.time = self.pulse.time;
         }
@@ -2497,7 +2497,7 @@ pub(crate) struct UnresolvedGraph {
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
-    pub(crate) demes: Vec<HDMDeme>,
+    pub(crate) demes: Vec<UnresolvedDeme>,
     #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_serializing)]
@@ -2507,8 +2507,8 @@ pub(crate) struct UnresolvedGraph {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Vec::<AsymmetricMigration>::is_empty")]
     resolved_migrations: Vec<AsymmetricMigration>,
-    #[serde(default = "Vec::<HDMPulse>::default")]
-    pulses: Vec<HDMPulse>,
+    #[serde(default = "Vec::<UnresolvedPulse>::default")]
+    pulses: Vec<UnresolvedPulse>,
     #[serde(skip)]
     deme_map: DemeMap,
 }
@@ -2533,15 +2533,15 @@ impl UnresolvedGraph {
             doi: Option::<Vec<String>>::default(),
             defaults: GraphDefaults::default(),
             metadata: Metadata::default(),
-            demes: Vec::<HDMDeme>::default(),
+            demes: Vec::<UnresolvedDeme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),
-            pulses: Vec::<HDMPulse>::default(),
+            pulses: Vec::<UnresolvedPulse>::default(),
             deme_map: DemeMap::default(),
         }
     }
 
-    pub(crate) fn add_deme(&mut self, deme: HDMDeme) {
+    pub(crate) fn add_deme(&mut self, deme: UnresolvedDeme) {
         self.demes.push(deme);
     }
 
@@ -2571,7 +2571,7 @@ impl UnresolvedGraph {
         time: Option<Time>,
         proportions: Option<Vec<Proportion>>,
     ) {
-        self.pulses.push(HDMPulse {
+        self.pulses.push(UnresolvedPulse {
             sources,
             dest,
             time,
@@ -2909,7 +2909,7 @@ impl UnresolvedGraph {
     }
 
     fn resolve_pulses(&mut self) -> Result<(), DemesError> {
-        if self.pulses.is_empty() && self.defaults.pulse != HDMPulse::default() {
+        if self.pulses.is_empty() && self.defaults.pulse != UnresolvedPulse::default() {
             let c = self.defaults.pulse.clone();
             self.pulses.push(c);
         }

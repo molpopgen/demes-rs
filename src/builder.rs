@@ -1,11 +1,11 @@
 use crate::specification::GenerationTime;
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
-use crate::specification::HDMDeme;
 use crate::specification::MigrationRate;
 use crate::specification::Proportion;
 use crate::specification::Time;
 use crate::specification::TimeUnits;
+use crate::specification::UnresolvedDeme;
 use crate::specification::UnresolvedDemeHistory;
 use crate::specification::UnresolvedEpoch;
 use crate::specification::UnresolvedGraph;
@@ -72,7 +72,7 @@ impl GraphBuilder {
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) {
-        let ptr = HDMDeme::new_via_builder(name, epochs, history, description);
+        let ptr = UnresolvedDeme::new_via_builder(name, epochs, history, description);
         self.graph.add_deme(ptr);
     }
 

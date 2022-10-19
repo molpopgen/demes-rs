@@ -1153,25 +1153,7 @@ pub struct UnresolvedEpoch {
 }
 
 impl UnresolvedEpoch {
-    fn resolved_time_to_generations(
-        &mut self,
-        generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
-    ) -> Result<(), DemesError> {
-        self.end_time = match convert_resolved_time_to_generations(
-            generation_time,
-            rounding,
-            DemesError::EpochError,
-            "end_time is unresolved",
-            self.end_time,
-        ) {
-            Ok(time) => Some(time),
-            Err(e) => return Err(e),
-        };
-        Ok(())
-    }
-
-    fn validate(&self) -> Result<(), DemesError> {
+    fn validate_as_default(&self) -> Result<(), DemesError> {
         if let Some(value) = self.end_time {
             value.validate(DemesError::EpochError)?;
         }
@@ -1193,30 +1175,115 @@ impl UnresolvedEpoch {
 }
 
 /// A resolved epoch
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
-    #[serde(flatten)]
-    data: UnresolvedEpoch,
+    end_time: Time,
+    start_size: DemeSize,
+    end_size: DemeSize,
+    size_function: SizeFunction,
+    cloning_rate: CloningRate,
+    selfing_rate: SelfingRate,
 }
 
 impl Epoch {
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<RoundTimeToInteger>,
+    ) -> Result<(), DemesError> {
+        self.end_time = match convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::EpochError,
+            "end_time is unresolved",
+            Some(self.end_time),
+        ) {
+            Ok(time) => time,
+            Err(e) => return Err(e),
+        };
+        Ok(())
+    }
+
+    /// The resolved size function
+    pub fn size_function(&self) -> SizeFunction {
+        self.size_function
+    }
+
+    /// The resolved selfing rate
+    pub fn selfing_rate(&self) -> SelfingRate {
+        self.selfing_rate
+    }
+
+    /// The resolved cloning rate
+    pub fn cloning_rate(&self) -> CloningRate {
+        self.cloning_rate
+    }
+
+    /// The resolved end time
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the `end_time` is unresolved.
+    pub fn end_time(&self) -> Time {
+        self.end_time
+    }
+
+    /// The resolved start size
+    pub fn start_size(&self) -> DemeSize {
+        self.start_size
+    }
+
+    /// The resolved end size
+    pub fn end_size(&self) -> DemeSize {
+        self.end_size
+    }
+}
+
+impl TryFrom<UnresolvedEpoch> for Epoch {
+    type Error = DemesError;
+
+    fn try_from(value: UnresolvedEpoch) -> Result<Self, Self::Error> {
+        Ok(Self {
+            end_time: value
+                .end_time
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            start_size: value
+                .start_size
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            end_size: value
+                .end_size
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            size_function: value
+                .size_function
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            cloning_rate: value
+                .cloning_rate
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            selfing_rate: value
+                .selfing_rate
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+        })
+    }
+}
+
+impl UnresolvedEpoch {
     fn resolve_size_function(
         &mut self,
         defaults: &GraphDefaults,
         deme_defaults: &DemeDefaults,
     ) -> Result<(), DemesError> {
-        if self.data.size_function.is_some() {
+        if self.size_function.is_some() {
             return Ok(());
         }
         let start_size = self.get_start_size()?;
-        match self.data.end_size {
+        match self.end_size {
             Some(end_size) => {
                 if start_size.0 == end_size.0 {
-                    self.data.size_function = Some(SizeFunction::Constant);
+                    self.size_function = Some(SizeFunction::Constant);
                 } else {
-                    self.data.size_function = defaults
-                        .apply_epoch_size_function_defaults(self.data.size_function, deme_defaults);
+                    self.size_function = defaults
+                        .apply_epoch_size_function_defaults(self.size_function, deme_defaults);
                 }
                 Ok(())
             }
@@ -1225,8 +1292,8 @@ impl Epoch {
     }
 
     fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        if self.data.selfing_rate.is_none() {
-            self.data.selfing_rate = match deme_defaults.epoch.selfing_rate {
+        if self.selfing_rate.is_none() {
+            self.selfing_rate = match deme_defaults.epoch.selfing_rate {
                 Some(selfing_rate) => Some(selfing_rate),
                 None => match defaults.epoch.selfing_rate {
                     Some(selfing_rate) => Some(selfing_rate),
@@ -1237,8 +1304,8 @@ impl Epoch {
     }
 
     fn resolve_cloning_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
-        if self.data.cloning_rate.is_none() {
-            self.data.cloning_rate = match deme_defaults.epoch.cloning_rate {
+        if self.cloning_rate.is_none() {
+            self.cloning_rate = match deme_defaults.epoch.cloning_rate {
                 Some(cloning_rate) => Some(cloning_rate),
                 None => match defaults.epoch.cloning_rate {
                     Some(cloning_rate) => Some(cloning_rate),
@@ -1259,7 +1326,7 @@ impl Epoch {
     }
 
     fn validate_end_time(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
-        match self.data.end_time {
+        match self.end_time {
             Some(time) => time.err_if_not_valid_epoch_end_time(),
             None => Err(DemesError::EpochError(format!(
                 "deme {}, epoch {}: end time is None",
@@ -1269,7 +1336,7 @@ impl Epoch {
     }
 
     fn validate_cloning_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
-        match self.data.cloning_rate {
+        match self.cloning_rate {
             Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError(format!(
                 "deme {}, epoch {}:cloning_rate is None",
@@ -1279,7 +1346,7 @@ impl Epoch {
     }
 
     fn validate_selfing_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
-        match self.data.selfing_rate {
+        match self.selfing_rate {
             Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError(format!(
                 "deme {}, epoch {}: selfing_rate is None",
@@ -1295,7 +1362,7 @@ impl Epoch {
         start_size: DemeSize,
         end_size: DemeSize,
     ) -> Result<(), DemesError> {
-        let size_function = self.data.size_function.ok_or_else(|| {
+        let size_function = self.size_function.ok_or_else(|| {
             DemesError::EpochError(format!(
                 "deme {}, epoch {}:size function is None",
                 deme_name, index
@@ -1307,7 +1374,7 @@ impl Epoch {
         if (is_constant && start_size != end_size) || (!is_constant && start_size == end_size) {
             Err(DemesError::EpochError(format!(
                 "deme {}, index{}: start_size ({:?}) == end_size ({:?}) paired with invalid size_function: {}",
-                deme_name, index, self.data.start_size, self.data.end_size, size_function
+                deme_name, index, self.start_size, self.end_size, size_function
             )))
         } else {
             Ok(())
@@ -1341,57 +1408,26 @@ impl Epoch {
         self.validate_size_function(index, deme_name, start_size, end_size)
     }
 
-    /// The resolved size function
-    pub fn size_function(&self) -> SizeFunction {
-        self.data.size_function.unwrap()
-    }
-
-    /// The resolved selfing rate
-    pub fn selfing_rate(&self) -> SelfingRate {
-        self.data.selfing_rate.unwrap()
-    }
-
-    /// The resolved cloning rate
-    pub fn cloning_rate(&self) -> CloningRate {
-        self.data.cloning_rate.unwrap()
-    }
-
     fn end_time_resolved_or_else<F: FnOnce() -> DemesError>(
         &self,
         err: F,
     ) -> Result<Time, DemesError> {
-        self.data.end_time.ok_or_else(err)
-    }
-
-    /// The resolved end time
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the `end_time` is unresolved.
-    pub fn end_time(&self) -> Time {
-        self.data.end_time.unwrap()
+        self.end_time.ok_or_else(err)
     }
 
     fn get_start_size(&self) -> Result<DemeSize, DemesError> {
-        self.data
-            .start_size
+        self.start_size
             .ok_or_else(|| DemesError::EpochError("start_size is None".to_string()))
     }
 
-    /// The resolved start size
-    pub fn start_size(&self) -> DemeSize {
-        self.data.start_size.unwrap()
-    }
-
     fn get_end_size(&self) -> Result<DemeSize, DemesError> {
-        self.data
-            .end_size
+        self.end_size
             .ok_or_else(|| DemesError::EpochError("end_size is None".to_string()))
     }
 
-    /// The resolved end size
-    pub fn end_size(&self) -> DemeSize {
-        self.data.end_size.unwrap()
+    fn get_end_time(&self) -> Result<Time, DemesError> {
+        self.end_time
+            .ok_or_else(|| DemesError::EpochError("end_time is None".to_string()))
     }
 }
 
@@ -1403,8 +1439,8 @@ pub(crate) struct HDMDeme {
     description: String,
     #[serde(skip)]
     ancestor_map: DemeMap,
-    #[serde(default = "Vec::<Epoch>::default")]
-    epochs: Vec<Epoch>,
+    #[serde(default = "Vec::<UnresolvedEpoch>::default")]
+    epochs: Vec<UnresolvedEpoch>,
     #[serde(flatten)]
     history: UnresolvedDemeHistory,
 }
@@ -1438,11 +1474,9 @@ impl Deme {
             Ok(time) => time,
             Err(e) => return Err(e),
         };
-        self.epochs.iter_mut().try_for_each(|epoch| {
-            epoch
-                .data
-                .resolved_time_to_generations(generation_time, rounding)
-        })?;
+        self.epochs
+            .iter_mut()
+            .try_for_each(|epoch| epoch.resolved_time_to_generations(generation_time, rounding))?;
 
         let starts = self.start_times();
         let ends = self.end_times();
@@ -1548,12 +1582,12 @@ impl Deme {
 
     /// Resolved start size
     pub fn start_size(&self) -> DemeSize {
-        self.epochs[0].data.start_size.unwrap()
+        self.epochs[0].start_size()
     }
 
     /// Resolved end size
     pub fn end_size(&self) -> DemeSize {
-        self.epochs[0].data.end_size.unwrap()
+        self.epochs[0].end_size()
     }
 
     /// Names of ancestor demes.
@@ -1601,10 +1635,15 @@ impl TryFrom<HDMDeme> for Deme {
     type Error = DemesError;
 
     fn try_from(value: HDMDeme) -> Result<Self, Self::Error> {
+        let mut epochs = vec![];
+        for hdm_epoch in value.epochs.into_iter() {
+            let e = Epoch::try_from(hdm_epoch)?;
+            epochs.push(e);
+        }
         Ok(Self {
             description: value.description,
             ancestor_map: value.ancestor_map,
-            epochs: value.epochs,
+            epochs,
             ancestors: value.history.ancestors.ok_or_else(|| {
                 DemesError::DemeError(format!("deme {} ancestors are not resolved", value.name))
             })?,
@@ -1674,10 +1713,6 @@ impl HDMDeme {
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) -> Self {
-        let epochs = epochs
-            .into_iter()
-            .map(|data| Epoch { data })
-            .collect::<Vec<_>>();
         let description = match description {
             Some(desc) => desc.to_string(),
             None => String::default(),
@@ -1769,8 +1804,8 @@ impl HDMDeme {
             .epochs
             .last_mut()
             .ok_or_else(|| DemesError::DemeError("epochs are empty".to_string()))?;
-        if last_epoch_ref.data.end_time.is_none() {
-            last_epoch_ref.data.end_time = match self.history.defaults.epoch.end_time {
+        if last_epoch_ref.end_time.is_none() {
+            last_epoch_ref.end_time = match self.history.defaults.epoch.end_time {
                 Some(end_time) => Some(end_time),
                 None => match defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
@@ -1781,10 +1816,10 @@ impl HDMDeme {
 
         // apply default epoch start times
         for epoch in self.epochs.iter_mut() {
-            match epoch.data.end_time {
+            match epoch.end_time {
                 Some(end_time) => end_time.validate(DemesError::EpochError)?,
                 None => {
-                    epoch.data.end_time = match self.history.defaults.epoch.end_time {
+                    epoch.end_time = match self.history.defaults.epoch.end_time {
                         Some(end_time) => Some(end_time),
                         None => defaults.epoch.end_time,
                     }
@@ -1807,7 +1842,7 @@ impl HDMDeme {
                 ));
             }
             last_time = end_time;
-            epoch.end_time().validate(DemesError::EpochError)?;
+            epoch.get_end_time()?.validate(DemesError::EpochError)?;
         }
 
         Ok(())
@@ -1823,30 +1858,30 @@ impl HDMDeme {
                 DemesError::DemeError(format!("deme {} has no epochs", self.name))
             })?;
 
-            temp_epoch.data.start_size = match temp_epoch.data.start_size {
+            temp_epoch.start_size = match temp_epoch.start_size {
                 Some(start_size) => Some(start_size),
                 None => self_defaults.epoch.start_size,
             };
-            temp_epoch.data.end_size = match temp_epoch.data.end_size {
+            temp_epoch.end_size = match temp_epoch.end_size {
                 Some(end_size) => Some(end_size),
                 None => self_defaults.epoch.end_size,
             };
 
             defaults.apply_epoch_size_defaults(temp_epoch);
-            if temp_epoch.data.start_size.is_none() && temp_epoch.data.end_size.is_none() {
+            if temp_epoch.start_size.is_none() && temp_epoch.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
                     self.name
                 )));
             }
-            if temp_epoch.data.start_size.is_none() {
-                temp_epoch.data.start_size = temp_epoch.data.end_size;
+            if temp_epoch.start_size.is_none() {
+                temp_epoch.start_size = temp_epoch.end_size;
             }
-            if temp_epoch.data.end_size.is_none() {
-                temp_epoch.data.end_size = temp_epoch.data.start_size;
+            if temp_epoch.end_size.is_none() {
+                temp_epoch.end_size = temp_epoch.start_size;
             }
             // temp_epoch.clone()
-            (temp_epoch.data.start_size, temp_epoch.data.end_size)
+            (temp_epoch.start_size, temp_epoch.end_size)
         };
 
         let epoch_start_size = epoch_sizes.0.ok_or_else(|| {
@@ -1881,27 +1916,27 @@ impl HDMDeme {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
         let local_defaults = self.history.defaults.clone();
         for epoch in self.epochs.iter_mut().skip(1) {
-            match epoch.data.start_size {
+            match epoch.start_size {
                 Some(_) => (),
                 None => match local_defaults.epoch.start_size {
-                    Some(start_size) => epoch.data.start_size = Some(start_size),
+                    Some(start_size) => epoch.start_size = Some(start_size),
                     None => match defaults.epoch.start_size {
-                        Some(start_size) => epoch.data.start_size = Some(start_size),
-                        None => epoch.data.start_size = last_end_size,
+                        Some(start_size) => epoch.start_size = Some(start_size),
+                        None => epoch.start_size = last_end_size,
                     },
                 },
             }
-            match epoch.data.end_size {
+            match epoch.end_size {
                 Some(_) => (),
                 None => match local_defaults.epoch.end_size {
-                    Some(end_size) => epoch.data.end_size = Some(end_size),
+                    Some(end_size) => epoch.end_size = Some(end_size),
                     None => match defaults.epoch.end_size {
-                        Some(end_size) => epoch.data.end_size = Some(end_size),
-                        None => epoch.data.end_size = epoch.data.start_size,
+                        Some(end_size) => epoch.end_size = Some(end_size),
+                        None => epoch.end_size = epoch.start_size,
                     },
                 },
             }
-            last_end_size = epoch.data.end_size;
+            last_end_size = epoch.end_size;
         }
         Ok(())
     }
@@ -1930,7 +1965,7 @@ impl HDMDeme {
 
     fn check_empty_epochs(&mut self) {
         if self.epochs.is_empty() {
-            self.epochs.push(Epoch::default());
+            self.epochs.push(UnresolvedEpoch::default());
         }
     }
 
@@ -2120,7 +2155,6 @@ impl HDMDeme {
             .last()
             .as_ref()
             .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name)))?
-            .data
             .end_time
             .ok_or_else(|| {
                 DemesError::DemeError(format!(
@@ -2259,7 +2293,7 @@ impl GraphDefaults {
     // Thus, we will miss invalid inputs if we wait
     // until resolution.
     fn validate(&self) -> Result<(), DemesError> {
-        self.epoch.validate()?;
+        self.epoch.validate_as_default()?;
         self.pulse.validate_as_default()?;
         self.migration.validate()?;
         self.deme.validate()
@@ -2279,9 +2313,9 @@ impl GraphDefaults {
         self.epoch.end_size
     }
 
-    fn apply_epoch_size_defaults(&self, epoch: &mut Epoch) {
-        epoch.data.start_size = self.apply_default_epoch_start_size(epoch.data.start_size);
-        epoch.data.end_size = self.apply_default_epoch_end_size(epoch.data.end_size);
+    fn apply_epoch_size_defaults(&self, epoch: &mut UnresolvedEpoch) {
+        epoch.start_size = self.apply_default_epoch_start_size(epoch.start_size);
+        epoch.end_size = self.apply_default_epoch_end_size(epoch.end_size);
     }
 
     fn apply_epoch_size_function_defaults(
@@ -2385,7 +2419,7 @@ pub struct DemeDefaults {
 
 impl DemeDefaults {
     fn validate(&self) -> Result<(), DemesError> {
-        self.epoch.validate()
+        self.epoch.validate_as_default()
     }
 }
 
@@ -3248,30 +3282,6 @@ mod tests {
         let yaml = "---\n1.0\n".to_string();
         let cr: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(cr.0, 1.0);
-    }
-
-    #[test]
-    fn test_epoch_using_defaults() {
-        let yaml = "---\nend_time: 1000\nend_size: 100\n".to_string();
-        let e: Epoch = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(e.data.end_size.as_ref().unwrap().0, 100.0);
-        assert_eq!(e.data.end_time.unwrap().0, 1000.0);
-        assert!(e.data.start_size.is_none());
-    }
-
-    #[test]
-    #[should_panic]
-    fn epoch_bad_size_function() {
-        let yaml = "---\nend_time: 100.3\nend_size: 250\nsize_function: ice cream".to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn epoch_invalid_field() {
-        let yaml = "---\nstart_time: 1000\nend_time: 100.3\nend_size: 250\nsize_function: constant"
-            .to_string();
-        let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
     }
 
     #[test]

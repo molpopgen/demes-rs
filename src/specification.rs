@@ -1221,10 +1221,6 @@ impl Epoch {
     }
 
     /// The resolved end time
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the `end_time` is unresolved.
     pub fn end_time(&self) -> Time {
         self.end_time
     }
@@ -1565,11 +1561,6 @@ impl Deme {
     ///
     /// Obtained from the value stored in the most
     /// recent epoch.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the end time is unresolved
-    /// or if the deme has no epochs.
     pub fn end_time(&self) -> Time {
         assert!(!self.epochs.is_empty());
         self.epochs[self.epochs.len() - 1].end_time()
@@ -3125,12 +3116,6 @@ impl Graph {
     }
 
     /// Get the [`Deme`](crate::Deme) at index `at`.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `at` is out of range.
-    /// See [`get_deme`](crate::Graph::get_deme) for an
-    /// alternative that will not panic.
     pub fn deme(&self, at: usize) -> &Deme {
         &self.demes[at]
     }

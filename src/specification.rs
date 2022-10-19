@@ -8,7 +8,15 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::io::Read;
-use std::ops::Deref;
+
+macro_rules! get_deme {
+    ($name: expr, $deme_map: expr, $demes: expr) => {
+        match $deme_map.get($name) {
+            Some(index) => $demes.get(*index),
+            None => None,
+        }
+    };
+}
 
 /// Store time values.
 ///
@@ -962,7 +970,7 @@ impl HDMPulse {
     fn validate_pulse_time(
         &self,
         deme_map: &DemeMap,
-        demes: &[Deme],
+        demes: &[HDMDeme],
         time: Time,
         dest: &str,
         sources: &[String],
@@ -975,11 +983,11 @@ impl HDMPulse {
         }
 
         for source_name in sources {
-            let source = get_deme(source_name, deme_map, demes).ok_or_else(|| {
+            let source = get_deme!(source_name, deme_map, demes).ok_or_else(|| {
                 DemesError::PulseError(format!("invalid pulse source: {}", source_name))
             })?;
 
-            let ti = source.time_interval();
+            let ti = source.get_time_interval()?;
 
             if !ti.contains_exclusive_start_inclusive_end(time) {
                 return Err(DemesError::PulseError(format!(
@@ -989,14 +997,13 @@ impl HDMPulse {
             }
         }
 
-        let dest_deme = get_deme(dest, deme_map, demes)
+        let dest_deme = get_deme!(dest, deme_map, demes)
             .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {}", dest)))?;
-        let ti = dest_deme.time_interval();
+        let ti = dest_deme.get_time_interval()?;
         if !ti.contains_inclusive_start_exclusive_end(time) {
             return Err(DemesError::PulseError(format!(
                 "pulse at time: {:?} does not overlap with dest: {}",
-                time,
-                dest_deme.name(),
+                time, dest_deme.name,
             )));
         }
 
@@ -1007,10 +1014,10 @@ impl HDMPulse {
         &self,
         dest: &str,
         deme_map: &DemeMap,
-        demes: &[Deme],
+        demes: &[HDMDeme],
         time: Time,
     ) -> Result<(), DemesError> {
-        match get_deme(dest, deme_map, demes) {
+        match get_deme!(dest, deme_map, demes) {
             Some(d) => {
                 let t = d.get_time_interval()?;
                 if !t.contains_inclusive(time) {
@@ -1053,7 +1060,7 @@ impl HDMPulse {
         Ok(())
     }
 
-    fn validate(&self, deme_map: &DemeMap, demes: &[Deme]) -> Result<(), DemesError> {
+    fn validate(&self, deme_map: &DemeMap, demes: &[HDMDeme]) -> Result<(), DemesError> {
         let dest = self.get_dest()?;
         let sources = self.get_sources()?;
         let time = self.get_time()?;
@@ -1390,7 +1397,7 @@ impl Epoch {
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct DemeData {
+pub(crate) struct HDMDeme {
     name: String,
     #[serde(default = "String::default")]
     description: String,
@@ -1400,6 +1407,228 @@ pub(crate) struct DemeData {
     epochs: Vec<Epoch>,
     #[serde(flatten)]
     history: UnresolvedDemeHistory,
+}
+
+/// A resolved deme.
+#[derive(Clone, Debug, Serialize)]
+pub struct Deme {
+    name: String,
+    description: String,
+    #[serde(skip)]
+    ancestor_map: DemeMap,
+    epochs: Vec<Epoch>,
+    ancestors: Vec<String>,
+    proportions: Vec<Proportion>,
+    start_time: Time,
+}
+
+impl Deme {
+    fn resolved_time_to_generations(
+        &mut self,
+        generation_time: GenerationTime,
+        rounding: Option<RoundTimeToInteger>,
+    ) -> Result<(), DemesError> {
+        self.start_time = match convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::DemeError,
+            &format!("start_time unresolved for deme: {}", self.name),
+            Some(self.start_time),
+        ) {
+            Ok(time) => time,
+            Err(e) => return Err(e),
+        };
+        self.epochs.iter_mut().try_for_each(|epoch| {
+            epoch
+                .data
+                .resolved_time_to_generations(generation_time, rounding)
+        })?;
+
+        let starts = self.start_times();
+        let ends = self.end_times();
+
+        let valid = |w: (&Time, &Time)| {
+            if w.1 >= w.0 {
+                Err(DemesError::EpochError(
+                    "conversion to generations resulted in an invalid Epoch".to_string(),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+
+        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
+        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
+
+        Ok(())
+    }
+
+    /// Vector of resolved start times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn start_times(&self) -> Vec<Time> {
+        let mut rv = vec![self.start_time()];
+        let end_time = self.end_time();
+
+        self.epochs.iter().for_each(|epoch| {
+            let epoch_end = epoch.end_time();
+            if epoch_end != end_time {
+                rv.push(epoch_end);
+            }
+        });
+        rv
+    }
+
+    /// The resolved start time
+    pub fn start_time(&self) -> Time {
+        self.start_time
+    }
+
+    /// Deme name
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The resolved time interval
+    pub fn time_interval(&self) -> TimeInterval {
+        TimeInterval {
+            start_time: self.start_time(),
+            end_time: self.end_time(),
+        }
+    }
+
+    /// Number of ancestors
+    pub fn num_ancestors(&self) -> usize {
+        self.ancestors.len()
+    }
+
+    /// Vector of resolved start sizes.
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn start_sizes(&self) -> Vec<DemeSize> {
+        self.epochs.iter().map(|epoch| epoch.start_size()).collect()
+    }
+
+    /// Vector of resolved start sizes
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn end_sizes(&self) -> Vec<DemeSize> {
+        self.epochs.iter().map(|epoch| epoch.end_size()).collect()
+    }
+
+    /// Vector of resolved end times
+    ///
+    /// The values are obtained by traversing
+    /// all epochs.
+    pub fn end_times(&self) -> Vec<Time> {
+        self.epochs.iter().map(|epoch| epoch.end_time()).collect()
+    }
+
+    /// End time of the deme.
+    ///
+    /// Obtained from the value stored in the most
+    /// recent epoch.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the end time is unresolved
+    /// or if the deme has no epochs.
+    pub fn end_time(&self) -> Time {
+        // FIXME: this should ultimately be panic-proof
+        self.epochs.last().unwrap().end_time()
+    }
+
+    /// Hash map of ancestor name to ancestor deme
+    pub fn ancestors(&self) -> &DemeMap {
+        &self.ancestor_map
+    }
+
+    /// Resolved start size
+    pub fn start_size(&self) -> DemeSize {
+        self.epochs[0].data.start_size.unwrap()
+    }
+
+    /// Resolved end size
+    pub fn end_size(&self) -> DemeSize {
+        self.epochs[0].data.end_size.unwrap()
+    }
+
+    /// Names of ancestor demes.
+    ///
+    /// Empty if no ancestors.
+    pub fn ancestor_names(&self) -> &[String] {
+        &self.ancestors
+    }
+
+    /// Description string
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Obtain the number of [`Epoch`](crate::Epoch) instances.
+    ///
+    /// # Examples
+    ///
+    /// See [`here`](crate::SizeFunction).
+    pub fn num_epochs(&self) -> usize {
+        self.epochs.len()
+    }
+
+    /// Resolved epochs
+    pub fn epochs(&self) -> &[Epoch] {
+        &self.epochs
+    }
+
+    /// Returns a copy of the [`Epoch`](crate::Epoch) at index `epoch`.
+    ///
+    /// # Examples
+    ///
+    /// See [`here`](crate::SizeFunction) for examples.
+    pub fn get_epoch(&self, epoch: usize) -> Option<Epoch> {
+        self.epochs.get(epoch).copied()
+    }
+
+    /// Resolved proportions
+    pub fn proportions(&self) -> &[Proportion] {
+        &self.proportions
+    }
+}
+
+impl TryFrom<HDMDeme> for Deme {
+    type Error = DemesError;
+
+    fn try_from(value: HDMDeme) -> Result<Self, Self::Error> {
+        Ok(Self {
+            description: value.description,
+            ancestor_map: value.ancestor_map,
+            epochs: value.epochs,
+            ancestors: value.history.ancestors.ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} ancestors are not resolved", value.name))
+            })?,
+            proportions: value.history.proportions.ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} proportions are not resolved", value.name))
+            })?,
+            start_time: value.history.start_time.ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} start_time is not resolved", value.name))
+            })?,
+            name: value.name,
+        })
+    }
+}
+
+impl PartialEq for Deme {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.description == other.description
+            && self.ancestors == other.ancestors
+            && self.proportions == other.proportions
+            && self.start_time == other.start_time
+            && self.epochs == other.epochs
+            && self.ancestor_map == other.ancestor_map
+    }
 }
 
 /// HDM data for a [`Deme`](crate::Deme)
@@ -1424,7 +1653,7 @@ pub struct UnresolvedDemeHistory {
     pub defaults: DemeDefaults,
 }
 
-impl PartialEq for DemeData {
+impl PartialEq for HDMDeme {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.description == other.description
@@ -1436,15 +1665,9 @@ impl PartialEq for DemeData {
     }
 }
 
-impl Eq for DemeData {}
+impl Eq for HDMDeme {}
 
-//pub(crate) type DemePtr = Rc<RefCell<DemeData>>;
-
-/// A resolved deme.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Deme(DemeData);
-
-impl Deme {
+impl HDMDeme {
     pub(crate) fn new_via_builder(
         name: &str,
         epochs: Vec<UnresolvedEpoch>,
@@ -1459,66 +1682,24 @@ impl Deme {
             Some(desc) => desc.to_string(),
             None => String::default(),
         };
-        Self(DemeData {
+        Self {
             name: name.to_string(),
             epochs,
             history,
             description,
             ..Default::default()
-        })
-    }
-
-    fn resolved_time_to_generations(
-        &mut self,
-        generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
-    ) -> Result<(), DemesError> {
-        {
-            self.0.history.start_time = match convert_resolved_time_to_generations(
-                generation_time,
-                rounding,
-                DemesError::DemeError,
-                &format!("start_time unresolved for deme: {}", self.0.name),
-                self.0.history.start_time,
-            ) {
-                Ok(time) => Some(time),
-                Err(e) => return Err(e),
-            };
-            self.0.epochs.iter_mut().try_for_each(|epoch| {
-                epoch
-                    .data
-                    .resolved_time_to_generations(generation_time, rounding)
-            })?;
         }
-
-        let starts = self.start_times();
-        let ends = self.end_times();
-
-        let valid = |w: (&Time, &Time)| {
-            if w.1 >= w.0 {
-                Err(DemesError::EpochError(
-                    "conversion to generations resulted in an invalid Epoch".to_string(),
-                ))
-            } else {
-                Ok(())
-            }
-        };
-
-        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
-        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
-
-        Ok(())
     }
 
     fn resolve_times(
         &mut self,
         deme_map: &DemeMap,
-        demes: &[Deme],
+        demes: &[HDMDeme],
         defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
         // apply top-level default if it exists
 
-        self.0.history.start_time = match self.0.history.start_time {
+        self.history.start_time = match self.history.start_time {
             Some(start_time) => Some(start_time),
             None => match defaults.deme.start_time {
                 Some(start_time) => Some(start_time),
@@ -1527,34 +1708,33 @@ impl Deme {
         };
 
         if self
-            .0
             .history
             .ancestors
             .as_ref()
             .ok_or_else(|| DemesError::DemeError("unexpected None for deme ancestors".to_string()))?
             .is_empty()
             && self.start_time_resolved_or(|| {
-                DemesError::DemeError(format!("deme {}: start_time unresolved", self.name()))
+                DemesError::DemeError(format!("deme {}: start_time unresolved", self.name))
             })? != Time::default_deme_start_time()
         {
             return Err(DemesError::DemeError(format!(
                 "deme {} has finite start time but no ancestors",
-                self.name()
+                self.name
             )));
         }
 
-        if self.num_ancestors() == 1 {
+        if self.get_num_ancestors()? == 1 {
             let first_ancestor_name = &self.get_ancestor_names()?[0];
 
-            let deme_start_time = match self.0.history.start_time {
+            let deme_start_time = match self.history.start_time {
                 Some(start_time) => {
                     if start_time == Time::default_deme_start_time() {
-                        let first_ancestor_deme = get_deme(first_ancestor_name, deme_map, demes)
+                        let first_ancestor_deme = get_deme!(first_ancestor_name, deme_map, demes)
                             .ok_or_else(|| {
-                                DemesError::DemeError(
-                                    "fatal error: ancestor maps to no Deme object".to_string(),
-                                )
-                            })?;
+                            DemesError::DemeError(
+                                "fatal error: ancestor maps to no Deme object".to_string(),
+                            )
+                        })?;
                         first_ancestor_deme.get_end_time()?
                     } else {
                         start_time
@@ -1564,11 +1744,11 @@ impl Deme {
             };
 
             deme_start_time.err_if_not_valid_deme_start_time()?;
-            self.0.history.start_time = Some(deme_start_time);
+            self.history.start_time = Some(deme_start_time);
         }
 
         for ancestor in self.get_ancestor_names()?.iter() {
-            let a = get_deme(ancestor, deme_map, demes).ok_or_else(|| {
+            let a = get_deme!(ancestor, deme_map, demes).ok_or_else(|| {
                 DemesError::DemeError(format!(
                     "ancestor {} not present in global deme map",
                     ancestor
@@ -1578,8 +1758,7 @@ impl Deme {
             if !t.contains_start_time(self.get_start_time()?) {
                 return Err(DemesError::DemeError(format!(
                     "Ancestor {} does not exist at deme {}'s start_time",
-                    ancestor,
-                    self.name()
+                    ancestor, self.name
                 )));
             }
         }
@@ -1587,12 +1766,11 @@ impl Deme {
         // last epoch end time defaults to 0,
         // unless defaults are specified
         let mut last_epoch_ref = self
-            .0
             .epochs
             .last_mut()
             .ok_or_else(|| DemesError::DemeError("epochs are empty".to_string()))?;
         if last_epoch_ref.data.end_time.is_none() {
-            last_epoch_ref.data.end_time = match self.0.history.defaults.epoch.end_time {
+            last_epoch_ref.data.end_time = match self.history.defaults.epoch.end_time {
                 Some(end_time) => Some(end_time),
                 None => match defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
@@ -1602,11 +1780,11 @@ impl Deme {
         }
 
         // apply default epoch start times
-        for epoch in self.0.epochs.iter_mut() {
+        for epoch in self.epochs.iter_mut() {
             match epoch.data.end_time {
                 Some(end_time) => end_time.validate(DemesError::EpochError)?,
                 None => {
-                    epoch.data.end_time = match self.0.history.defaults.epoch.end_time {
+                    epoch.data.end_time = match self.history.defaults.epoch.end_time {
                         Some(end_time) => Some(end_time),
                         None => defaults.epoch.end_time,
                     }
@@ -1615,12 +1793,11 @@ impl Deme {
         }
 
         let mut last_time = f64::from(self.get_start_time()?);
-        for (i, epoch) in self.0.epochs.iter().enumerate() {
+        for (i, epoch) in self.epochs.iter().enumerate() {
             let end_time = f64::from(epoch.end_time_resolved_or_else(|| {
                 DemesError::EpochError(format!(
                     "deme: {}, epoch: {} end time must be specified",
-                    self.name(),
-                    i
+                    self.name, i
                 ))
             })?);
 
@@ -1640,10 +1817,10 @@ impl Deme {
         &mut self,
         defaults: &GraphDefaults,
     ) -> Result<Option<DemeSize>, DemesError> {
-        let self_defaults = self.0.history.defaults.clone();
+        let self_defaults = self.history.defaults.clone();
         let epoch_sizes = {
-            let mut temp_epoch = self.0.epochs.get_mut(0).ok_or_else(|| {
-                DemesError::DemeError(format!("deme {} has no epochs", self.0.name))
+            let mut temp_epoch = self.epochs.get_mut(0).ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} has no epochs", self.name))
             })?;
 
             temp_epoch.data.start_size = match temp_epoch.data.start_size {
@@ -1659,7 +1836,7 @@ impl Deme {
             if temp_epoch.data.start_size.is_none() && temp_epoch.data.end_size.is_none() {
                 return Err(DemesError::EpochError(format!(
                     "first epoch of deme {} must define one or both of start_size and end_size",
-                    self.0.name
+                    self.name
                 )));
             }
             if temp_epoch.data.start_size.is_none() {
@@ -1675,24 +1852,24 @@ impl Deme {
         let epoch_start_size = epoch_sizes.0.ok_or_else(|| {
             DemesError::EpochError(format!(
                 "first epoch of {} has unresolved start_size",
-                self.name()
+                self.name
             ))
         })?;
         let epoch_end_size = epoch_sizes.1.ok_or_else(|| {
             DemesError::EpochError(format!(
                 "first epoch of {} has unresolved end_size",
-                self.name()
+                self.name
             ))
         })?;
 
-        let start_time = self.0.history.start_time.ok_or_else(|| {
-            DemesError::EpochError(format!("deme {} start_time is None", self.0.name))
+        let start_time = self.history.start_time.ok_or_else(|| {
+            DemesError::EpochError(format!("deme {} start_time is None", self.name))
         })?;
 
         if start_time == Time::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
             let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
-                    self.0.name, f64::from(epoch_start_size), f64::from(epoch_end_size),
+                    self.name, f64::from(epoch_start_size), f64::from(epoch_end_size),
                 );
             return Err(DemesError::EpochError(msg));
         }
@@ -1702,8 +1879,8 @@ impl Deme {
 
     fn resolve_sizes(&mut self, defaults: &GraphDefaults) -> Result<(), DemesError> {
         let mut last_end_size = self.resolve_first_epoch_sizes(defaults)?;
-        let local_defaults = self.0.history.defaults.clone();
-        for epoch in self.0.epochs.iter_mut().skip(1) {
+        let local_defaults = self.history.defaults.clone();
+        for epoch in self.epochs.iter_mut().skip(1) {
             match epoch.data.start_size {
                 Some(_) => (),
                 None => match local_defaults.epoch.start_size {
@@ -1730,10 +1907,9 @@ impl Deme {
     }
 
     fn resolve_proportions(&mut self) -> Result<(), DemesError> {
-        let num_ancestors = self.num_ancestors();
+        let num_ancestors = self.get_num_ancestors()?;
 
         let proportions = self
-            .0
             .history
             .proportions
             .as_mut()
@@ -1746,28 +1922,28 @@ impl Deme {
         if num_ancestors != proportions.len() {
             return Err(DemesError::DemeError(format!(
                 "deme {} ancestors and proportions have different lengths",
-                self.0.name
+                self.name
             )));
         }
         Ok(())
     }
 
     fn check_empty_epochs(&mut self) {
-        if self.0.epochs.is_empty() {
-            self.0.epochs.push(Epoch::default());
+        if self.epochs.is_empty() {
+            self.epochs.push(Epoch::default());
         }
     }
 
     fn apply_toplevel_defaults(&mut self, defaults: &GraphDefaults) {
-        if self.0.history.ancestors.is_none() {
-            self.0.history.ancestors = match &defaults.deme.ancestors {
+        if self.history.ancestors.is_none() {
+            self.history.ancestors = match &defaults.deme.ancestors {
                 Some(ancestors) => Some(ancestors.to_vec()),
                 None => Some(vec![]),
             }
         }
 
-        if self.0.history.proportions.is_none() {
-            self.0.history.proportions = match &defaults.deme.proportions {
+        if self.history.proportions.is_none() {
+            self.history.proportions = match &defaults.deme.proportions {
                 Some(proportions) => Some(proportions.to_vec()),
                 None => Some(vec![]),
             }
@@ -1775,26 +1951,26 @@ impl Deme {
     }
 
     fn validate_ancestor_uniqueness(&self, deme_map: &DemeMap) -> Result<(), DemesError> {
-        match &self.0.history.ancestors {
+        match &self.history.ancestors {
             Some(ancestors) => {
                 let mut ancestor_set = HashSet::<String>::default();
                 for ancestor in ancestors {
-                    if ancestor == &self.0.name {
+                    if ancestor == &self.name {
                         return Err(DemesError::DemeError(format!(
                             "deme: {} lists itself as an ancestor",
-                            self.0.name
+                            self.name
                         )));
                     }
                     if !deme_map.contains_key(ancestor) {
                         return Err(DemesError::DemeError(format!(
                             "deme: {} lists invalid ancestor: {}",
-                            self.0.name, ancestor
+                            self.name, ancestor
                         )));
                     }
                     if ancestor_set.contains(ancestor) {
                         return Err(DemesError::DemeError(format!(
                             "deme: {} lists ancestor: {} multiple times",
-                            self.0.name, ancestor
+                            self.name, ancestor
                         )));
                     }
                     ancestor_set.insert(ancestor.clone());
@@ -1809,45 +1985,51 @@ impl Deme {
     fn resolve(
         &mut self,
         deme_map: &DemeMap,
-        demes: &[Deme],
+        demes: &[HDMDeme],
         defaults: &GraphDefaults,
     ) -> Result<(), DemesError> {
-        self.0.history.defaults.validate()?;
+        self.history.defaults.validate()?;
         self.apply_toplevel_defaults(defaults);
         self.validate_ancestor_uniqueness(deme_map)?;
         self.check_empty_epochs();
-        assert!(self.0.ancestor_map.is_empty());
+        assert!(self.ancestor_map.is_empty());
         self.resolve_times(deme_map, demes, defaults)?;
         self.resolve_sizes(defaults)?;
-        let self_defaults = self.0.history.defaults.clone();
-        self.0
-            .epochs
+        let self_defaults = self.history.defaults.clone();
+        self.epochs
             .iter_mut()
             .try_for_each(|e| e.resolve(defaults, &self_defaults))?;
         self.resolve_proportions()?;
 
         let mut ancestor_map = DemeMap::default();
-        let ancestors = self.0.history.ancestors.as_ref().ok_or_else(|| {
-            DemesError::DemeError(format!("deme {}: ancestors are None", self.name()))
+        let ancestors = self.history.ancestors.as_ref().ok_or_else(|| {
+            DemesError::DemeError(format!("deme {}: ancestors are None", self.name))
         })?;
         for ancestor in ancestors {
             let deme = deme_map.get(ancestor).ok_or_else(|| {
-                DemesError::DemeError(format!("invalid ancestor of {}: {}", self.name(), ancestor))
+                DemesError::DemeError(format!("invalid ancestor of {}: {}", self.name, ancestor))
             })?;
             ancestor_map.insert(ancestor.clone(), *deme);
         }
-        self.0.ancestor_map = ancestor_map;
+        self.ancestor_map = ancestor_map;
         Ok(())
     }
 
     fn validate_start_time(&self) -> Result<(), DemesError> {
-        match self.0.history.start_time {
+        match self.history.start_time {
             Some(start_time) => {
                 start_time.validate(DemesError::DemeError)?;
                 start_time.err_if_not_valid_deme_start_time()
             }
             None => Err(DemesError::DemeError("start_time is None".to_string())),
         }
+    }
+
+    fn start_time_resolved_or<F: FnOnce() -> DemesError>(
+        &self,
+        err: F,
+    ) -> Result<Time, DemesError> {
+        self.history.start_time.ok_or_else(err)
     }
 
     // Names must be valid Python identifiers
@@ -1861,12 +2043,12 @@ impl Deme {
                 ))
             }
         };
-        if python_identifier.is_match(self.name()) {
+        if python_identifier.is_match(&self.name) {
             Ok(())
         } else {
             Err(DemesError::DemeError(format!(
                 "invalid deme name: {}:",
-                self.name()
+                self.name
             )))
         }
     }
@@ -1874,21 +2056,19 @@ impl Deme {
     fn validate(&self) -> Result<(), DemesError> {
         self.validate_name()?;
         self.validate_start_time()?;
-        if self.0.epochs.is_empty() {
+        if self.epochs.is_empty() {
             return Err(DemesError::DemeError(format!(
                 "no epochs for deme {}",
-                self.name()
+                self.name
             )));
         }
 
-        self.0
-            .epochs
+        self.epochs
             .iter()
             .enumerate()
-            .try_for_each(|(i, e)| e.validate(i, self.name()))?;
+            .try_for_each(|(i, e)| e.validate(i, &self.name))?;
 
         let proportions = self
-            .0
             .history
             .proportions
             .as_ref()
@@ -1902,15 +2082,13 @@ impl Deme {
             if (sum_proportions - 1.0).abs() > 1e-9 {
                 return Err(DemesError::DemeError(format!(
                     "proportions for deme {} should sum to ~1.0, got: {}",
-                    self.0.name, sum_proportions
+                    self.name, sum_proportions
                 )));
             }
         }
 
         Ok(())
     }
-
-    // Public API
 
     fn get_time_interval(&self) -> Result<TimeInterval, DemesError> {
         let start_time = self.get_start_time()?;
@@ -1921,198 +2099,48 @@ impl Deme {
         })
     }
 
-    /// The resolved time interval
-    pub fn time_interval(&self) -> TimeInterval {
-        TimeInterval {
-            start_time: self.start_time(),
-            end_time: self.end_time(),
-        }
-    }
-
-    fn start_time_resolved_or<F: FnOnce() -> DemesError>(
-        &self,
-        err: F,
-    ) -> Result<Time, DemesError> {
-        self.0.history.start_time.ok_or_else(err)
-    }
-
-    /// The resolved start time
-    pub fn start_time(&self) -> Time {
-        self.0.history.start_time.unwrap()
-    }
-
-    /// Deme name
-    pub fn name(&self) -> &str {
-        &self.0.name
-    }
-
-    /// Number of ancestors
-    pub fn num_ancestors(&self) -> usize {
-        self.0.history.ancestors.as_ref().unwrap().len()
-    }
-
     fn get_ancestor_names(&self) -> Result<&[String], DemesError> {
-        match &self.0.history.ancestors {
+        match &self.history.ancestors {
             Some(ancestors) => Ok(ancestors),
             None => Err(DemesError::DemeError(format!(
                 "deme {} ancestors are unresolved",
-                self.0.name
+                self.name
             ))),
         }
     }
 
-    /// Names of ancestor demes.
-    ///
-    /// Empty if no ancestors.
-    pub fn ancestor_names(&self) -> &[String] {
-        match self.get_ancestor_names() {
-            Ok(a) => a,
-            Err(e) => panic!("{}", e),
-        }
-    }
-
-    /// Description string
-    pub fn description(&self) -> String {
-        self.0.description.clone()
-    }
-
-    /// Obtain the number of [`Epoch`](crate::Epoch) instances.
-    ///
-    /// # Examples
-    ///
-    /// See [`here`](crate::SizeFunction).
-    pub fn num_epochs(&self) -> usize {
-        self.0.epochs.len()
-    }
-
-    /// Resolved epochs
-    pub fn epochs(&self) -> &[Epoch] {
-        &self.0.epochs
-    }
-
-    /// Returns a copy of the [`Epoch`](crate::Epoch) at index `epoch`.
-    ///
-    /// # Examples
-    ///
-    /// See [`here`](crate::SizeFunction) for examples.
-    pub fn get_epoch(&self, epoch: usize) -> Option<Epoch> {
-        self.0.epochs.get(epoch).copied()
-    }
-
-    /// Resolved proportions
-    pub fn proportions(&self) -> &[Proportion] {
-        match &self.0.history.proportions {
-            Some(proportions) => proportions,
-            None => panic!("deme {} proportions are unresolved", self.0.name),
-        }
-    }
-
-    /// Hash map of ancestor name to ancestor deme
-    pub fn ancestors(&self) -> &DemeMap {
-        &self.0.ancestor_map
-    }
-
-    /// Resolved start size
-    pub fn start_size(&self) -> DemeSize {
-        self.0.epochs[0].data.start_size.unwrap()
-    }
-
-    /// Resolved end size
-    pub fn end_size(&self) -> DemeSize {
-        self.0.epochs[0].data.end_size.unwrap()
-    }
-
-    /// Vector of resolved start sizes.
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn start_sizes(&self) -> Vec<DemeSize> {
-        self.0
-            .epochs
-            .iter()
-            .map(|epoch| epoch.start_size())
-            .collect()
-    }
-
-    /// Vector of resolved start sizes
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn end_sizes(&self) -> Vec<DemeSize> {
-        self.0.epochs.iter().map(|epoch| epoch.end_size()).collect()
-    }
-
-    /// Vector of resolved end times
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn end_times(&self) -> Vec<Time> {
-        self.0.epochs.iter().map(|epoch| epoch.end_time()).collect()
-    }
-
-    /// Vector of resolved start times
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn start_times(&self) -> Vec<Time> {
-        let mut rv = vec![self.start_time()];
-        let end_time = self.end_time();
-
-        self.0.epochs.iter().for_each(|epoch| {
-            let epoch_end = epoch.end_time();
-            if epoch_end != end_time {
-                rv.push(epoch_end);
-            }
-        });
-        rv
-    }
-
     fn get_start_time(&self) -> Result<Time, DemesError> {
-        self.0.history.start_time.ok_or_else(|| {
-            DemesError::DemeError(format!("deme {} start_time is unresolved", self.name()))
+        self.history.start_time.ok_or_else(|| {
+            DemesError::DemeError(format!("deme {} start_time is unresolved", self.name))
         })
     }
 
     fn get_end_time(&self) -> Result<Time, DemesError> {
-        self.0
-            .epochs
+        self.epochs
             .last()
             .as_ref()
-            .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name())))?
+            .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name)))?
             .data
             .end_time
             .ok_or_else(|| {
                 DemesError::DemeError(format!(
                     "last epoch of deme {} end_time unresolved",
-                    self.name()
+                    self.name
                 ))
             })
     }
 
-    /// End time of the deme.
-    ///
-    /// Obtained from the value stored in the most
-    /// recent epoch.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the end time is unresolved
-    /// or if the deme has no epochs.
-    pub fn end_time(&self) -> Time {
-        match self.get_end_time() {
-            Ok(time) => time,
-            Err(e) => panic!("{}", e),
-        }
+    fn get_num_ancestors(&self) -> Result<usize, DemesError> {
+        Ok(self
+            .history
+            .ancestors
+            .as_ref()
+            .ok_or_else(|| {
+                DemesError::DemeError(format!("deme {} ancestors are unresolved", self.name))
+            })?
+            .len())
     }
 }
-
-impl PartialEq for Deme {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
-    }
-}
-
-impl Eq for Deme {}
 
 type DemeMap = HashMap<String, usize>;
 
@@ -2125,17 +2153,6 @@ fn deme_name_exists<F: FnOnce(String) -> DemesError>(
         Err(err(format!("deme {} does not exist", name)))
     } else {
         Ok(())
-    }
-}
-
-fn get_deme<'graph>(
-    name: &'graph str,
-    deme_map: &'graph DemeMap,
-    demes: &'graph [Deme],
-) -> Option<&'graph Deme> {
-    match deme_map.get(name) {
-        Some(index) => demes.get(*index),
-        None => None,
     }
 }
 
@@ -2196,10 +2213,10 @@ pub struct GenerationTime(f64);
 
 impl GenerationTime {
     fn validate(&self) -> Result<(), DemesError> {
-        if !self.0.is_finite() || !self.0.is_sign_positive() || !self.0.gt(&0.0) {
+        if !self.0.is_finite() || !self.0.is_sign_positive() || !self.gt(&0.0) {
             Err(DemesError::GraphError(format!(
                 "generation time must be > 0.0, got: {}",
-                self.0
+                self
             )))
         } else {
             Ok(())
@@ -2454,7 +2471,7 @@ pub(crate) struct UnresolvedGraph {
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<GenerationTime>,
-    pub(crate) demes: Vec<Deme>,
+    pub(crate) demes: Vec<HDMDeme>,
     #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
     #[serde(skip_serializing)]
@@ -2490,7 +2507,7 @@ impl UnresolvedGraph {
             doi: Option::<Vec<String>>::default(),
             defaults: GraphDefaults::default(),
             metadata: Metadata::default(),
-            demes: Vec::<Deme>::default(),
+            demes: Vec::<HDMDeme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),
             pulses: Vec::<HDMPulse>::default(),
@@ -2498,7 +2515,7 @@ impl UnresolvedGraph {
         }
     }
 
-    pub(crate) fn add_deme(&mut self, deme: Deme) {
+    pub(crate) fn add_deme(&mut self, deme: HDMDeme) {
         self.demes.push(deme);
     }
 
@@ -2540,13 +2557,13 @@ impl UnresolvedGraph {
         let mut rv = DemeMap::default();
 
         for (i, deme) in self.demes.iter().enumerate() {
-            if rv.contains_key(deme.name().deref()) {
+            if rv.contains_key(&deme.name) {
                 return Err(DemesError::DemeError(format!(
                     "duplicate deme name: {}",
-                    deme.name(),
+                    deme.name,
                 )));
             }
-            rv.insert(deme.name().to_string(), i);
+            rv.insert(deme.name.clone(), i);
         }
 
         Ok(rv)
@@ -2560,21 +2577,21 @@ impl UnresolvedGraph {
         start_time: Option<Time>,
         end_time: Option<Time>,
     ) -> Result<(), DemesError> {
-        let source_deme = get_deme(&source, &self.deme_map, &self.demes).ok_or_else(|| {
+        let source_deme = get_deme!(&source, &self.deme_map, &self.demes).ok_or_else(|| {
             crate::DemesError::MigrationError(format!("invalid source deme name {}", source))
         })?;
-        let dest_deme = get_deme(&dest, &self.deme_map, &self.demes).ok_or_else(|| {
+        let dest_deme = get_deme!(&dest, &self.deme_map, &self.demes).ok_or_else(|| {
             crate::DemesError::MigrationError(format!("invalid dest deme name {}", dest))
         })?;
 
         let start_time = match start_time {
             Some(t) => t,
-            None => std::cmp::min(source_deme.start_time(), dest_deme.start_time()),
+            None => std::cmp::min(source_deme.get_start_time()?, dest_deme.get_start_time()?),
         };
 
         let end_time = match end_time {
             Some(t) => t,
-            None => std::cmp::max(source_deme.end_time(), dest_deme.end_time()),
+            None => std::cmp::max(source_deme.get_end_time()?, dest_deme.get_end_time()?),
         };
 
         deme_name_exists(&self.deme_map, &source, DemesError::MigrationError)?;
@@ -2793,38 +2810,37 @@ impl UnresolvedGraph {
 
     fn validate_migrations(&self) -> Result<(), DemesError> {
         for m in &self.resolved_migrations {
-            let source = get_deme(&m.source, &self.deme_map, &self.demes).ok_or_else(|| {
+            let source = get_deme!(&m.source, &self.deme_map, &self.demes).ok_or_else(|| {
                 DemesError::MigrationError(format!("invalid migration source: {}", m.source))
             })?;
-            let dest = get_deme(&m.dest, &self.deme_map, &self.demes).ok_or_else(|| {
+            let dest = get_deme!(&m.dest, &self.deme_map, &self.demes).ok_or_else(|| {
                 DemesError::MigrationError(format!("invalid migration dest: {}", m.dest))
             })?;
 
-            if *source.name() == *dest.name() {
+            if source.name == dest.name {
                 return Err(DemesError::MigrationError(format!(
                     "source: {} == dest: {}",
-                    source.name(),
-                    dest.name()
+                    source.name, dest.name
                 )));
             }
 
             m.rate.validate(DemesError::MigrationError)?;
 
             {
-                let interval = source.time_interval();
+                let interval = source.get_time_interval()?;
                 if !interval.contains_inclusive_start_exclusive_end(m.start_time) {
                     return Err(DemesError::MigrationError(format!(
                             "migration start_time: {:?} does not overlap with existence of source deme {}",
                             m.start_time,
-                            source.name()
+                            source.name
                         )));
                 }
-                let interval = dest.time_interval();
+                let interval = dest.get_time_interval()?;
                 if !interval.contains_inclusive_start_exclusive_end(m.start_time) {
                     return Err(DemesError::MigrationError(format!(
                             "migration start_time: {:?} does not overlap with existence of dest deme {}",
                             m.start_time,
-                            dest.name()
+                            dest.name
                         )));
                 }
             }
@@ -2836,20 +2852,19 @@ impl UnresolvedGraph {
                         m.end_time
                     )));
                 }
-                let interval = source.time_interval();
+                let interval = source.get_time_interval()?;
                 if !interval.contains_exclusive_start_inclusive_end(m.end_time) {
                     return Err(DemesError::MigrationError(format!(
                             "migration end_time: {:?} does not overlap with existence of source deme {}",
                             m.end_time,
-                            source.name()
+                            source.name
                         )));
                 }
-                let interval = dest.time_interval();
+                let interval = dest.get_time_interval()?;
                 if !interval.contains_exclusive_start_inclusive_end(m.end_time) {
                     return Err(DemesError::MigrationError(format!(
                         "migration end_time: {:?} does not overlap with existence of dest deme {}",
-                        m.end_time,
-                        dest.name()
+                        m.end_time, dest.name
                     )));
                 }
             }
@@ -3013,13 +3028,18 @@ impl TryFrom<UnresolvedGraph> for Graph {
         for p in value.pulses {
             pulses.push(Pulse::try_from(p)?);
         }
+        let mut demes = vec![];
+        for hdm_deme in value.demes.into_iter() {
+            let deme = Deme::try_from(hdm_deme)?;
+            demes.push(deme);
+        }
         Ok(Self {
             description: value.description,
             doi: value.doi,
             metadata: value.metadata,
             time_units: value.time_units,
             generation_time: value.generation_time,
-            demes: value.demes,
+            demes,
             resolved_migrations: value.resolved_migrations,
             pulses,
             deme_map: value.deme_map,
@@ -3066,7 +3086,7 @@ impl Graph {
     ///
     /// See [`here`](crate::SizeFunction).
     pub fn get_deme_from_name<'name>(&'name self, name: &'name str) -> Option<&'name Deme> {
-        get_deme(name, &self.deme_map, &self.demes)
+        get_deme!(name, &self.deme_map, &self.demes)
     }
 
     /// Get the [`Deme`](crate::Deme) at index `at`.
@@ -3252,51 +3272,6 @@ mod tests {
         let yaml = "---\nstart_time: 1000\nend_time: 100.3\nend_size: 250\nsize_function: constant"
             .to_string();
         let _: Epoch = serde_yaml::from_str(&yaml).unwrap();
-    }
-
-    #[test]
-    fn load_deme_with_two_epochs() {
-        let yaml = "---\nname: A great deme!\nepochs:\n - start_size: 500\n   end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert!(d.description().is_empty());
-        assert_eq!(d.num_epochs(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_epochs_no_start_size() {
-        let yaml = "---\nname: A great deme!\nepochs:\n - end_time: 500\n - start_size: 200\n   end_size: 100\n".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert!(d.description().is_empty());
-        assert_eq!(d.num_epochs(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_ancestors() {
-        let yaml = "---\nname: A great deme!\nancestors: [Eleven, ApplePie]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert_eq!(d.num_ancestors(), 2);
-    }
-
-    #[test]
-    fn load_deme_with_two_proportions() {
-        let yaml = "---\nname: A great deme!\nproportions: [0.5, 0.5]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(*d.name(), "A great deme!".to_string());
-        assert_eq!(d.proportions().len(), 2);
-        assert!(d.proportions().iter().all(|p| p.0 == 0.5));
-    }
-
-    #[test]
-    #[should_panic]
-    fn load_deme_with_invalid_proportions() {
-        let yaml = "---\nname: A great deme!\nproportions: [0.0, 0.5]".to_string();
-        let d: Deme = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(d.name(), "A great deme!");
-        assert_eq!(d.proportions().len(), 2);
-        assert!(d.proportions().iter().all(|p| p.0 == 0.5));
     }
 
     #[test]

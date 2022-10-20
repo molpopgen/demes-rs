@@ -42,12 +42,15 @@ mod macros;
 mod builder;
 mod error;
 mod specification;
+mod time;
+mod traits;
 
 use std::io::Read;
 
 pub use builder::GraphBuilder;
 pub use error::DemesError;
 pub use specification::*;
+pub use time::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

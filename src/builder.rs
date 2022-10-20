@@ -1,15 +1,15 @@
-use crate::specification::GenerationTime;
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
 use crate::specification::MigrationRate;
 use crate::specification::Proportion;
-use crate::specification::Time;
-use crate::specification::TimeUnits;
 use crate::specification::UnresolvedDeme;
 use crate::specification::UnresolvedDemeHistory;
 use crate::specification::UnresolvedEpoch;
 use crate::specification::UnresolvedGraph;
 use crate::DemesError;
+use crate::GenerationTime;
+use crate::Time;
+use crate::TimeUnits;
 
 /// This type allows building a [`Graph`](crate::Graph) using code
 /// rather then using text input.

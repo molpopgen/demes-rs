@@ -2609,6 +2609,23 @@ impl Graph {
             Err(e) => Err(e.into()),
         }
     }
+
+    /// Return the most recent end time of any deme
+    /// in the Graph.
+    ///
+    /// This function is useful to check if the most
+    /// recent end time is greater than zero, meaning
+    /// that the model ends at a time point ancestral to
+    /// "now".
+    pub fn most_recent_deme_end_time(&self) -> Time {
+        let init = self.demes[0].end_time();
+        self.demes
+            .iter()
+            .skip(1)
+            .fold(init, |current_min, current_deme| {
+                std::cmp::min(current_min, current_deme.end_time())
+            })
+    }
 }
 
 #[cfg(test)]

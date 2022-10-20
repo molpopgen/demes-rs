@@ -87,6 +87,13 @@ pub enum TimeUnits {
 #[repr(transparent)]
 pub(crate) struct HashableTime(Time);
 
+/// A half-open time interval `[present, past)`.
+#[derive(Clone, Copy, Debug)]
+pub struct TimeInterval {
+    start_time: Time,
+    end_time: Time,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[repr(transparent)]
 struct CustomTimeUnits(String);
@@ -189,6 +196,73 @@ impl RoundTimeToInteger {
             }
         }
         Time::from(temp_time)
+    }
+}
+
+impl TimeInterval {
+    fn contains<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+        self.start_time > time && time >= self.end_time
+    }
+
+    pub(crate) fn new(start_time: Time, end_time: Time) -> Self {
+        Self {
+            start_time,
+            end_time,
+        }
+    }
+
+    // true if other is in (start_time, end_time]
+    pub(crate) fn contains_inclusive_start_exclusive_end<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+
+        time > self.end_time && time <= self.start_time
+    }
+
+    pub(crate) fn contains_exclusive_start_inclusive_end<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+
+        time >= self.end_time && time < self.start_time
+    }
+
+    pub(crate) fn contains_inclusive<F>(&self, other: F) -> bool
+    where
+        F: Into<f64>,
+    {
+        let time = other.into();
+        self.start_time >= time && time >= self.end_time
+    }
+
+    pub(crate) fn duration_greater_than_zero(&self) -> bool {
+        self.start_time() > self.end_time()
+    }
+
+    pub(crate) fn contains_start_time(&self, other: Time) -> bool {
+        assert!(other.is_valid_deme_start_time());
+        self.contains(other)
+    }
+
+    /// Return the resolved start time (past) of the interval.
+    pub fn start_time(&self) -> Time {
+        self.start_time
+    }
+
+    /// Return the resolved end time (present) of the interval.
+    pub fn end_time(&self) -> Time {
+        self.end_time
+    }
+
+    pub(crate) fn overlaps(&self, other: &Self) -> bool {
+        self.start_time() > other.end_time() && other.start_time() > self.end_time()
     }
 }
 

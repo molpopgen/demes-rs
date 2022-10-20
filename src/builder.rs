@@ -1,6 +1,5 @@
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
-use crate::specification::MigrationRate;
 use crate::specification::Proportion;
 use crate::specification::UnresolvedDeme;
 use crate::specification::UnresolvedDemeHistory;
@@ -8,6 +7,7 @@ use crate::specification::UnresolvedEpoch;
 use crate::specification::UnresolvedGraph;
 use crate::DemesError;
 use crate::GenerationTime;
+use crate::MigrationRate;
 use crate::Time;
 use crate::TimeUnits;
 

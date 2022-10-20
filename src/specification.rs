@@ -5,6 +5,7 @@
 use crate::time::*;
 use crate::traits::Validate;
 use crate::DemesError;
+use crate::MigrationRate;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -378,41 +379,6 @@ impl Default for SelfingRate {
 }
 
 impl_newtype_traits!(SelfingRate);
-
-/// A migration rate.
-///
-/// # Examples
-///
-/// ## Using [`GraphBuilder`](crate::GraphBuilder)
-///
-/// * [`GraphBuilder::add_symmetric_migration`](crate::GraphBuilder::add_symmetric_migration)
-/// * [`GraphBuilder::add_asymmetric_migration`](crate::GraphBuilder::add_asymmetric_migration)
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[repr(transparent)]
-#[serde(from = "f64")]
-pub struct MigrationRate(f64);
-
-impl MigrationRate {
-    fn validate<F>(&self, f: F) -> Result<(), DemesError>
-    where
-        F: std::ops::FnOnce(String) -> DemesError,
-    {
-        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
-            let msg = format!("migration rate must be 0.0 <= m <= 1.0, got: {}", self.0);
-            Err(f(msg))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-impl Default for MigrationRate {
-    fn default() -> Self {
-        Self::from(0.0)
-    }
-}
-
-impl_newtype_traits!(MigrationRate);
 
 /// An unresolved migration epoch.
 ///
@@ -2526,7 +2492,7 @@ impl UnresolvedGraph {
                 if ti.overlaps(&mti) {
                     match input_rates.get_mut(migration.dest()) {
                         Some(rates) => {
-                            let rate = rates[i] + migration.rate().0;
+                            let rate = rates[i] + f64::from(migration.rate());
                             if rate > 1.0 + 1e-9 {
                                 let msg = format!("migration rate into dest: {} is > 1 in the time interval ({:?}, {:?}]",
                                                   migration.dest(), ti.start_time, ti.end_time);

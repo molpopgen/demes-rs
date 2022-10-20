@@ -4,6 +4,7 @@
 
 use crate::time::*;
 use crate::traits::Validate;
+use crate::CloningRate;
 use crate::DemesError;
 use crate::MigrationRate;
 use crate::SelfingRate;
@@ -324,34 +325,6 @@ impl Display for SizeFunction {
         write!(f, "{}", value)
     }
 }
-
-/// The cloning rate of an [`Epoch`](crate::Epoch).
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[repr(transparent)]
-#[serde(from = "f64")]
-pub struct CloningRate(f64);
-
-impl CloningRate {
-    fn validate<F>(&self, f: F) -> Result<(), DemesError>
-    where
-        F: std::ops::FnOnce(String) -> DemesError,
-    {
-        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
-            let msg = format!("cloning rate must be 0.0 <= C <= 1.0, got: {}", self.0);
-            Err(f(msg))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-impl Default for CloningRate {
-    fn default() -> Self {
-        Self::from(0.0)
-    }
-}
-
-impl_newtype_traits!(CloningRate);
 
 /// An unresolved migration epoch.
 ///
@@ -2896,16 +2869,6 @@ mod tests {
         let yaml = "---\nconstant\n".to_string();
         let sf: SizeFunction = serde_yaml::from_str(&yaml).unwrap();
         assert!(matches!(sf, SizeFunction::Constant));
-    }
-
-    #[test]
-    fn test_valid_cloning_rate() {
-        let yaml = "---\n0.0\n".to_string();
-        let cr: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(cr.0, 0.0);
-        let yaml = "---\n1.0\n".to_string();
-        let cr: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(cr.0, 1.0);
     }
 
     #[test]

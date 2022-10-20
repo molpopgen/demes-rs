@@ -42,6 +42,7 @@ mod macros;
 mod builder;
 mod error;
 mod migration_rate;
+mod selfing_rate;
 mod specification;
 mod time;
 mod traits;
@@ -51,6 +52,7 @@ use std::io::Read;
 pub use builder::GraphBuilder;
 pub use error::DemesError;
 pub use migration_rate::MigrationRate;
+pub use selfing_rate::SelfingRate;
 pub use specification::*;
 pub use time::*;
 

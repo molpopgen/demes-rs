@@ -6,6 +6,7 @@ use crate::time::*;
 use crate::traits::Validate;
 use crate::DemesError;
 use crate::MigrationRate;
+use crate::SelfingRate;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -351,34 +352,6 @@ impl Default for CloningRate {
 }
 
 impl_newtype_traits!(CloningRate);
-
-/// The selfing rate of an [`Epoch`](crate::Epoch).
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[repr(transparent)]
-#[serde(from = "f64")]
-pub struct SelfingRate(f64);
-
-impl SelfingRate {
-    fn validate<F>(&self, f: F) -> Result<(), DemesError>
-    where
-        F: std::ops::FnOnce(String) -> DemesError,
-    {
-        if !self.0.is_finite() || self.0.is_sign_negative() || self.0 > 1.0 {
-            let msg = format!("selfing rate must be 0.0 <= S <= 1.0, got: {}", self.0);
-            Err(f(msg))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-impl Default for SelfingRate {
-    fn default() -> Self {
-        Self::from(0.0)
-    }
-}
-
-impl_newtype_traits!(SelfingRate);
 
 /// An unresolved migration epoch.
 ///
@@ -2932,16 +2905,6 @@ mod tests {
         assert_eq!(cr.0, 0.0);
         let yaml = "---\n1.0\n".to_string();
         let cr: CloningRate = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(cr.0, 1.0);
-    }
-
-    #[test]
-    fn test_valid_selfing_rate() {
-        let yaml = "---\n0.0\n".to_string();
-        let cr: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(cr.0, 0.0);
-        let yaml = "---\n1.0\n".to_string();
-        let cr: SelfingRate = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(cr.0, 1.0);
     }
 

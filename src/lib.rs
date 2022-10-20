@@ -40,6 +40,7 @@
 mod macros;
 
 mod builder;
+mod cloning_rate;
 mod error;
 mod migration_rate;
 mod selfing_rate;
@@ -50,6 +51,7 @@ mod traits;
 use std::io::Read;
 
 pub use builder::GraphBuilder;
+pub use cloning_rate::CloningRate;
 pub use error::DemesError;
 pub use migration_rate::MigrationRate;
 pub use selfing_rate::SelfingRate;

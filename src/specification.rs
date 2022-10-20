@@ -25,73 +25,6 @@ macro_rules! get_deme {
     };
 }
 
-/// A half-open time interval `[present, past)`.
-#[derive(Clone, Copy, Debug)]
-pub struct TimeInterval {
-    start_time: Time,
-    end_time: Time,
-}
-
-impl TimeInterval {
-    fn contains<F>(&self, other: F) -> bool
-    where
-        F: Into<f64>,
-    {
-        let time = other.into();
-        self.start_time > time && time >= self.end_time
-    }
-
-    // true if other is in (start_time, end_time]
-    fn contains_inclusive_start_exclusive_end<F>(&self, other: F) -> bool
-    where
-        F: Into<f64>,
-    {
-        let time = other.into();
-
-        time > self.end_time && time <= self.start_time
-    }
-
-    fn contains_exclusive_start_inclusive_end<F>(&self, other: F) -> bool
-    where
-        F: Into<f64>,
-    {
-        let time = other.into();
-
-        time >= self.end_time && time < self.start_time
-    }
-
-    fn contains_inclusive<F>(&self, other: F) -> bool
-    where
-        F: Into<f64>,
-    {
-        let time = other.into();
-        self.start_time >= time && time >= self.end_time
-    }
-
-    fn duration_greater_than_zero(&self) -> bool {
-        self.start_time() > self.end_time()
-    }
-
-    fn contains_start_time(&self, other: Time) -> bool {
-        assert!(other.is_valid_deme_start_time());
-        self.contains(other)
-    }
-
-    /// Return the resolved start time (past) of the interval.
-    pub fn start_time(&self) -> Time {
-        self.start_time
-    }
-
-    /// Return the resolved end time (present) of the interval.
-    pub fn end_time(&self) -> Time {
-        self.end_time
-    }
-
-    fn overlaps(&self, other: &Self) -> bool {
-        self.start_time() > other.end_time() && other.start_time() > self.end_time()
-    }
-}
-
 /// Specify how deme sizes change during an [`Epoch`](crate::Epoch).
 ///
 /// # Examples
@@ -349,10 +282,7 @@ impl AsymmetricMigration {
 
     /// Resolved time interval of the migration epoch
     pub fn time_interval(&self) -> TimeInterval {
-        TimeInterval {
-            start_time: self.start_time(),
-            end_time: self.end_time(),
-        }
+        TimeInterval::new(self.start_time(), self.end_time())
     }
 }
 
@@ -1054,10 +984,7 @@ impl Deme {
 
     /// The resolved time interval
     pub fn time_interval(&self) -> TimeInterval {
-        TimeInterval {
-            start_time: self.start_time(),
-            end_time: self.end_time(),
-        }
+        TimeInterval::new(self.start_time(), self.end_time())
     }
 
     /// Number of ancestors
@@ -1655,10 +1582,7 @@ impl UnresolvedDeme {
     fn get_time_interval(&self) -> Result<TimeInterval, DemesError> {
         let start_time = self.get_start_time()?;
         let end_time = self.get_end_time()?;
-        Ok(TimeInterval {
-            start_time,
-            end_time,
-        })
+        Ok(TimeInterval::new(start_time, end_time))
     }
 
     fn get_ancestor_names(&self) -> Result<&[String], DemesError> {
@@ -2261,10 +2185,7 @@ impl UnresolvedGraph {
         start_times
             .into_iter()
             .zip(end_times.into_iter())
-            .map(|times| TimeInterval {
-                start_time: times.0,
-                end_time: times.1,
-            })
+            .map(|times| TimeInterval::new(times.0, times.1))
             .collect::<Vec<_>>()
     }
 
@@ -2285,7 +2206,7 @@ impl UnresolvedGraph {
                             let rate = rates[i] + f64::from(migration.rate());
                             if rate > 1.0 + 1e-9 {
                                 let msg = format!("migration rate into dest: {} is > 1 in the time interval ({:?}, {:?}]",
-                                                  migration.dest(), ti.start_time, ti.end_time);
+                                                  migration.dest(), ti.start_time(), ti.end_time());
                                 return Err(DemesError::MigrationError(msg));
                             }
                             rates[i] = rate;

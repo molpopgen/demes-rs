@@ -578,6 +578,7 @@ demes:
     let graph = demes::loads(yaml).unwrap();
     let end_time = graph.deme(0).epochs()[0].end_time();
     assert_eq!(100.0, f64::from(end_time));
+    assert_eq!(graph.most_recent_deme_end_time(), 100.0);
 }
 
 // from demes-spec/test-cases/valid

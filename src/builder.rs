@@ -135,7 +135,7 @@ impl GraphBuilder {
         self.add_migration::<_, String, String>(demes, None, None, rate, start_time, end_time);
     }
 
-    /// Add an [`UnresolvedMigration`](crate::UnresolvedMigration) to the graph.
+    /// Add a migration to the graph.
     ///
     /// # Note
     ///

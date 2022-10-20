@@ -1268,23 +1268,19 @@ impl UnresolvedEpoch {
         &mut self,
         defaults: &GraphDefaults,
         deme_defaults: &DemeDefaults,
-    ) -> Result<(), DemesError> {
+    ) -> Option<()> {
         if self.size_function.is_some() {
-            return Ok(());
+            return Some(());
         }
-        let start_size = self.get_start_size()?;
-        match self.end_size {
-            Some(end_size) => {
-                if start_size.0 == end_size.0 {
-                    self.size_function = Some(SizeFunction::Constant);
-                } else {
-                    self.size_function = defaults
-                        .apply_epoch_size_function_defaults(self.size_function, deme_defaults);
-                }
-                Ok(())
-            }
-            None => Err(DemesError::EpochError("Epoch end_size is None".to_string())),
+
+        if self.start_size? == self.end_size? {
+            self.size_function = Some(SizeFunction::Constant);
+        } else {
+            self.size_function =
+                defaults.apply_epoch_size_function_defaults(self.size_function, deme_defaults);
         }
+
+        Some(())
     }
 
     fn resolve_selfing_rate(&mut self, defaults: &GraphDefaults, deme_defaults: &DemeDefaults) {
@@ -1319,6 +1315,7 @@ impl UnresolvedEpoch {
         self.resolve_selfing_rate(defaults, deme_defaults);
         self.resolve_cloning_rate(defaults, deme_defaults);
         self.resolve_size_function(defaults, deme_defaults)
+            .ok_or_else(|| DemesError::EpochError("failed to resolve size_function".to_string()))
     }
 
     fn validate_end_time(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
@@ -1378,52 +1375,24 @@ impl UnresolvedEpoch {
     }
 
     fn validate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
-        let start_size = match self.get_start_size() {
-            Ok(x) => x,
-            Err(_) => {
-                return Err(DemesError::EpochError(format!(
-                    "deme {}, epoch {}: start_size is None",
-                    deme_name, index
-                )))
-            }
-        };
+        let start_size = self.start_size.ok_or_else(|| {
+            DemesError::EpochError(format!(
+                "deme {}, epoch {}: start_size is None",
+                deme_name, index
+            ))
+        })?;
         start_size.validate(DemesError::EpochError)?;
-        let end_size = match self.get_end_size() {
-            Ok(x) => x,
-            Err(_) => {
-                return Err(DemesError::EpochError(format!(
-                    "deme {}, epoch {}: end_size is None",
-                    deme_name, index
-                )))
-            }
-        };
+        let end_size = self.end_size.ok_or_else(|| {
+            DemesError::EpochError(format!(
+                "deme {}, epoch {}: end_size is None",
+                deme_name, index
+            ))
+        })?;
         end_size.validate(DemesError::EpochError)?;
         self.validate_end_time(index, deme_name)?;
         self.validate_cloning_rate(index, deme_name)?;
         self.validate_selfing_rate(index, deme_name)?;
         self.validate_size_function(index, deme_name, start_size, end_size)
-    }
-
-    fn end_time_resolved_or_else<F: FnOnce() -> DemesError>(
-        &self,
-        err: F,
-    ) -> Result<Time, DemesError> {
-        self.end_time.ok_or_else(err)
-    }
-
-    fn get_start_size(&self) -> Result<DemeSize, DemesError> {
-        self.start_size
-            .ok_or_else(|| DemesError::EpochError("start_size is None".to_string()))
-    }
-
-    fn get_end_size(&self) -> Result<DemeSize, DemesError> {
-        self.end_size
-            .ok_or_else(|| DemesError::EpochError("end_size is None".to_string()))
-    }
-
-    fn get_end_time(&self) -> Result<Time, DemesError> {
-        self.end_time
-            .ok_or_else(|| DemesError::EpochError("end_time is None".to_string()))
     }
 }
 
@@ -1821,7 +1790,7 @@ impl UnresolvedDeme {
 
         let mut last_time = f64::from(self.get_start_time()?);
         for (i, epoch) in self.epochs.iter().enumerate() {
-            let end_time = f64::from(epoch.end_time_resolved_or_else(|| {
+            let end_time = f64::from(epoch.end_time.ok_or_else(|| {
                 DemesError::EpochError(format!(
                     "deme: {}, epoch: {} end time must be specified",
                     self.name, i
@@ -1834,7 +1803,10 @@ impl UnresolvedDeme {
                 ));
             }
             last_time = end_time;
-            epoch.get_end_time()?.validate(DemesError::EpochError)?;
+            epoch
+                .end_time
+                .ok_or_else(|| DemesError::EpochError("end_time is None".to_string()))?
+                .validate(DemesError::EpochError)?;
         }
 
         Ok(())

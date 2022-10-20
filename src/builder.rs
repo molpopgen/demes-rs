@@ -246,8 +246,8 @@ impl GraphBuilder {
 mod tests {
     use super::*;
     use crate::specification::DemeDefaults;
-    use crate::specification::DemeSize;
     use crate::specification::Proportion;
+    use crate::DemeSize;
 
     #[test]
     #[should_panic]

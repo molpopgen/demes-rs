@@ -41,6 +41,7 @@ mod macros;
 
 mod builder;
 mod cloning_rate;
+mod deme_size;
 mod error;
 mod migration_rate;
 mod selfing_rate;
@@ -52,6 +53,7 @@ use std::io::Read;
 
 pub use builder::GraphBuilder;
 pub use cloning_rate::CloningRate;
+pub use deme_size::DemeSize;
 pub use error::DemesError;
 pub use migration_rate::MigrationRate;
 pub use selfing_rate::SelfingRate;

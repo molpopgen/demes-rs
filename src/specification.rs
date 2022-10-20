@@ -124,7 +124,7 @@ impl Display for SizeFunction {
 ///                                    ..Default::default()
 ///                                    };
 /// ```
-#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedMigration {
     /// The demes involved in symmetric migration epochs
@@ -215,7 +215,7 @@ impl UnresolvedMigration {
 /// An asymmetric migration epoch.
 ///
 /// All input migrations are resolved to asymmetric migration instances.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Eq, PartialEq)]
 pub struct AsymmetricMigration {
     source: String,
     dest: String,
@@ -286,17 +286,7 @@ impl AsymmetricMigration {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct SymmetricMigration {
-    demes: Vec<String>,
-    rate: MigrationRate,
-    start_time: Option<Time>,
-    end_time: Option<Time>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(try_from = "UnresolvedMigration")]
-#[serde(into = "UnresolvedMigration")]
+#[derive(Clone, Debug)]
 enum Migration {
     Asymmetric(UnresolvedMigration),
     Symmetric(UnresolvedMigration),
@@ -344,7 +334,7 @@ impl From<Migration> for UnresolvedMigration {
 }
 
 /// A resolved Pulse event
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Pulse {
     sources: Vec<String>,
@@ -354,7 +344,7 @@ pub struct Pulse {
 }
 
 /// An unresolved Pulse event.
-#[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedPulse {
     #[allow(missing_docs)]
@@ -623,7 +613,7 @@ impl Pulse {
 ///              ..Default::default()
 ///              };
 /// ```
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedEpoch {
     #[allow(missing_docs)]
@@ -889,7 +879,7 @@ impl UnresolvedEpoch {
     }
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UnresolvedDeme {
     name: String,
@@ -1122,7 +1112,7 @@ impl PartialEq for Deme {
 }
 
 /// HDM data for a [`Deme`](crate::Deme)
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedDemeHistory {
     #[allow(missing_docs)]
@@ -1641,7 +1631,7 @@ fn deme_name_exists<F: FnOnce(String) -> DemesError>(
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphDefaultInput {
     #[serde(flatten)]
@@ -1649,7 +1639,7 @@ struct GraphDefaultInput {
 }
 
 /// Top-level defaults
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GraphDefaults {
     #[allow(missing_docs)]
@@ -1758,7 +1748,7 @@ impl GraphDefaults {
 ///
 /// This type is used as a member of
 /// [`GraphDefaults`](crate::GraphDefaults)
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TopLevelDemeDefaults {
     #[allow(missing_docs)]
@@ -1791,7 +1781,7 @@ impl TopLevelDemeDefaults {
 }
 
 /// Deme-level defaults
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DemeDefaults {
     #[allow(missing_docs)]
@@ -1867,7 +1857,7 @@ impl Metadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UnresolvedGraph {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2062,7 +2052,7 @@ impl UnresolvedGraph {
             .rate
             .ok_or_else(|| DemesError::MigrationError("migration rate is None".to_string()))?;
 
-        // Each input SymmetricMigration becomes two AsymmetricMigration instances
+        // Each input symmetric migration becomes two AsymmetricMigration instances
         for (i, source_name) in demes.iter().enumerate().take(demes.len() - 1) {
             for dest_name in demes.iter().skip(i + 1) {
                 if source_name == dest_name {

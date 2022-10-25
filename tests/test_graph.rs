@@ -612,39 +612,23 @@ demes:
         }
     }
     let expected_start_sizes = vec![1.; 5];
-    let start_sizes = g
-        .deme(0)
-        .start_sizes()
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let start_sizes = g.deme(0).start_sizes().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_sizes, expected_start_sizes);
 
     let expected_end_sizes = vec![1.0, 2.0, 2.0, 2.0, 2.0];
     let end_sizes = g.deme(0).end_sizes();
-    let end_sizes = end_sizes
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let end_sizes = end_sizes.map(f64::from).collect::<Vec<f64>>();
     assert_eq!(end_sizes, expected_end_sizes);
     assert_eq!(g.deme(0).end_size(), 2.0);
     let expected_start_times = vec![f64::INFINITY, 100., 3., 2., 1.];
-    let start_times = g
-        .deme(0)
-        .start_times()
-        .iter()
-        .map(|time| f64::from(*time))
-        .collect::<Vec<f64>>();
+    let start_times = g.deme(0).start_times().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_times, expected_start_times);
     for (i, epoch) in g.deme(0).epochs().iter().enumerate() {
         assert_eq!(epoch.start_time(), start_times[i]);
     }
     let expected_end_times = vec![100., 3., 2., 1., 0.];
     let end_times = g.deme(0).end_times();
-    let end_times = end_times
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let end_times = end_times.map(f64::from).collect::<Vec<f64>>();
     assert_eq!(end_times, expected_end_times);
 }
 
@@ -707,11 +691,7 @@ demes:
     assert_eq!(f64::from(deme.start_time()), f64::INFINITY);
     let deme = g.deme(1);
     assert_eq!(f64::from(deme.end_time()), 10.0);
-    let end_times = deme
-        .end_times()
-        .iter()
-        .map(|time| f64::from(*time))
-        .collect::<Vec<f64>>();
+    let end_times = deme.end_times().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(end_times, vec![90., 50., 10.]);
 }
 
@@ -804,19 +784,9 @@ demes:
     epoch: {start_size: 1}
 ";
     let g = demes::loads(yaml).unwrap();
-    let start_sizes = g
-        .deme(0)
-        .start_sizes()
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let start_sizes = g.deme(0).start_sizes().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_sizes, vec![1.0]);
-    let start_sizes = g
-        .deme(1)
-        .start_sizes()
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let start_sizes = g.deme(1).start_sizes().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_sizes, vec![1.0, 1.0, 100.0]);
 }
 
@@ -838,19 +808,9 @@ demes:
     epoch: {end_size: 1}
 ";
     let g = demes::loads(yaml).unwrap();
-    let start_sizes = g
-        .deme(0)
-        .start_sizes()
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let start_sizes = g.deme(0).start_sizes().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_sizes, vec![1.0]);
-    let start_sizes = g
-        .deme(1)
-        .start_sizes()
-        .iter()
-        .map(|size| f64::from(*size))
-        .collect::<Vec<f64>>();
+    let start_sizes = g.deme(1).start_sizes().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(start_sizes, vec![1.0, 100.0, 1.0]);
 }
 
@@ -890,29 +850,14 @@ demes:
     let g = demes::loads(yaml).unwrap();
 
     for i in 0..3 {
-        let end_times = g
-            .deme(i)
-            .end_times()
-            .iter()
-            .map(|time| f64::from(*time))
-            .collect::<Vec<f64>>();
+        let end_times = g.deme(i).end_times().map(f64::from).collect::<Vec<f64>>();
         assert_eq!(end_times, vec![100.]);
     }
     // deme d
-    let end_times = g
-        .deme(3)
-        .end_times()
-        .iter()
-        .map(|time| f64::from(*time))
-        .collect::<Vec<f64>>();
+    let end_times = g.deme(3).end_times().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(end_times, vec![50., 0.]);
     // deme e
-    let end_times = g
-        .deme(4)
-        .end_times()
-        .iter()
-        .map(|time| f64::from(*time))
-        .collect::<Vec<f64>>();
+    let end_times = g.deme(4).end_times().map(f64::from).collect::<Vec<f64>>();
     assert_eq!(end_times, vec![50., 10.]);
 }
 

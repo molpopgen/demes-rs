@@ -943,10 +943,7 @@ impl Deme {
             .iter_mut()
             .try_for_each(|epoch| epoch.resolved_time_to_generations(generation_time, rounding))?;
 
-        let starts = self.start_times();
-        let ends = self.end_times();
-
-        let valid = |w: (&Time, &Time)| {
+        let valid = |w: (Time, Time)| {
             if w.1 >= w.0 {
                 Err(DemesError::EpochError(
                     "conversion to generations resulted in an invalid Epoch".to_string(),
@@ -956,27 +953,21 @@ impl Deme {
             }
         };
 
-        starts.iter().zip(ends.iter()).try_for_each(|w| valid(w))?;
-        ends.windows(2).try_for_each(|w| valid((&w[0], &w[1])))?;
+        self.start_times()
+            .zip(self.end_times())
+            .try_for_each(valid)?;
+
+        self.end_times()
+            .take(self.num_epochs() - 1)
+            .zip(self.end_times().skip(1))
+            .try_for_each(valid)?;
 
         Ok(())
     }
 
-    /// Vector of resolved start times
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn start_times(&self) -> Vec<Time> {
-        let mut rv = vec![self.start_time()];
-        let end_time = self.end_time();
-
-        self.epochs.iter().for_each(|epoch| {
-            let epoch_end = epoch.end_time();
-            if epoch_end != end_time {
-                rv.push(epoch_end);
-            }
-        });
-        rv
+    /// Iterator over resolved epoch start times
+    pub fn start_times(&self) -> impl Iterator<Item = Time> + '_ {
+        DemeEpochStartTimesIterator::new(self)
     }
 
     /// The resolved start time
@@ -999,28 +990,19 @@ impl Deme {
         self.ancestors.len()
     }
 
-    /// Vector of resolved start sizes.
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn start_sizes(&self) -> Vec<DemeSize> {
-        self.epochs.iter().map(|epoch| epoch.start_size()).collect()
+    /// Iterator over resolved epoch start sizes.
+    pub fn start_sizes(&self) -> impl Iterator<Item = DemeSize> + '_ {
+        DemeEpochStartSizesIterator::new(self)
     }
 
-    /// Vector of resolved start sizes
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn end_sizes(&self) -> Vec<DemeSize> {
-        self.epochs.iter().map(|epoch| epoch.end_size()).collect()
+    /// Iterator over resolved epoch end sizes
+    pub fn end_sizes(&self) -> impl Iterator<Item = DemeSize> + '_ {
+        DemeEpochEndSizesIterator::new(self)
     }
 
-    /// Vector of resolved end times
-    ///
-    /// The values are obtained by traversing
-    /// all epochs.
-    pub fn end_times(&self) -> Vec<Time> {
-        self.epochs.iter().map(|epoch| epoch.end_time()).collect()
+    /// Itertor over resolved epoch end times
+    pub fn end_times(&self) -> impl Iterator<Item = Time> + '_ {
+        DemeEpochEndTimesIterator::new(self)
     }
 
     /// End time of the deme.
@@ -1133,6 +1115,40 @@ impl PartialEq for Deme {
             && self.ancestor_map == other.ancestor_map
     }
 }
+
+macro_rules! build_epoch_data_iterator {
+    ($name: ident, $item: ty, $function: ident) => {
+        struct $name<'deme> {
+            deme: &'deme Deme,
+            epoch: usize,
+        }
+
+        impl<'deme> $name<'deme> {
+            fn new(deme: &'deme Deme) -> Self {
+                Self { deme, epoch: 0 }
+            }
+        }
+
+        impl<'deme> Iterator for $name<'deme> {
+            type Item = $item;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                match self.deme.epochs.get(self.epoch) {
+                    Some(epoch) => {
+                        self.epoch += 1;
+                        Some(epoch.$function())
+                    }
+                    None => None,
+                }
+            }
+        }
+    };
+}
+
+build_epoch_data_iterator!(DemeEpochStartTimesIterator, Time, start_time);
+build_epoch_data_iterator!(DemeEpochEndTimesIterator, Time, end_time);
+build_epoch_data_iterator!(DemeEpochStartSizesIterator, DemeSize, start_size);
+build_epoch_data_iterator!(DemeEpochEndSizesIterator, DemeSize, end_size);
 
 /// HDM data for a [`Deme`](crate::Deme)
 #[derive(Default, Clone, Debug, Deserialize)]

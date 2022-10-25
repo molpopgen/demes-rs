@@ -661,6 +661,8 @@ impl UnresolvedEpoch {
 #[derive(Clone, Copy, Debug, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Epoch {
+    #[serde(skip)]
+    start_time: Time,
     end_time: Time,
     start_size: DemeSize,
     end_size: DemeSize,
@@ -670,11 +672,48 @@ pub struct Epoch {
 }
 
 impl Epoch {
+    fn new_from_unresolved(
+        start_time: Time,
+        unresolved: UnresolvedEpoch,
+    ) -> Result<Self, DemesError> {
+        Ok(Self {
+            start_time,
+            end_time: unresolved
+                .end_time
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            start_size: unresolved
+                .start_size
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            end_size: unresolved
+                .end_size
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            size_function: unresolved
+                .size_function
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            cloning_rate: unresolved
+                .cloning_rate
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+            selfing_rate: unresolved
+                .selfing_rate
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+        })
+    }
+
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
         rounding: Option<RoundTimeToInteger>,
     ) -> Result<(), DemesError> {
+        self.start_time = match convert_resolved_time_to_generations(
+            generation_time,
+            rounding,
+            DemesError::EpochError,
+            "start_time is unresolved",
+            Some(self.start_time),
+        ) {
+            Ok(time) => time,
+            Err(e) => return Err(e),
+        };
         self.end_time = match convert_resolved_time_to_generations(
             generation_time,
             rounding,
@@ -703,6 +742,11 @@ impl Epoch {
         self.cloning_rate
     }
 
+    /// The resolved start time
+    pub fn start_time(&self) -> Time {
+        self.start_time
+    }
+
     /// The resolved end time
     pub fn end_time(&self) -> Time {
         self.end_time
@@ -716,33 +760,6 @@ impl Epoch {
     /// The resolved end size
     pub fn end_size(&self) -> DemeSize {
         self.end_size
-    }
-}
-
-impl TryFrom<UnresolvedEpoch> for Epoch {
-    type Error = DemesError;
-
-    fn try_from(value: UnresolvedEpoch) -> Result<Self, Self::Error> {
-        Ok(Self {
-            end_time: value
-                .end_time
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-            start_size: value
-                .start_size
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-            end_size: value
-                .end_size
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-            size_function: value
-                .size_function
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-            cloning_rate: value
-                .cloning_rate
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-            selfing_rate: value
-                .selfing_rate
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
-        })
     }
 }
 
@@ -1077,8 +1094,16 @@ impl TryFrom<UnresolvedDeme> for Deme {
 
     fn try_from(value: UnresolvedDeme) -> Result<Self, Self::Error> {
         let mut epochs = vec![];
+        let start_time = value.history.start_time.ok_or_else(|| {
+            DemesError::DemeError(format!("deme {} start_time is not resolved", value.name))
+        })?;
+        let mut epoch_start_time = start_time;
         for hdm_epoch in value.epochs.into_iter() {
-            let e = Epoch::try_from(hdm_epoch)?;
+            let end_time = hdm_epoch
+                .end_time
+                .ok_or_else(|| DemesError::EpochError("epoch end time unresolved".to_string()))?;
+            let e = Epoch::new_from_unresolved(epoch_start_time, hdm_epoch)?;
+            epoch_start_time = end_time;
             epochs.push(e);
         }
         Ok(Self {
@@ -1091,9 +1116,7 @@ impl TryFrom<UnresolvedDeme> for Deme {
             proportions: value.history.proportions.ok_or_else(|| {
                 DemesError::DemeError(format!("deme {} proportions are not resolved", value.name))
             })?,
-            start_time: value.history.start_time.ok_or_else(|| {
-                DemesError::DemeError(format!("deme {} start_time is not resolved", value.name))
-            })?,
+            start_time,
             name: value.name,
         })
     }

@@ -636,6 +636,9 @@ demes:
         .map(|time| f64::from(*time))
         .collect::<Vec<f64>>();
     assert_eq!(start_times, expected_start_times);
+    for (i, epoch) in g.deme(0).epochs().iter().enumerate() {
+        assert_eq!(epoch.start_time(), start_times[i]);
+    }
     let expected_end_times = vec![100., 3., 2., 1., 0.];
     let end_times = g.deme(0).end_times();
     let end_times = end_times

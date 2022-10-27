@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2022-10-27
+
+### Miscellaneous Tasks
+
+- Fix tag_pattern in cliff.toml ([#194](https://github.com/molpopgen/demes-rs/pull/194))
+- Add dependabot update for github-actions. ([#195](https://github.com/molpopgen/demes-rs/pull/195))
+- Bump actions/checkout from 2 to 3 ([#196](https://github.com/molpopgen/demes-rs/pull/196))
+- Bump styfle/cancel-workflow-action from 0.6.0 to 0.11.0 ([#197](https://github.com/molpopgen/demes-rs/pull/197))
+
+### Refactor
+
+- Remove type name from impl Display for newtypes. ([#199](https://github.com/molpopgen/demes-rs/pull/199))
+
 ## [0.3.0] - 2022-10-25
 
 ### Documentation

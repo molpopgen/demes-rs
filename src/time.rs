@@ -94,6 +94,12 @@ pub struct TimeInterval {
     end_time: Time,
 }
 
+impl std::fmt::Display for TimeInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}]", self.start_time, self.end_time)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[repr(transparent)]
 struct CustomTimeUnits(String);

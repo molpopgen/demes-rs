@@ -179,7 +179,7 @@ impl Time {
 impl GenerationTime {
     fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
         if !self.0.is_finite() || !self.0.is_sign_positive() || !self.gt(&0.0) {
-            Err(err(format!("generation time must be > 0.0, got: {}", self)))
+            Err(err(format!("generation time must be > 0.0, got: {self}")))
         } else {
             Ok(())
         }

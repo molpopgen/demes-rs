@@ -33,15 +33,7 @@ fn graph_api_examples(graph: &demes::Graph) {
 
     println!("The time units are: {}", graph.time_units());
 
-    // Generation time is optional.
-    // If not present, we print a value of 1.0,
-    // This is technically a bug that will be fixed
-    // later: the generation time must be resolved
-    // so should not be an Option.
-    println!(
-        "The generation time is: {}",
-        graph.generation_time().unwrap_or_else(|| 1.0.into())
-    );
+    println!("The generation time is: {}", graph.generation_time());
 }
 
 fn iterate_demes_and_epochs(graph: &demes::Graph) {

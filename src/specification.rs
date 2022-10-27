@@ -99,7 +99,7 @@ impl Display for SizeFunction {
             SizeFunction::Linear => "linear",
             SizeFunction::Exponential => "exponential",
         };
-        write!(f, "{}", value)
+        write!(f, "{value}")
     }
 }
 
@@ -183,7 +183,7 @@ impl UnresolvedMigration {
             .as_ref()
             .ok_or_else(|| DemesError::MigrationError("demes is None".to_string()))?;
         self.rate.ok_or_else(|| {
-            DemesError::MigrationError(format!("migration rate among {:?} is None", demes,))
+            DemesError::MigrationError(format!("migration rate among {demes:?} is None",))
         })?;
         Ok(())
     }
@@ -467,7 +467,7 @@ impl UnresolvedPulse {
 
         for source_name in sources {
             let source = get_deme!(source_name, deme_map, demes).ok_or_else(|| {
-                DemesError::PulseError(format!("invalid pulse source: {}", source_name))
+                DemesError::PulseError(format!("invalid pulse source: {source_name}"))
             })?;
 
             let ti = source.get_time_interval()?;
@@ -481,7 +481,7 @@ impl UnresolvedPulse {
         }
 
         let dest_deme = get_deme!(dest, deme_map, demes)
-            .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {}", dest)))?;
+            .ok_or_else(|| DemesError::PulseError(format!("invalid pulse dest: {dest}")))?;
         let ti = dest_deme.get_time_interval()?;
         if !ti.contains_inclusive_start_exclusive_end(time) {
             return Err(DemesError::PulseError(format!(
@@ -1311,8 +1311,8 @@ impl UnresolvedDeme {
         for (i, epoch) in self.epochs.iter().enumerate() {
             let end_time = f64::from(epoch.end_time.ok_or_else(|| {
                 DemesError::EpochError(format!(
-                    "deme: {}, epoch: {} end time must be specified",
-                    self.name, i
+                    "deme: {}, epoch: {i} end time must be specified",
+                    self.name
                 ))
             })?);
 
@@ -1481,14 +1481,14 @@ impl UnresolvedDeme {
                     }
                     if !deme_map.contains_key(ancestor) {
                         return Err(DemesError::DemeError(format!(
-                            "deme: {} lists invalid ancestor: {}",
-                            self.name, ancestor
+                            "deme: {} lists invalid ancestor: {ancestor}",
+                            self.name
                         )));
                     }
                     if ancestor_set.contains(ancestor) {
                         return Err(DemesError::DemeError(format!(
-                            "deme: {} lists ancestor: {} multiple times",
-                            self.name, ancestor
+                            "deme: {} lists ancestor: {ancestor} multiple times",
+                            self.name
                         )));
                     }
                     ancestor_set.insert(ancestor.clone());
@@ -1525,7 +1525,7 @@ impl UnresolvedDeme {
         })?;
         for ancestor in ancestors {
             let deme = deme_map.get(ancestor).ok_or_else(|| {
-                DemesError::DemeError(format!("invalid ancestor of {}: {}", self.name, ancestor))
+                DemesError::DemeError(format!("invalid ancestor of {}: {ancestor}", self.name))
             })?;
             ancestor_map.insert(ancestor.clone(), *deme);
         }
@@ -1599,8 +1599,8 @@ impl UnresolvedDeme {
             // NOTE: this is same default as Python's math.isclose().
             if (sum_proportions - 1.0).abs() > 1e-9 {
                 return Err(DemesError::DemeError(format!(
-                    "proportions for deme {} should sum to ~1.0, got: {}",
-                    self.name, sum_proportions
+                    "proportions for deme {} should sum to ~1.0, got: {sum_proportions}",
+                    self.name
                 )));
             }
         }
@@ -1664,7 +1664,7 @@ fn deme_name_exists<F: FnOnce(String) -> DemesError>(
     err: F,
 ) -> Result<(), DemesError> {
     if !map.contains_key(name) {
-        Err(err(format!("deme {} does not exist", name)))
+        Err(err(format!("deme {name} does not exist")))
     } else {
         Ok(())
     }
@@ -2022,10 +2022,10 @@ impl UnresolvedGraph {
         end_time: Option<Time>,
     ) -> Result<(), DemesError> {
         let source_deme = get_deme!(&source, &self.deme_map, &self.demes).ok_or_else(|| {
-            crate::DemesError::MigrationError(format!("invalid source deme name {}", source))
+            crate::DemesError::MigrationError(format!("invalid source deme name {source}"))
         })?;
         let dest_deme = get_deme!(&dest, &self.deme_map, &self.demes).ok_or_else(|| {
-            crate::DemesError::MigrationError(format!("invalid dest deme name {}", dest))
+            crate::DemesError::MigrationError(format!("invalid dest deme name {dest}"))
         })?;
 
         let start_time = match start_time {
@@ -2685,7 +2685,7 @@ mod tests {
     #[test]
     fn test_display() {
         let t = Time::from(1.0);
-        let f = format!("{}", t);
+        let f = format!("{t}");
         assert_eq!(f, String::from("1"));
     }
 

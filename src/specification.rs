@@ -761,6 +761,11 @@ impl Epoch {
     pub fn end_size(&self) -> DemeSize {
         self.end_size
     }
+
+    /// The resolved time interval
+    pub fn time_interval(&self) -> TimeInterval {
+        TimeInterval::new(self.start_time(), self.end_time())
+    }
 }
 
 impl UnresolvedEpoch {
@@ -1149,6 +1154,36 @@ build_epoch_data_iterator!(DemeEpochStartTimesIterator, Time, start_time);
 build_epoch_data_iterator!(DemeEpochEndTimesIterator, Time, end_time);
 build_epoch_data_iterator!(DemeEpochStartSizesIterator, DemeSize, start_size);
 build_epoch_data_iterator!(DemeEpochEndSizesIterator, DemeSize, end_size);
+
+struct DOIIterator<'graph> {
+    graph: &'graph Graph,
+    index: usize,
+}
+
+impl<'graph> DOIIterator<'graph> {
+    fn new(graph: &'graph Graph) -> Self {
+        Self { graph, index: 0 }
+    }
+}
+
+impl<'graph> Iterator for DOIIterator<'graph> {
+    type Item = &'graph str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.graph.doi {
+            Some(doi) => {
+                let temp = self.index;
+                self.index += 1;
+                //doi.get(temp)
+                match doi.get(temp) {
+                    Some(v) => Some(v.as_str()),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    }
+}
 
 /// HDM data for a [`Deme`](crate::Deme)
 #[derive(Default, Clone, Debug, Deserialize)]
@@ -2664,6 +2699,19 @@ impl Graph {
             .fold(init, |current_min, current_deme| {
                 std::cmp::min(current_min, current_deme.end_time())
             })
+    }
+
+    /// Return the description field.
+    pub fn description(&self) -> Option<&str> {
+        match &self.description {
+            Some(x) => Some(x),
+            None => None,
+        }
+    }
+
+    /// Return an iterator over DOI information.
+    pub fn doi(&self) -> impl Iterator<Item = &str> {
+        DOIIterator::new(self)
     }
 }
 

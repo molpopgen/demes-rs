@@ -2686,7 +2686,7 @@ mod tests {
     fn test_display() {
         let t = Time::from(1.0);
         let f = format!("{}", t);
-        assert!(f.contains("Time("));
+        assert_eq!(f, String::from("1"));
     }
 
     #[test]

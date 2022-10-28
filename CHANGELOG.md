@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0-alpha.0] - 2022-10-28
+
+### Bug Fixes
+
+- [**breaking**] Graph::generation_time() now returns GenerationTime. ([#204](https://github.com/molpopgen/demes-rs/pull/204))
+
+### Documentation
+
+- Hide setup code in demes::load example ([#205](https://github.com/molpopgen/demes-rs/pull/205))
+- Document json cargo feature ([#209](https://github.com/molpopgen/demes-rs/pull/209))
+
+### Features
+
+- Add several pub fns and an example. ([#201](https://github.com/molpopgen/demes-rs/pull/201))
+- Add JSON support via cargo feature ([#206](https://github.com/molpopgen/demes-rs/pull/206))
+
+### Miscellaneous Tasks
+
+- Update github actions ([#208](https://github.com/molpopgen/demes-rs/pull/208))
+
+### Styling
+
+- Fix lints from nightly clippy ([#200](https://github.com/molpopgen/demes-rs/pull/200))
+
+### Testing
+
+- Use cargo hack to run tests ([#207](https://github.com/molpopgen/demes-rs/pull/207))
+
 ## [0.3.1] - 2022-10-27
 
 ### Miscellaneous Tasks

@@ -33,9 +33,17 @@
 //! * There are currently no convenience functions for exporting
 //!   a [`Graph`](crate::Graph) back into `YAML`.
 //!   However, this task is easily done via [serde_yaml::to_string].
+//!
+//! # Features
+//!
+//! The following [cargo features](https://doc.rust-lang.org/cargo/reference/features.html)
+//! are available:
+//!
+//! * `json`: enables reading/writing a [`Graph`] in JSON format.
 
 #![warn(missing_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 mod macros;
 
@@ -94,6 +102,7 @@ pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
 
 /// Generate a [`Graph`] from a JSON string.
 #[cfg(feature = "json")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
 pub fn loads_json(json: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_json_str(json)
 }
@@ -146,6 +155,7 @@ pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
 }
 
 #[cfg(feature = "json")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
 /// Load a [`Graph`] from a JSON reader.
 pub fn load_json<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_json_reader(reader)

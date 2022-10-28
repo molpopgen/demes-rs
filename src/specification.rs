@@ -2533,6 +2533,7 @@ impl Graph {
     }
 
     #[cfg(feature = "json")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_str(json: &'_ str) -> Result<Self, DemesError> {
         let mut g: UnresolvedGraph = serde_json::from_str(json)?;
         g.resolve()?;
@@ -2548,6 +2549,7 @@ impl Graph {
     }
 
     #[cfg(feature = "json")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let mut g: UnresolvedGraph = serde_json::from_reader(reader)?;
         g.resolve()?;
@@ -2566,6 +2568,7 @@ impl Graph {
     }
 
     #[cfg(feature = "json")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let graph = Self::new_from_json_reader(reader)?;
         Ok(graph)
@@ -2709,6 +2712,7 @@ impl Graph {
     /// Will return an error if `serde_json::to_string`
     /// returns an error.
     #[cfg(feature = "json")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub fn as_json_string(&self) -> Result<String, DemesError> {
         match serde_json::to_string(self) {
             Ok(string) => Ok(string),

@@ -31,22 +31,17 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
       - uses: Swatinem/rust-cache@v1
-      - name: cargo check
-        run: cargo check 
-      - name: cargo check examples
-        run: cargo check --examples
-      - name: cargo check all features
-        run: cargo check --all-features
-      - name: cargo check examples w/all featurse
-        run: cargo check --examples --all-features
-      - name: run tests
+      - uses: taiki-e/install-action@cargo-hack
+      - name: cargo check (feature powerset)
+        run: cargo hack check --feature-powerset --no-dev-deps
+      - name: cargo check examples (feature powerset)
+        run: cargo hack check --examples --feature-powerset
+      - name: run tests (feature powerset)
         run: |
-            cargo test
-            cargo test --examples
-      - name: run tests (all featurss)
+            cargo hack test --all-targets --feature-powerset
+      - name: run doc tests (feature powerset)
         run: |
-            cargo test --all-features
-            cargo test --all-features --examples
+            cargo hack test --doc --feature-powerset
 
   fmt:
     name: rust fmt

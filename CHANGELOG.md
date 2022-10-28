@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0-alpha.1] - 2022-10-28
+
+### Documentation
+
+- Build all features on docs.rs ([#210](https://github.com/molpopgen/demes-rs/pull/210))
+
 ## [0.4.0-alpha.0] - 2022-10-28
 
 ### Bug Fixes

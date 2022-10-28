@@ -44,10 +44,21 @@ pub enum DemesError {
     #[error("{0:?}")]
     /// Errors coming from `serde_yaml`.
     YamlError(serde_yaml::Error),
+    #[cfg(feature = "json")]
+    #[error("{0:?}")]
+    /// Errors coming from `serde_json`.
+    JsonError(serde_json::Error),
 }
 
 impl From<serde_yaml::Error> for DemesError {
     fn from(error: serde_yaml::Error) -> Self {
         Self::YamlError(error)
+    }
+}
+
+#[cfg(feature = "json")]
+impl From<serde_json::Error> for DemesError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::JsonError(error)
     }
 }

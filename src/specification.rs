@@ -2532,8 +2532,24 @@ impl Graph {
         g.try_into()
     }
 
+    #[cfg(feature = "json")]
+    pub(crate) fn new_resolved_from_json_str(json: &'_ str) -> Result<Self, DemesError> {
+        let mut g: UnresolvedGraph = serde_json::from_str(json)?;
+        g.resolve()?;
+        g.validate()?;
+        g.try_into()
+    }
+
     pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let mut g: UnresolvedGraph = serde_yaml::from_reader(reader)?;
+        g.resolve()?;
+        g.validate()?;
+        g.try_into()
+    }
+
+    #[cfg(feature = "json")]
+    pub(crate) fn new_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let mut g: UnresolvedGraph = serde_json::from_reader(reader)?;
         g.resolve()?;
         g.validate()?;
         g.try_into()
@@ -2548,6 +2564,13 @@ impl Graph {
         let graph = Self::new_from_reader(reader)?;
         Ok(graph)
     }
+
+    #[cfg(feature = "json")]
+    pub(crate) fn new_resolved_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let graph = Self::new_from_json_reader(reader)?;
+        Ok(graph)
+    }
+
     /// The number of [`Deme`](crate::Deme) instances in the graph.
     pub fn num_demes(&self) -> usize {
         self.demes.len()
@@ -2671,6 +2694,23 @@ impl Graph {
     /// returns an error.
     pub fn as_string(&self) -> Result<String, DemesError> {
         match serde_yaml::to_string(self) {
+            Ok(string) => Ok(string),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Return a representation of the graph as a string.
+    ///
+    /// The format is in JSON and corresponds to the MDM
+    /// representation of the data.
+    ///
+    /// # Error
+    ///
+    /// Will return an error if `serde_json::to_string`
+    /// returns an error.
+    #[cfg(feature = "json")]
+    pub fn as_json_string(&self) -> Result<String, DemesError> {
+        match serde_json::to_string(self) {
             Ok(string) => Ok(string),
             Err(e) => Err(e.into()),
         }

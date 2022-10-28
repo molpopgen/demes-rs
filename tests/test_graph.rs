@@ -862,6 +862,7 @@ demes:
 }
 
 #[test]
+#[cfg(feature = "json")]
 fn toplevel_metadata_01() {
     let yaml = r#"
 time_units: generations
@@ -884,13 +885,9 @@ demes:
     let yaml_from_graph = serde_yaml::to_string(&g).unwrap();
     let g_from_yaml = demes::loads(&yaml_from_graph).unwrap();
     assert_eq!(g, g_from_yaml);
-    let _json = serde_json::to_string(&g).unwrap();
-    // NOTE: we cannot yet compare equality b/c
-    // we do not have support for resolve, etc.?
-    // The issue is that the internal deme_map
-    // is used in PartialEq, which may be a mistake?
-    // let _g_from_json: demes::Graph = serde_json::from_str(&json).unwrap();
-    // assert_eq!(g, g_from_json);
+    let json = g.as_json_string().unwrap();
+    let g_from_json = demes::loads_json(&json).unwrap();
+    assert_eq!(g, g_from_json);
 }
 
 #[test]

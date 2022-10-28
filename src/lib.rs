@@ -102,6 +102,7 @@ pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
 /// # Examples
 ///
 /// ```
+/// // We can load graphs from in-memory data in YAML format:
 /// let yaml = "
 /// time_units: generations
 /// demes:
@@ -114,31 +115,25 @@ pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
 ///    epochs:
 ///     - start_size: 10
 /// ";
-///
 /// // A slice of raw bytes implements std::io::BufReader
 /// // which implements Read
 /// let raw_bytes: &[u8] = yaml.as_bytes();
-///
 /// let graph = demes::load(raw_bytes).unwrap();
-/// assert_eq!(graph, demes::loads(yaml).unwrap());
-///
-/// // The more common use case will be to load from a file
-///
-/// // First, let's create a file
-/// // and write our buffer to it.
-/// {
-///     use std::io::prelude::*;
-///     let mut file = std::fs::File::create("model.yaml").unwrap();
-///     file.write_all(raw_bytes);
-/// }
-///
-///
-/// let mut file = std::fs::File::open("model.yaml").unwrap();
+/// # assert_eq!(graph, demes::loads(yaml).unwrap());
+/// # // The more common use case will be to load from a file
+/// # // First, let's create a file
+/// # // and write our buffer to it.
+/// # {
+/// #     use std::io::prelude::*;
+/// #     let mut file = std::fs::File::create("model.yaml").unwrap();
+/// #     file.write_all(raw_bytes);
+/// # }
+/// // We can also read from files:
+/// let file = std::fs::File::open("model.yaml").unwrap();
 /// let graph_from_file = demes::load(file).unwrap();
-/// assert_eq!(graph, graph_from_file);
-///
-/// // clean up
-/// std::fs::remove_file("model.yaml").unwrap();
+/// # assert_eq!(graph, graph_from_file);
+/// # // clean up
+/// # std::fs::remove_file("model.yaml").unwrap();
 /// ```
 pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_reader(reader)

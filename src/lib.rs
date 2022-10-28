@@ -28,12 +28,6 @@
 //!   Data Model (MDM) described in the
 //!   [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html).
 //!   
-//! # Known limitations
-//!
-//! * There are currently no convenience functions for exporting
-//!   a [`Graph`](crate::Graph) back into `YAML`.
-//!   However, this task is easily done via [serde_yaml::to_string].
-//!
 //! # Features
 //!
 //! The following [cargo features](https://doc.rust-lang.org/cargo/reference/features.html)

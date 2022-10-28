@@ -220,7 +220,7 @@ migrations:
 ";
 
     let g = demes::loads(yaml).unwrap();
-    let generation_time: f64 = g.generation_time().unwrap().into();
+    let generation_time: f64 = g.generation_time().into();
     assert_eq!(generation_time, 25.0);
     assert!(matches!(g.time_units(), demes::TimeUnits::Years,));
     assert_eq!(g.time_units().to_string(), "years".to_string());

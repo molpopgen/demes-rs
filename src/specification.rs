@@ -2458,8 +2458,7 @@ pub struct Graph {
     #[serde(skip_serializing_if = "Metadata::is_empty")]
     metadata: Metadata,
     time_units: TimeUnits,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    generation_time: Option<GenerationTime>,
+    generation_time: GenerationTime,
     pub(crate) demes: Vec<Deme>,
     #[serde(default = "Vec::<AsymmetricMigration>::default")]
     #[serde(rename = "migrations")]
@@ -2514,7 +2513,9 @@ impl TryFrom<UnresolvedGraph> for Graph {
             doi: value.doi,
             metadata: value.metadata,
             time_units: value.time_units,
-            generation_time: value.generation_time,
+            generation_time: value.generation_time.ok_or_else(|| {
+                DemesError::GraphError("generation_time is unresolved".to_string())
+            })?,
             demes,
             resolved_migrations: value.resolved_migrations,
             pulses,
@@ -2585,7 +2586,7 @@ impl Graph {
     }
 
     /// Get the [`GenerationTime`](crate::GenerationTime) for the graph.
-    pub fn generation_time(&self) -> Option<GenerationTime> {
+    pub fn generation_time(&self) -> GenerationTime {
         self.generation_time
     }
 
@@ -2619,32 +2620,23 @@ impl Graph {
     ) -> Result<Self, DemesError> {
         let mut converted = self;
 
-        let generation_time = match converted.generation_time {
-            Some(generation_time) => generation_time,
-            None => {
-                return Err(DemesError::GraphError(
-                    "generation_time is unresolved".to_string(),
-                ))
-            }
-        };
+        converted.demes.iter_mut().try_for_each(|deme| {
+            deme.resolved_time_to_generations(converted.generation_time, round)
+        })?;
 
-        converted
-            .demes
-            .iter_mut()
-            .try_for_each(|deme| deme.resolved_time_to_generations(generation_time, round))?;
-
-        converted
-            .pulses
-            .iter_mut()
-            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, round))?;
+        converted.pulses.iter_mut().try_for_each(|pulse| {
+            pulse.resolved_time_to_generations(converted.generation_time, round)
+        })?;
 
         converted
             .resolved_migrations
             .iter_mut()
-            .try_for_each(|pulse| pulse.resolved_time_to_generations(generation_time, round))?;
+            .try_for_each(|pulse| {
+                pulse.resolved_time_to_generations(converted.generation_time, round)
+            })?;
 
         converted.time_units = TimeUnits::Generations;
-        converted.generation_time.replace(GenerationTime::from(1.));
+        converted.generation_time = GenerationTime::from(1.0);
 
         Ok(converted)
     }

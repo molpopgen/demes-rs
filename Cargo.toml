@@ -12,6 +12,9 @@ repository = "https://github.com/molpopgen/demes-rs"
 lto = "fat"
 codegen-units = 1
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 json = ["serde_json"]
 

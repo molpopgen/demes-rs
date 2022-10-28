@@ -92,6 +92,12 @@ pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_str(yaml)
 }
 
+/// Generate a [`Graph`] from a JSON string.
+#[cfg(feature = "json")]
+pub fn loads_json(json: &str) -> Result<specification::Graph, DemesError> {
+    specification::Graph::new_resolved_from_json_str(json)
+}
+
 /// Build a [`Graph`](crate::Graph) from a type implementing
 /// [`Read`](std::io::Read).
 ///
@@ -137,6 +143,12 @@ pub fn loads(yaml: &str) -> Result<specification::Graph, DemesError> {
 /// ```
 pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_reader(reader)
+}
+
+#[cfg(feature = "json")]
+/// Load a [`Graph`] from a JSON reader.
+pub fn load_json<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
+    specification::Graph::new_resolved_from_json_reader(reader)
 }
 
 /// Return the package version given in the

@@ -102,7 +102,28 @@ fn do_work(path: &str) -> Result<()> {
     // demes::Graph implements Display, which
     // writes out the YAML representation
     // of the fully-resolved graph.
+    // Note: the implementation of Display
+    // wraps a call to graph.as_string().unwrap(),
+    // which returns a YAML string. The as_string
+    // function may return an error from serde_yaml,
+    // although that is very unlikely to happen
+    // for a resolved graph.
     display_graph(&graph);
+
+    // If demes is build with the json feature,
+    // then we can get a JSON string representation
+    // of the graph.
+    // Note that the #[cfg(...)] business is only needed
+    // here because this file is part of the demes-rs repo.
+    // See the section in the book on features:
+    // https://doc.rust-lang.org/cargo/reference/features.html
+    #[cfg(feature = "json")]
+    {
+        println!(
+            "The graph in JSON format:\n{}",
+            graph.as_json_string().unwrap()
+        );
+    }
 
     graph_api_examples(&graph);
 

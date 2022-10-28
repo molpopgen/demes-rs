@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0-alpha.2] - 2022-10-28
+
+### Documentation
+
+- Pass rustdoc-args on docs.rs ([#211](https://github.com/molpopgen/demes-rs/pull/211))
+
 ## [0.4.0-alpha.1] - 2022-10-28
 
 ### Documentation

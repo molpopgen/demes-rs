@@ -11,7 +11,7 @@ where
     T: std::fmt::Display,
 {
     println!("We can print the Graph as a YAML string:\n");
-    println!("{}", graph);
+    println!("{graph}");
 }
 
 fn graph_api_examples(graph: &demes::Graph) {
@@ -27,7 +27,7 @@ fn graph_api_examples(graph: &demes::Graph) {
         0 => println!("There is no DOI information for this graph"),
         _ => {
             println!("DOI:");
-            graph.doi().for_each(|doi| println!("\t{}", doi));
+            graph.doi().for_each(|doi| println!("\t{doi}"));
         }
     }
 
@@ -50,7 +50,7 @@ fn iterate_demes_and_epochs(graph: &demes::Graph) {
         // deme.epochs returns &[demes::Epoch] (slice of epochs),
         // which we then enumerate over.
         for (i, epoch) in deme.epochs().iter().enumerate() {
-            println!("\tepoch {}:", i);
+            println!("\tepoch {i}:");
             println!("\t\tstart_time: {}", epoch.start_time());
             println!("\t\tend_time: {}", epoch.end_time());
             println!("\t\ttime_interval: {}", epoch.time_interval());
@@ -65,7 +65,7 @@ fn iterate_migrations(graph: &demes::Graph) {
     println!("\nIterate over asymmetric migrations:\n");
     // Enumerate the &[demes::AsymmetricMigration]
     for (i, migration) in graph.migrations().iter().enumerate() {
-        println!("migration {}", i);
+        println!("migration {i}");
         println!("\tstart_time: {}", migration.start_time());
         println!("\tend_time: {}", migration.end_time());
         println!("\ttime_interval: {}", migration.time_interval());
@@ -77,20 +77,20 @@ fn iterate_migrations(graph: &demes::Graph) {
 fn iterate_pulses(graph: &demes::Graph) {
     // Enumerate the &[demes::Pulse]
     for (i, pulse) in graph.pulses().iter().enumerate() {
-        println!("pulse {}", i);
+        println!("pulse {i}");
         println!("\ttime: {}", pulse.time());
 
         // Slices don't implement Display, so we
         // format things manually
         print!("\tsources: [");
         for s in pulse.sources() {
-            print!("{}, ", s);
+            print!("{s}, ");
         }
         println!("]");
         println!("\tdest: {}", pulse.dest());
         print!("\tproportions: [");
         for p in pulse.proportions() {
-            print!("{}, ", p);
+            print!("{p}, ");
         }
         println!("]");
     }

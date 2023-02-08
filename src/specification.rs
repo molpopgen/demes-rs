@@ -169,8 +169,7 @@ impl UnresolvedMigration {
 
         self.rate.ok_or_else(|| {
             DemesError::MigrationError(format!(
-                "rate frmm source: {} to dest: {} is None",
-                source, dest,
+                "rate frmm source: {source} to dest: {dest} is None",
             ))
         })?;
 
@@ -442,8 +441,7 @@ impl UnresolvedPulse {
 
         if !(1e-9..1.0 + 1e-9).contains(&sum_proportions) {
             return Err(DemesError::PulseError(format!(
-                "pulse proportions must sum to 0.0 < p < 1.0, got: {}",
-                sum_proportions
+                "pulse proportions must sum to 0.0 < p < 1.0, got: {sum_proportions}",
             )));
         }
 
@@ -474,8 +472,7 @@ impl UnresolvedPulse {
 
             if !ti.contains_exclusive_start_inclusive_end(time) {
                 return Err(DemesError::PulseError(format!(
-                    "pulse at time: {:?} does not overlap with source: {}",
-                    time, source_name
+                    "pulse at time: {time:?} does not overlap with source: {source_name}",
                 )));
             }
         }
@@ -505,15 +502,13 @@ impl UnresolvedPulse {
                 let t = d.get_time_interval()?;
                 if !t.contains_inclusive(time) {
                     return Err(DemesError::PulseError(format!(
-                        "destination deme {} does not exist at time of pulse",
-                        dest,
+                        "destination deme {dest} does not exist at time of pulse",
                     )));
                 }
                 Ok(())
             }
             None => Err(DemesError::PulseError(format!(
-                "pulse deme {} is invalid",
-                dest
+                "pulse deme {dest} is invalid",
             ))),
         }
     }
@@ -521,8 +516,7 @@ impl UnresolvedPulse {
     fn dest_is_not_source(&self, dest: &str, sources: &[String]) -> Result<(), DemesError> {
         if sources.iter().any(|s| s.as_str() == dest) {
             Err(DemesError::PulseError(format!(
-                "dest: {} is also listed as a source",
-                dest
+                "dest: {dest} is also listed as a source",
             )))
         } else {
             Ok(())
@@ -534,8 +528,7 @@ impl UnresolvedPulse {
         for source in sources {
             if unique_sources.contains(source) {
                 return Err(DemesError::PulseError(format!(
-                    "source: {} listed multiple times",
-                    source
+                    "source: {source} listed multiple times",
                 )));
             }
             unique_sources.insert(source.clone());
@@ -827,8 +820,7 @@ impl UnresolvedEpoch {
         match self.end_time {
             Some(time) => time.err_if_not_valid_epoch_end_time(),
             None => Err(DemesError::EpochError(format!(
-                "deme {}, epoch {}: end time is None",
-                deme_name, index
+                "deme {deme_name}, epoch {index}: end time is None",
             ))),
         }
     }
@@ -837,8 +829,7 @@ impl UnresolvedEpoch {
         match self.cloning_rate {
             Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError(format!(
-                "deme {}, epoch {}:cloning_rate is None",
-                deme_name, index
+                "deme {deme_name}, epoch {index}:cloning_rate is None",
             ))),
         }
     }
@@ -847,8 +838,7 @@ impl UnresolvedEpoch {
         match self.selfing_rate {
             Some(value) => value.validate(DemesError::EpochError),
             None => Err(DemesError::EpochError(format!(
-                "deme {}, epoch {}: selfing_rate is None",
-                deme_name, index
+                "deme {deme_name}, epoch {index}: selfing_rate is None",
             ))),
         }
     }
@@ -862,8 +852,7 @@ impl UnresolvedEpoch {
     ) -> Result<(), DemesError> {
         let size_function = self.size_function.ok_or_else(|| {
             DemesError::EpochError(format!(
-                "deme {}, epoch {}:size function is None",
-                deme_name, index
+                "deme {deme_name}, epoch {index}:size function is None",
             ))
         })?;
 
@@ -882,16 +871,12 @@ impl UnresolvedEpoch {
     fn validate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         let start_size = self.start_size.ok_or_else(|| {
             DemesError::EpochError(format!(
-                "deme {}, epoch {}: start_size is None",
-                deme_name, index
+                "deme {deme_name}, epoch {index}: start_size is None",
             ))
         })?;
         start_size.validate(DemesError::EpochError)?;
         let end_size = self.end_size.ok_or_else(|| {
-            DemesError::EpochError(format!(
-                "deme {}, epoch {}: end_size is None",
-                deme_name, index
-            ))
+            DemesError::EpochError(format!("deme {deme_name}, epoch {index}: end_size is None",))
         })?;
         end_size.validate(DemesError::EpochError)?;
         self.validate_end_time(index, deme_name)?;
@@ -1300,8 +1285,7 @@ impl UnresolvedDeme {
         for ancestor in self.get_ancestor_names()?.iter() {
             let a = get_deme!(ancestor, deme_map, demes).ok_or_else(|| {
                 DemesError::DemeError(format!(
-                    "ancestor {} not present in global deme map",
-                    ancestor
+                    "ancestor {ancestor} not present in global deme map",
                 ))
             })?;
             let t = a.get_time_interval()?;
@@ -2131,8 +2115,7 @@ impl UnresolvedGraph {
             for dest_name in demes.iter().skip(i + 1) {
                 if source_name == dest_name {
                     return Err(DemesError::MigrationError(format!(
-                        "source/dest demes must differ: {}",
-                        source_name
+                        "source/dest demes must differ: {source_name}",
                     )));
                 }
                 deme_name_exists(&self.deme_map, source_name, DemesError::MigrationError)?;
@@ -2348,8 +2331,7 @@ impl UnresolvedGraph {
             let interval = m.time_interval();
             if !interval.duration_greater_than_zero() {
                 return Err(DemesError::MigrationError(format!(
-                    "invalid migration duration: {:?} ",
-                    interval
+                    "invalid migration duration: {interval:?} ",
                 )));
             }
         }

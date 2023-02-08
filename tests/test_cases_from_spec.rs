@@ -36,8 +36,8 @@ fn process_path(
                     {
                         let json = graph.as_json_string().unwrap();
                         let graph_from_json = demes::loads_json(&json).unwrap();
-                        assert_eq!(graph, graph_from_json, "{:?}", name);
-                        assert_eq!(round_trip, graph_from_json, "{:?}", name);
+                        assert_eq!(graph, graph_from_json, "{name:?}");
+                        assert_eq!(round_trip, graph_from_json, "{name:?}");
 
                         // Read from a type implementing Read
                         let raw_bytes = json.as_bytes();

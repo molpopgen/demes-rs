@@ -6,6 +6,7 @@ license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
+rust-version = "1.58.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [profile.release]

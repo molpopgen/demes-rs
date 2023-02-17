@@ -1,3 +1,6 @@
 [submodule "demes-spec"]
-	path = demes-spec
+	path = demes/demes-spec
 	url = https://github.com/popsim-consortium/demes-spec
+[submodule "demes-forward-capi/corrosion"]
+	path = demes-forward-capi/c_example/corrosion
+	url = https://github.com/corrosion-rs/corrosion.git

@@ -1,0 +1,11 @@
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+ - name: derived
+   start_time: 50
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 10
+

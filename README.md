@@ -2,7 +2,7 @@
 
 ![CI tests](https://github.com/molpopgen/demes-rs/workflows/CI/badge.svg)
 
-A [rust](https://www.rustlang.org) implementation of the [demes](https://popsim-consortium.github.io/demes-spec-docs/main/introduction.html#sec-intro) specification.
+[rust](https://www.rustlang.org) tools for the [demes](https://popsim-consortium.github.io/demes-spec-docs/main/introduction.html#sec-intro) specification.
 
 ## Developer information
 
@@ -36,6 +36,3 @@ cargo tarpaulin --tests --ignore-tests -o html
 
 Finally, open `tarpaulin-report.html` with your favorite browser.
 
-## Change log
-
-See [here](https://github.com/molpopgen/demes-rs/blob/main/CHANGELOG.md).

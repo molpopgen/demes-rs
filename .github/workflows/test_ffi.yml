@@ -1,0 +1,47 @@
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+name: Test C/C++ examples
+
+jobs:
+  test_ffi_examples:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust:
+          - stable
+
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.13
+        with:
+          cmake-version: '3.16.x'
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cbindgen
+        run: |
+          cargo install cbindgen
+      - name: Run cmake
+        run: |
+            cmake -Sdemes-forward-capi/c_example -Bbuild
+      - name: Build
+        run: |
+            cmake --build build
+      - name: Run C example
+        run: |
+           ./build/example demes-forward-capi/example_yaml/*.yaml

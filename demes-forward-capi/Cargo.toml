@@ -1,0 +1,22 @@
+[package]
+name = "demes-forward-capi"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+homepage = "https://github.com/molpopgen/demes-forward-capi"
+repository = "https://github.com/molpopgen/demes-forward-capi"
+description = "C API to demes-forward crate"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
+# [profile.release]
+# lto = "fat"
+# codegen-units=1
+# panic = "abort"
+# strip = true
+
+[dependencies]
+demes-forward = {version = "0.2.2-alpha.0", path = "../demes-forward"}
+libc = "~0.2"

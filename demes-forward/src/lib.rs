@@ -5,7 +5,7 @@
 //! This crate re-exports `demes`.
 //! Client code does not have to list `demes`
 //! as a cargo dependency, guaranteeing that
-//! a compatible version is avalable.
+//! a compatible version is available.
 //!
 //! ```{rust}
 //! use demes_forward::demes;

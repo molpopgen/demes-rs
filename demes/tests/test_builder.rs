@@ -122,3 +122,32 @@ fn builder_toplevel_deme_defaults() {
         };
     }
 }
+
+#[test]
+fn test_metadata_round_trip_through_builder() {
+    #[derive(serde::Serialize, Debug, serde::Deserialize, Eq, PartialEq)]
+    struct MyMetaData {
+        foo: i32,
+        bar: String,
+    }
+    let edata = demes::UnresolvedEpoch {
+        start_size: Some(demes::DemeSize::from(100.0)),
+        ..Default::default()
+    };
+    let mut builder = demes::GraphBuilder::new_generations(None);
+    builder.add_deme(
+        "CEU",
+        vec![edata],
+        demes::UnresolvedDemeHistory::default(),
+        None,
+    );
+    let md = MyMetaData {
+        foo: 3,
+        bar: "string".to_owned(),
+    };
+    builder.set_toplevel_metadata(&md).unwrap();
+    let graph = builder.resolve().unwrap();
+    let metadata = graph.metadata().unwrap();
+    let x: MyMetaData = serde_yaml::from_str(&metadata.as_yaml_string().unwrap()).unwrap();
+    assert_eq!(x, md);
+}

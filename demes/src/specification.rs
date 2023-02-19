@@ -2417,6 +2417,10 @@ impl UnresolvedGraph {
 
         Ok(())
     }
+
+    pub(crate) fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata
+    }
 }
 
 /// A resolved demes Graph.

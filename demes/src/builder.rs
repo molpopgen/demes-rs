@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
 use crate::specification::UnresolvedDeme;
@@ -11,6 +13,13 @@ use crate::Proportion;
 use crate::Time;
 use crate::TimeUnits;
 
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum BuilderError {
+    #[error("{0:?}")]
+    SerdeYamlError(#[from] serde_yaml::Error),
+}
+
 /// This type allows building a [`Graph`](crate::Graph) using code
 /// rather then using text input.
 ///
@@ -23,6 +32,7 @@ use crate::TimeUnits;
 /// * All error checks are delayed until resolution.
 pub struct GraphBuilder {
     graph: UnresolvedGraph,
+    metadata: Option<crate::Metadata>,
 }
 
 impl GraphBuilder {
@@ -39,6 +49,7 @@ impl GraphBuilder {
     ) -> Self {
         Self {
             graph: UnresolvedGraph::new(time_units, generation_time, defaults),
+            metadata: None,
         }
     }
 
@@ -48,6 +59,7 @@ impl GraphBuilder {
     pub fn new_generations(defaults: Option<GraphDefaults>) -> Self {
         Self {
             graph: UnresolvedGraph::new(TimeUnits::Generations, None, defaults),
+            metadata: None,
         }
     }
 
@@ -237,8 +249,47 @@ impl GraphBuilder {
     /// of the data are invalid.
     pub fn resolve(self) -> Result<Graph, DemesError> {
         let mut builder = self;
+        match builder.metadata {
+            None => (),
+            Some(m) => builder.graph.set_metadata(m),
+        }
         builder.graph.resolve()?;
         builder.graph.try_into()
+    }
+
+    /// Set top-level metadata
+    ///
+    /// # Parameters
+    ///
+    /// * `metadata`: the metadata type
+    ///
+    /// # Note
+    ///
+    /// Repeated calls will overwrite existing metadata.
+    ///
+    /// # Errors
+    ///
+    /// * [`BuilderError`] if serialization to YAML fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #[derive(serde::Serialize, serde::Deserialize)]
+    /// struct MyMetaData {
+    ///    foo: i32,
+    ///    bar: String
+    /// }
+    /// # let mut builder = demes::GraphBuilder::new_generations(None);
+    /// builder.set_toplevel_metadata(&MyMetaData{foo: 3, bar: "string".to_owned()}).unwrap();
+    /// ```
+    pub fn set_toplevel_metadata<T: serde::Serialize>(
+        &mut self,
+        metadata: &T,
+    ) -> Result<(), BuilderError> {
+        let yaml = serde_yaml::to_string(metadata)?;
+        let metadata: crate::Metadata = serde_yaml::from_str(&yaml)?;
+        self.metadata = Some(metadata);
+        Ok(())
     }
 }
 

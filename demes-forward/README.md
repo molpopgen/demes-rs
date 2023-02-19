@@ -4,4 +4,4 @@ This crate provides a rust API for iterating overs [demes](https://popsim-consor
 
 * [`crates.io`](https://crates.io/crates/demes-forward)
 * [documentation](https://docs.rs/demes-forward)
-* [change log](https://github.com/molpopgen/demes-forward-rs/blob/main/CHANGELOG.md)
+* [change log](https://github.com/molpopgen/demes-rs/blob/main/demes-forward/CHANGELOG.md)

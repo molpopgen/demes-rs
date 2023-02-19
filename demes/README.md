@@ -2,4 +2,4 @@
 
 ## Change log
 
-See [here](https://github.com/molpopgen/demes-rs/blob/main/CHANGELOG.md).
+See [here](https://github.com/molpopgen/demes-rs/blob/main/demes/CHANGELOG.md).

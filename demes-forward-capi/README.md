@@ -25,3 +25,8 @@ cargo install cbindgen
 ## Integration with `cmake`.
 
 See `c_examples/` in the [repository](https://github.com/molpopgen/demes-forward-capi).
+
+## CHANGELOG
+
+See [here](https://github.com/molpopgen/demes-rs/blob/main/demes-forward-capi/CHANGELOG.md)
+

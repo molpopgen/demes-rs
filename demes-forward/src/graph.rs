@@ -801,6 +801,9 @@ mod test_functions {
             .for_each(|(source, proportion)| ancestry_proportions[*source] += proportion);
     }
 
+    // NOTE: this function is implemented using
+    // private fields of ForwardGraph.
+    // Thus, this creates a testing anti-pattern.
     pub fn ancestry_proportions_from_graph(
         graph: &ForwardGraph,
         child_deme: usize,

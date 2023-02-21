@@ -10,6 +10,12 @@ pub struct OpaqueForwardGraph {
     current_time: Option<f64>,
 }
 
+#[repr(i32)]
+enum ErrorCode {
+    // GraphUninitialized = -1,
+    GraphIsNull = -2,
+}
+
 impl OpaqueForwardGraph {
     fn update(&mut self, graph: Option<demes_forward::ForwardGraph>, error: Option<String>) {
         self.graph = graph;
@@ -49,13 +55,17 @@ pub extern "C" fn forward_graph_allocate() -> *mut OpaqueForwardGraph {
 
 /// # Safety
 ///
-/// `yaml` must be a valid pointer containing valid utf8 data.
+/// * `yaml` must be a valid pointer containing valid utf8 data.
+/// * `graph` must be a valid pointer to OpaqueForwardGraph.
 #[no_mangle]
 pub unsafe extern "C" fn forward_graph_initialize_from_yaml(
     yaml: *const c_char,
     burnin: f64,
     graph: *mut OpaqueForwardGraph,
 ) -> i32 {
+    if graph.is_null() {
+        return ErrorCode::GraphIsNull as i32;
+    }
     if yaml.is_null() {
         (*graph).update(None, Some("could not convert c_char to String".to_string()));
         return -1;
@@ -97,6 +107,9 @@ pub unsafe extern "C" fn forward_graph_initialize_from_yaml_file(
     burnin: f64,
     graph: *mut OpaqueForwardGraph,
 ) -> i32 {
+    if graph.is_null() {
+        return ErrorCode::GraphIsNull as i32;
+    }
     let filename_cstr = CStr::from_ptr(file_name);
     let filename = match filename_cstr.to_str() {
         Ok(string) => string,
@@ -152,9 +165,14 @@ pub unsafe extern "C" fn forward_graph_get_error_message(
     status: *mut i32,
 ) -> *const c_char {
     *status = 0;
-    match &(*graph).error {
-        Some(message) => message.as_ptr(),
-        None => std::ptr::null(),
+    if !graph.is_null() {
+        match &(*graph).error {
+            Some(message) => message.as_ptr(),
+            None => std::ptr::null(),
+        }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        std::ptr::null()
     }
 }
 
@@ -171,15 +189,20 @@ pub unsafe extern "C" fn forward_graph_selfing_rates(
     status: *mut i32,
 ) -> *const f64 {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => match graph.selfing_rates() {
-            Some(slice) => slice.as_ptr() as *const f64,
-            None => std::ptr::null(),
-        },
-        None => {
-            *status = -1;
-            std::ptr::null()
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => match graph.selfing_rates() {
+                Some(slice) => slice.as_ptr() as *const f64,
+                None => std::ptr::null(),
+            },
+            None => {
+                *status = -1;
+                std::ptr::null()
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        std::ptr::null()
     }
 }
 
@@ -196,15 +219,20 @@ pub unsafe extern "C" fn forward_graph_cloning_rates(
     status: *mut i32,
 ) -> *const f64 {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => match graph.cloning_rates() {
-            Some(slice) => slice.as_ptr() as *const f64,
-            None => std::ptr::null(),
-        },
-        None => {
-            *status = -1;
-            std::ptr::null()
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => match graph.cloning_rates() {
+                Some(slice) => slice.as_ptr() as *const f64,
+                None => std::ptr::null(),
+            },
+            None => {
+                *status = -1;
+                std::ptr::null()
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        std::ptr::null()
     }
 }
 
@@ -221,15 +249,20 @@ pub unsafe extern "C" fn forward_graph_parental_deme_sizes(
     status: *mut i32,
 ) -> *const f64 {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => match graph.parental_deme_sizes() {
-            Some(slice) => slice.as_ptr() as *const f64,
-            None => std::ptr::null(),
-        },
-        None => {
-            *status = -1;
-            std::ptr::null()
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => match graph.parental_deme_sizes() {
+                Some(slice) => slice.as_ptr() as *const f64,
+                None => std::ptr::null(),
+            },
+            None => {
+                *status = -1;
+                std::ptr::null()
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        std::ptr::null()
     }
 }
 
@@ -246,15 +279,20 @@ pub unsafe extern "C" fn forward_graph_offspring_deme_sizes(
     status: *mut i32,
 ) -> *const f64 {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => match graph.offspring_deme_sizes() {
-            Some(slice) => slice.as_ptr() as *const f64,
-            None => std::ptr::null(),
-        },
-        None => {
-            *status = -1;
-            std::ptr::null()
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => match graph.offspring_deme_sizes() {
+                Some(slice) => slice.as_ptr() as *const f64,
+                None => std::ptr::null(),
+            },
+            None => {
+                *status = -1;
+                std::ptr::null()
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        std::ptr::null()
     }
 }
 
@@ -269,12 +307,17 @@ pub unsafe extern "C" fn forward_graph_any_extant_offspring_demes(
     status: *mut i32,
 ) -> bool {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => graph.any_extant_offspring_demes(),
-        None => {
-            *status = -1;
-            false
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => graph.any_extant_offspring_demes(),
+            None => {
+                *status = -1;
+                false
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        false
     }
 }
 
@@ -289,12 +332,17 @@ pub unsafe extern "C" fn forward_graph_any_extant_parent_demes(
     status: *mut i32,
 ) -> bool {
     *status = 0;
-    match &(*graph).graph {
-        Some(graph) => graph.any_extant_parental_demes(),
-        None => {
-            *status = -1;
-            false
+    if !graph.is_null() {
+        match &(*graph).graph {
+            Some(graph) => graph.any_extant_parental_demes(),
+            None => {
+                *status = -1;
+                false
+            }
         }
+    } else {
+        *status = ErrorCode::GraphIsNull as i32;
+        false
     }
 }
 
@@ -326,15 +374,19 @@ pub unsafe extern "C" fn forward_graph_update_state(
     time: f64,
     graph: *mut OpaqueForwardGraph,
 ) -> i32 {
-    match &mut (*graph).graph {
-        Some(fgraph) => match fgraph.update_state(time) {
-            Ok(()) => 0,
-            Err(e) => {
-                (*graph).update(None, Some(format!("{e}")));
-                -1
-            }
-        },
-        None => -1,
+    if !graph.is_null() {
+        match &mut (*graph).graph {
+            Some(fgraph) => match fgraph.update_state(time) {
+                Ok(()) => 0,
+                Err(e) => {
+                    (*graph).update(None, Some(format!("{e}")));
+                    -1
+                }
+            },
+            None => -1,
+        }
+    } else {
+        ErrorCode::GraphIsNull as i32
     }
 }
 
@@ -347,19 +399,23 @@ pub unsafe extern "C" fn forward_graph_update_state(
 pub unsafe extern "C" fn forward_graph_initialize_time_iteration(
     graph: *mut OpaqueForwardGraph,
 ) -> i32 {
-    match &mut (*graph).graph {
-        Some(fgraph) => {
-            match fgraph.last_time_updated() {
-                Some(value) => {
-                    (*graph).current_time = Some(value.value() - 1.0);
+    if !graph.is_null() {
+        match &mut (*graph).graph {
+            Some(fgraph) => {
+                match fgraph.last_time_updated() {
+                    Some(value) => {
+                        (*graph).current_time = Some(value.value() - 1.0);
+                    }
+                    None => {
+                        (*graph).current_time = Some(-1.0);
+                    }
                 }
-                None => {
-                    (*graph).current_time = Some(-1.0);
-                }
+                0
             }
-            0
+            None => -1,
         }
-        None => -1,
+    } else {
+        ErrorCode::GraphIsNull as i32
     }
 }
 
@@ -378,6 +434,10 @@ pub unsafe extern "C" fn forward_graph_iterate_time(
     graph: *mut OpaqueForwardGraph,
     status: *mut i32,
 ) -> *const f64 {
+    if graph.is_null() {
+        *status = ErrorCode::GraphIsNull as i32;
+        return std::ptr::null();
+    }
     *status = 0;
     if (*graph).current_time.is_none() {
         *status = -1;
@@ -414,6 +474,10 @@ pub unsafe extern "C" fn forward_graph_ancestry_proportions(
     status: *mut i32,
     graph: *mut OpaqueForwardGraph,
 ) -> *const f64 {
+    if graph.is_null() {
+        *status = ErrorCode::GraphIsNull as i32;
+        return std::ptr::null();
+    }
     *status = 0;
     if (*graph).error.is_some() {
         *status = -1;
@@ -567,10 +631,23 @@ demes:
      end_time: 50
    - start_size: 200
 ";
-            let mut graph = GraphHolder::new();
-            graph.init_with_yaml(100.0, yaml);
-            let num_demes = unsafe { forward_graph_number_of_demes(graph.as_ptr()) };
-            assert_eq!(num_demes, 1);
+            {
+                let mut graph = GraphHolder::new();
+                graph.init_with_yaml(100.0, yaml);
+                let num_demes = unsafe { forward_graph_number_of_demes(graph.as_ptr()) };
+                assert_eq!(num_demes, 1);
+            }
+
+            // Handles the complications of rust str vs char *
+            {
+                let graph = forward_graph_allocate();
+                let cstr = CString::new(yaml).unwrap();
+                unsafe {
+                    forward_graph_initialize_from_yaml(cstr.as_ptr() as *const i8, 100., graph)
+                };
+                let num_demes = unsafe { forward_graph_number_of_demes(graph) };
+                assert_eq!(num_demes, 1);
+            }
         }
     }
 

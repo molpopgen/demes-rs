@@ -98,6 +98,24 @@ fn iterate_all_generations(graph: &mut demes_forward::ForwardGraph) -> ModelFirs
 }
 
 #[test]
+fn test_ancestry_proportions_after_deme_has_gone_extinct_and_before_extant() {
+    let demes_graph = four_deme_model();
+    let mut graph =
+        demes_forward::ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64))
+            .unwrap();
+    graph.update_state(100).unwrap();
+
+    // Deme A is extinct and D hasn't "come alive" yet
+    for deme in [0_usize, 3_usize] {
+        assert_eq!(graph.offspring_deme_sizes().unwrap()[deme], 0.);
+        let ancestry_proportions = graph.ancestry_proportions(deme).unwrap();
+        assert_eq!(ancestry_proportions.len(), graph.num_demes_in_model());
+        let sum_ancestry_proportions: f64 = ancestry_proportions.iter().sum();
+        assert_eq!(sum_ancestry_proportions, 0.0);
+    }
+}
+
+#[test]
 fn test_four_deme_model_pub_api_only() {
     let demes_graph = four_deme_model();
     let mut graph =

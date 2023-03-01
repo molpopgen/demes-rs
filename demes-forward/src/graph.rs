@@ -100,9 +100,9 @@ fn exponential_size_change(details: SizeFunctionDetails) -> f64 {
     let duration = details.duration();
     let nt = f64::from(details.epoch_end_size).round();
     let n0 = f64::from(details.epoch_start_size).round();
-    let growth_rate = (nt.ln() - n0.ln()) / duration;
+    let growth_rate = (nt / n0).powf(1. / (duration + 1.)) - 1.0;
     let x = details.time_from_epoch_start();
-    (n0 * (growth_rate * x).exp()).round()
+    (n0 * (1.0 + growth_rate).powf(x)).round()
 }
 
 fn apply_size_function(
@@ -1128,6 +1128,75 @@ demes:
         demes::loads(yaml).unwrap()
     }
 
+    // This model comes from the fwdpy11 test repo
+    // and is what led to looking harder at
+    // how this crate handles growth.
+    fn two_deme_split_with_ancestral_size_change() -> demes::Graph {
+        let yaml = "
+description: Two deme model with migration and size changes.
+time_units: generations
+demes:
+- name: ancestral
+  description: ancestral deme, two epochs
+  epochs:
+  - {end_time: 20, start_size: 100}
+  - {end_time: 10, start_size: 200}
+- name: deme1
+  description: child 1
+  epochs:
+  - {start_size: 250, end_size: 500, end_time: 0}
+  ancestors: [ancestral]
+- name: deme2
+  description: child 2
+  epochs:
+  - {start_size: 50, end_size: 200, end_time: 0}
+  ancestors: [ancestral]
+migrations:
+- {demes: [deme1, deme2], rate: 1e-3}
+";
+        demes::loads(yaml).unwrap()
+    }
+
+    #[test]
+    fn test_two_deme_split_with_ancestral_size_change() {
+        // Recapitulate a test from fwdpy11 test suite.
+        let demes_graph = two_deme_split_with_ancestral_size_change();
+        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut first_time_deme_one_seen = 0.0;
+        let mut first_time_deme_two_seen = 0.0;
+        let mut deme_one_initial_size: f64 = 0.0;
+        let mut deme_two_initial_size: f64 = 0.0;
+        let mut final_deme_one_size = 0.0;
+        let mut final_deme_two_size = 0.0;
+        for time in graph.time_iterator() {
+            graph.update_state(time).unwrap();
+            if graph.parental_deme_sizes().unwrap()[1] > 0.0 && first_time_deme_one_seen == 0.0 {
+                first_time_deme_one_seen = time.value();
+                deme_one_initial_size = graph.offspring_deme_sizes().unwrap()[1].into();
+            }
+            if graph.parental_deme_sizes().unwrap()[2] > 0.0 && first_time_deme_two_seen == 0.0 {
+                first_time_deme_two_seen = time.value();
+                deme_two_initial_size = graph.offspring_deme_sizes().unwrap()[2].into();
+            }
+            final_deme_one_size = graph.parental_deme_sizes().unwrap()[1].into();
+            final_deme_two_size = graph.parental_deme_sizes().unwrap()[2].into();
+        }
+        assert_eq!(first_time_deme_one_seen, 111.0);
+        assert_eq!(first_time_deme_two_seen, 111.0);
+        assert_eq!(final_deme_one_size, 500.);
+        assert_eq!(final_deme_two_size, 200.);
+        let g1 = 2.0_f64.powf(1. / 10.) - 1.0;
+        let g2 = 4.0_f64.powf(1. / 10.) - 1.0;
+        assert_eq!(
+            deme_one_initial_size,
+            (250.0_f64 * (1. + g1).powf(1.)).round()
+        );
+        assert_eq!(
+            deme_two_initial_size,
+            (50.0_f64 * (1. + g2).powf(1.)).round()
+        );
+    }
+
     #[test]
     fn test_two_epoch_model_linear_growth() {
         let demes_graph = two_epoch_model_linear_growth();
@@ -1290,14 +1359,13 @@ demes:
 
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
-        let g = (200_f64.ln() - 100_f64.ln()) / 49.0;
-        let expected_size = demes::DemeSize::from((100.0 * (g * 24.0).exp()).round());
+        let g = 2.0_f64.powf(1. / 50.0) - 1.;
+        let expected_size = demes::DemeSize::from((100.0 * ((1. + g).powf(24.0))).round());
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
-        let g = (200_f64.ln() - 100_f64.ln()) / 49.0;
-        let expected_size = demes::DemeSize::from((100.0 * (g * 25.0).exp()).round());
+        let expected_size = demes::DemeSize::from((100.0 * ((1. + g).powf(25.0))).round());
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
             Some(&expected_size)

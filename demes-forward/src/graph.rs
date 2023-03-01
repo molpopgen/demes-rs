@@ -100,7 +100,7 @@ fn exponential_size_change(details: SizeFunctionDetails) -> f64 {
     let duration = details.duration();
     let nt = f64::from(details.epoch_end_size).round();
     let n0 = f64::from(details.epoch_start_size).round();
-    let growth_rate = (nt.ln() - n0.ln()) / duration;
+    let growth_rate = (nt / n0).powf(1. / duration) - 1.0;
     let x = details.time_from_epoch_start();
     (n0 * (growth_rate * x).exp()).round()
 }
@@ -1290,13 +1290,12 @@ demes:
 
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
-        let g = (200_f64.ln() - 100_f64.ln()) / 49.0;
+        let g = (200_f64 / 100_f64).powf(1.0 / 49.0) - 1.;
         let expected_size = demes::DemeSize::from((100.0 * (g * 24.0).exp()).round());
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
-        let g = (200_f64.ln() - 100_f64.ln()) / 49.0;
         let expected_size = demes::DemeSize::from((100.0 * (g * 25.0).exp()).round());
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),

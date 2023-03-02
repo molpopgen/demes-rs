@@ -952,4 +952,21 @@ demes:
             assert_eq!(ngens, (10.0 - start_time) as i32);
         }
     }
+
+    #[test]
+    fn test_model_with_bad_rounding() {
+        let yaml = "
+time_units: generations
+demes:
+- name: bad
+  epochs:
+  - {end_time: 1.5, start_size: 1}
+  - {end_time: 0.4, start_size: 2}
+  - {end_time: 0, start_size: 3}
+";
+        let mut graph = GraphHolder::new();
+        assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
+        let x = graph.as_ptr();
+        assert!(unsafe { forward_graph_is_error_state(x) });
+    }
 }

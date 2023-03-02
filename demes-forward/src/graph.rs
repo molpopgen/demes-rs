@@ -416,7 +416,7 @@ impl ForwardGraph {
         match backwards_time {
             None => (),
             Some(time) => self.graph.migrations().iter().for_each(|migration| {
-                if time > migration.end_time() && time < migration.start_time() {
+                if time >= migration.end_time() && time < migration.start_time() {
                     self.migrations.push(migration.clone());
                 }
             }),
@@ -529,12 +529,20 @@ impl ForwardGraph {
                 ))
             })?;
             if !self.parent_demes[*source].is_extant() {
-                return Err(DemesForwardError::InternalError(format!(
-                    "migration source deme {} is extinct at (forward) time {:?}, which is backwards time {:?}",
-                    self.graph.demes()[*source].name(),
-                    parental_generation_time,
-                    self.model_times.convert(parental_generation_time),
-                )));
+                // This block was changed to return Ok(())
+                // in PR238.
+                // The reason is that a deme may be first appearing
+                // now and immediately involved in migration.
+                // However, the fact that it doesn't exist as parents
+                // to itself should not be an error, provided that
+                // it does have ancestry from elsewhere.
+                return Ok(());
+                //return Err(DemesForwardError::InternalError(format!(
+                //    "migration source deme {} is extinct at (forward) time {:?}, which is backwards time {:?}",
+                //    self.graph.demes()[*source].name(),
+                //    parental_generation_time,
+                //    self.model_times.convert(parental_generation_time),
+                //)));
             }
             if !self.child_demes[*dest].is_extant() {
                 return Err(DemesForwardError::InternalError(format!(
@@ -624,8 +632,6 @@ impl ForwardGraph {
             &mut self.parent_demes,
             &mut self.parental_deme_sizes,
         )?;
-        self.update_pulses(backwards_time);
-        self.update_migrations(backwards_time);
         let child_generation_time = ForwardTime::from(parental_generation_time.value() + 1.0);
         let backwards_time = self.model_times.convert(child_generation_time)?;
         update_demes(
@@ -636,6 +642,8 @@ impl ForwardGraph {
             &mut self.child_demes,
             &mut self.child_deme_sizes,
         )?;
+        self.update_pulses(backwards_time);
+        self.update_migrations(backwards_time);
 
         self.selfing_rates.clear();
         self.cloning_rates.clear();
@@ -1548,7 +1556,7 @@ migrations:
     }
 
     #[test]
-    fn test_migrations() {
+    fn test_migration_rate_changes_1() {
         let demes_g = model_with_migrations();
         let mut g = ForwardGraph::new(demes_g, 200., None).unwrap();
 
@@ -1558,19 +1566,19 @@ migrations:
         // assert!(g.parental_demes().is_some());
 
         // One gen before everyone starts migrating
-        g.update_state(200).unwrap();
+        g.update_state(199).unwrap();
         assert_eq!(g.migrations.len(), 0);
         // At forward time 201, we are at the
         // start of the first migration epoch,
         // meaning that children born at 201 can be migrants
-        g.update_state(201).unwrap();
+        g.update_state(200).unwrap();
         assert_eq!(g.migrations.len(), 1);
 
         g.update_state(209).unwrap();
         assert_eq!(g.migrations.len(), 1);
 
         g.update_state(210).unwrap();
-        assert_eq!(g.migrations.len(), 1);
+        assert_eq!(g.migrations.len(), 2);
 
         g.update_state(229).unwrap();
         assert_eq!(g.migrations.len(), 1);
@@ -1580,7 +1588,62 @@ migrations:
 
         // Symmetric mig, so 2 Asymmetric deals...
         g.update_state(235).unwrap();
-        assert_eq!(g.migrations.len(), 0);
+        assert_eq!(g.migrations.len(), 2);
+    }
+
+    // Another test from fwdpy11 that caught a bug here.
+    #[test]
+    fn test_migration_rate_changes_2() {
+        let yaml = "
+time_units: generations
+generation_time: 1
+demes:
+- name: A
+  epochs:
+  - {end_time: 0, start_size: 100}
+- name: B
+  epochs:
+  - {end_time: 0, start_size: 100}
+migrations:
+- demes: [A, B]
+  rate: 0.0
+  end_time: 30
+- demes: [A, B]
+  rate: 0.5
+  start_time: 30
+  end_time: 20
+- demes: [A, B]
+  rate: 0.0
+  start_time: 20
+  end_time: 10
+- demes: [A, B]
+  rate: 0.5
+  start_time: 10
+";
+        let demes_g = demes::loads(yaml).unwrap();
+        let mut g = ForwardGraph::new(demes_g, 10_u32, None).unwrap();
+
+        //All ancestor demes are constant size.
+        //Therefore, at the end of burn-in, the child generation
+        //will have nonzero ancestry from each deme.
+        g.update_state(10.0).unwrap();
+        for deme in [0_usize, 1] {
+            assert!(g
+                .ancestry_proportions(deme)
+                .unwrap()
+                .iter()
+                .all(|x| x > &0.0));
+        }
+
+        // Advance to the final parental generation
+        g.update_state(g.end_time() - 2_f64.into()).unwrap();
+        for deme in [0_usize, 1] {
+            assert!(g
+                .ancestry_proportions(deme)
+                .unwrap()
+                .iter()
+                .all(|x| x > &0.0));
+        }
     }
 }
 
@@ -1738,7 +1801,7 @@ pulses:
         ancestry_proportions[index_c] = 1.0;
         update_ancestry_proportions(&[index_a], &[0.33], &mut ancestry_proportions);
         update_ancestry_proportions(&[index_b], &[0.25], &mut ancestry_proportions);
-        graph.update_state(50.0).unwrap();
+        graph.update_state(49.0).unwrap();
         assert_eq!(graph.ancestry_proportions(2).unwrap().len(), 3);
         graph
             .ancestry_proportions(2)
@@ -1911,7 +1974,9 @@ migrations:
 ";
         let demes_graph = demes::loads(yaml).unwrap();
         let mut graph = ForwardGraph::new(demes_graph, 10, None).unwrap();
-        for generation in 0..10 {
+        // Parental generations 0-9 have no migration,
+        // which starts at generation 10
+        for generation in 0..9 {
             graph.update_state(generation).unwrap();
             assert_eq!(
                 graph.ancestry_proportions(2),

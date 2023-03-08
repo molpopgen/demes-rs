@@ -2751,29 +2751,30 @@ impl Graph {
         false
     }
 
-    pub fn has_non_integer_sizes_rounding_to_zero(&self) -> bool {
+    fn has_non_integer_sizes_rounding_to_zero(&self) -> Option<(&str, usize)> {
         for deme in &self.demes {
-            for epoch in &deme.epochs {
+            for (i, epoch) in deme.epochs.iter().enumerate() {
                 for size in [f64::from(epoch.start_size()), f64::from(epoch.end_size())] {
                     if size.is_finite() && size.round() == 0.0 {
-                        return true;
+                        return Some((deme.name(), i));
                     }
                 }
             }
         }
-        false
+        None
     }
 
-    pub fn round_deme_sizes(self) -> Option<Self> {
+    pub fn round_deme_sizes(&self) -> Option<Result<Self, DemesError>> {
         if !self.has_non_integer_sizes() {
             return None;
         }
 
-        if self.has_non_integer_sizes_rounding_to_zero() {
-            return None;
+        if let Some((name, index)) = self.has_non_integer_sizes_rounding_to_zero() {
+            let message = format!("deme {name} epoch {index} has sizes that will round to zero");
+            return Some(Err(DemesError::EpochError(message)));
         }
 
-        let mut graph = self;
+        let mut graph = self.clone();
         for deme in &mut graph.demes {
             for epoch in &mut deme.epochs {
                 let start_size = f64::from(epoch.start_size());
@@ -2791,9 +2792,7 @@ impl Graph {
             }
         }
 
-        todo!("need to validate that things are all still okay");
-
-        Some(graph)
+        Some(Ok(graph))
     }
 }
 

@@ -2433,7 +2433,7 @@ impl UnresolvedGraph {
 /// * [`load`](crate::load)
 /// * [`loads`](crate::loads)
 /// * [`GraphBuilder`](crate::GraphBuilder)
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields, try_from = "UnresolvedGraph")]
 pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2749,6 +2749,49 @@ impl Graph {
             }
         }
         false
+    }
+
+    pub fn has_non_integer_sizes_rounding_to_zero(&self) -> bool {
+        for deme in &self.demes {
+            for epoch in &deme.epochs {
+                for size in [f64::from(epoch.start_size()), f64::from(epoch.end_size())] {
+                    if size.is_finite() && size.round() == 0.0 {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    pub fn round_deme_sizes(self) -> Option<Self> {
+        if !self.has_non_integer_sizes() {
+            return None;
+        }
+
+        if self.has_non_integer_sizes_rounding_to_zero() {
+            return None;
+        }
+
+        let mut graph = self;
+        for deme in &mut graph.demes {
+            for epoch in &mut deme.epochs {
+                let start_size = f64::from(epoch.start_size());
+                if start_size.is_finite() && start_size.fract() != 0.0 {
+                    let rounded = start_size.round();
+                    assert!(rounded > 0.0);
+                    epoch.start_size = rounded.into();
+                }
+                let end_size = f64::from(epoch.end_size());
+                if end_size.is_finite() && end_size.fract() != 0.0 {
+                    let rounded = end_size.round();
+                    assert!(rounded > 0.0);
+                    epoch.end_size = rounded.into();
+                }
+            }
+        }
+
+        Some(graph)
     }
 }
 

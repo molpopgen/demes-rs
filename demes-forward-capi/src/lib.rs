@@ -537,6 +537,38 @@ pub unsafe extern "C" fn forward_graph_model_end_time(
     }
 }
 
+/// Check if any epoch has non-integer start/end sizes.
+///
+/// # Return values
+///
+/// * > 0 if there are any non-integer start/end sizes
+/// * 0 if there are none
+/// * < 0 indicates an error
+///
+/// # Safety
+///
+/// `graph` must be a valid pointer to an [`OpaqueForwardGraph`].
+/// `status` must be a valid pointer to an `i32`.
+#[no_mangle]
+pub unsafe extern "C" fn forward_graph_has_non_integer_sizes(
+    status: *mut i32,
+    graph: *const OpaqueForwardGraph,
+) -> i32 {
+    *status = 0;
+    if (*graph).error.is_some() || (*graph).graph.is_none() {
+        *status = -1;
+        -1
+    } else {
+        match &(*graph).graph {
+            Some(fgraph) => fgraph.has_non_integer_sizes().into(),
+            None => {
+                *status = -1;
+                -1
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -968,5 +1000,43 @@ demes:
         assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
         let x = graph.as_ptr();
         assert!(unsafe { forward_graph_is_error_state(x) });
+    }
+
+    #[test]
+    fn test_check_for_non_integer_sizes() {
+        let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  start_time: .inf
+  epochs:
+  - {end_size: 99.99000049998334, end_time: 8000.0, start_size: 99.99000049998334}
+  - {end_size: 100.0, end_time: 4000.0, start_size: 99.99000049998334}
+  - {end_size: 100, end_time: 0, start_size: 100.0}
+migrations: []
+";
+        let mut graph = GraphHolder::new();
+        assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
+        let x = graph.as_ptr();
+        let mut status = 1;
+        assert!(unsafe { forward_graph_has_non_integer_sizes(&mut status, x) } > 0);
+        assert_eq!(status, 0);
+        // Same as above, but we've manually rounded everything.
+        let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  start_time: .inf
+  epochs:
+  - {end_size: 100.0, end_time: 8000.0, start_size: 100.}
+  - {end_size: 100.0, end_time: 4000.0, start_size: 100.}
+  - {end_size: 100, end_time: 0, start_size: 100.0}
+migrations: []
+";
+        assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
+        let x = graph.as_ptr();
+        let mut status = 1;
+        assert!(unsafe { forward_graph_has_non_integer_sizes(&mut status, x) } == 0);
+        assert_eq!(status, 0);
     }
 }

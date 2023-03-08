@@ -2791,6 +2791,8 @@ impl Graph {
             }
         }
 
+        todo!("need to validate that things are all still okay");
+
         Some(graph)
     }
 }

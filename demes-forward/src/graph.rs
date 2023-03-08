@@ -788,6 +788,12 @@ impl ForwardGraph {
     pub fn num_extant_offspring_demes(&self) -> usize {
         self.num_extant_demes(Generation::Child)
     }
+
+    /// Check if any epochs have non-integer
+    /// `start_size` or `end_size`.
+    pub fn has_non_integer_sizes(&self) -> bool {
+        self.graph.has_non_integer_sizes()
+    }
 }
 
 #[cfg(test)]

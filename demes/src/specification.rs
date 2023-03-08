@@ -2735,6 +2735,21 @@ impl Graph {
     pub fn doi(&self) -> impl Iterator<Item = &str> {
         DOIIterator::new(self)
     }
+
+    /// Check if any epochs have non-integer
+    /// `start_size` or `end_size`.
+    pub fn has_non_integer_sizes(&self) -> bool {
+        for deme in &self.demes {
+            for epoch in &deme.epochs {
+                for size in [f64::from(epoch.start_size()), f64::from(epoch.end_size())] {
+                    if size.is_finite() && size.fract() != 0.0 {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 #[cfg(test)]

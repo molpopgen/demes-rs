@@ -36,3 +36,20 @@ fn test_has_non_integer_sizes() {
     let graph = demes::loads(&yaml_all_integer()).unwrap();
     assert!(!graph.has_non_integer_sizes());
 }
+
+#[test]
+fn test_does_not_round() {
+    let graph = demes::loads(&yaml_all_integer()).unwrap();
+    assert!(graph.round_deme_sizes().is_none());
+}
+
+#[test]
+fn test_does_round() {
+    let graph = demes::loads(&yaml_non_integer()).unwrap();
+    let graph_clone = graph.clone();
+    assert_eq!(graph, graph_clone);
+    let rounded = graph.round_deme_sizes().unwrap();
+    assert_ne!(graph_clone, rounded);
+    assert!(!rounded.has_non_integer_sizes());
+    assert!(graph_clone.has_non_integer_sizes());
+}

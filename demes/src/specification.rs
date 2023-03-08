@@ -2764,14 +2764,13 @@ impl Graph {
         None
     }
 
-    pub fn round_deme_sizes(&self) -> Option<Result<Self, DemesError>> {
+    pub fn round_deme_sizes(&self) -> Option<Self> {
         if !self.has_non_integer_sizes() {
             return None;
         }
 
-        if let Some((name, index)) = self.has_non_integer_sizes_rounding_to_zero() {
-            let message = format!("deme {name} epoch {index} has sizes that will round to zero");
-            return Some(Err(DemesError::EpochError(message)));
+        if self.has_non_integer_sizes_rounding_to_zero().is_some() {
+            return None;
         }
 
         let mut graph = self.clone();
@@ -2792,7 +2791,7 @@ impl Graph {
             }
         }
 
-        Some(Ok(graph))
+        Some(graph)
     }
 }
 

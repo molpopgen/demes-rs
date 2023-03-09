@@ -343,3 +343,47 @@ demes:
     let last = last_time.last.expect("expected Some(time) for last");
     assert_eq!(last, 150.0.into());
 }
+
+#[test]
+fn test_reject_non_integer_start_size() {
+    let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  start_time: .inf
+  epochs:
+  - {end_size: 100.0, end_time: 8000.0, start_size: 100.0}
+  - {end_size: 100.0, end_time: 4000.0, start_size: 99.99000049998334}
+  - {end_size: 100, end_time: 0, start_size: 100.0}
+migrations: []
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    assert!(demes_forward::ForwardGraph::new(
+        demes_graph,
+        100,
+        Some(demes::RoundTimeToInteger::F64)
+    )
+    .is_err());
+}
+
+#[test]
+fn test_reject_non_integer_end_size() {
+    let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  start_time: .inf
+  epochs:
+  - {end_size: 100.0, end_time: 8000.0, start_size: 100.0}
+  - {end_size: 99.99000049998334, end_time: 4000.0, start_size: 100.0}
+  - {end_size: 100, end_time: 0, start_size: 100.0}
+migrations: []
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    assert!(demes_forward::ForwardGraph::new(
+        demes_graph,
+        100,
+        Some(demes::RoundTimeToInteger::F64)
+    )
+    .is_err());
+}

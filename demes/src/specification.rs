@@ -2756,6 +2756,58 @@ impl Graph {
         }
         None
     }
+
+    fn epoch_start_end_size_rounding_details(
+        old_size: DemeSize,
+        rounding_fn: fn(f64) -> f64,
+    ) -> Result<DemeSize, DemesError> {
+        let size = f64::from(old_size);
+        if size.is_finite() && size.fract() != 0.0 {
+            let new_size = rounding_fn(size);
+            if !new_size.is_finite() || new_size.fract() != 0.0 || new_size <= 0.0 {
+                let msg = format!("invalid size after rounding: {new_size}");
+                return Err(DemesError::EpochError(msg));
+            }
+            return Ok(new_size.into());
+        }
+        Ok(old_size)
+    }
+
+    fn round_epoch_start_end_sizes_with(
+        self,
+        rounding_fn: fn(f64) -> f64,
+    ) -> Result<Self, DemesError> {
+        let mut graph = self;
+
+        for deme in &mut graph.demes {
+            for epoch in &mut deme.epochs {
+                epoch.start_size =
+                    Graph::epoch_start_end_size_rounding_details(epoch.start_size, rounding_fn)?;
+                epoch.end_size =
+                    Graph::epoch_start_end_size_rounding_details(epoch.end_size, rounding_fn)?;
+            }
+        }
+
+        Ok(graph)
+    }
+
+    /// Round all epoch start/end sizes to nearest integer value.
+    ///
+    /// # Returns
+    ///
+    /// A modified graph with rounded sizes.
+    ///
+    /// # Error
+    ///
+    /// * [`EpochError`](crate::DemesError::EpochError) if rounding
+    ///   leads to a value of 0.
+    ///
+    /// # Note
+    ///
+    /// Rounding uses [f64::round](f64::round)
+    pub fn round_epoch_start_end_sizes(self) -> Result<Self, DemesError> {
+        self.round_epoch_start_end_sizes_with(f64::round)
+    }
 }
 
 #[cfg(test)]

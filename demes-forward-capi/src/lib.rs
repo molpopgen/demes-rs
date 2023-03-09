@@ -53,6 +53,40 @@ pub extern "C" fn forward_graph_allocate() -> *mut OpaqueForwardGraph {
     }))
 }
 
+unsafe fn yaml_to_owned(yaml: *const c_char) -> Option<String> {
+    if yaml.is_null() {
+        return None;
+    }
+    let yaml = CStr::from_ptr(yaml);
+    match yaml.to_owned().to_str() {
+        Ok(s) => Some(s.to_owned()),
+        Err(_) => None,
+    }
+}
+
+unsafe fn process_input_yaml(
+    yaml: *const c_char,
+    graph: *mut OpaqueForwardGraph,
+) -> (i32, Option<demes::Graph>) {
+    if graph.is_null() {
+        return (ErrorCode::GraphIsNull as i32, None);
+    }
+    let yaml = match yaml_to_owned(yaml) {
+        Some(s) => s,
+        None => {
+            (*graph).update(None, Some("could not convert c_char to String".to_string()));
+            return (-1, None);
+        }
+    };
+    match demes::loads(&yaml) {
+        Ok(graph) => (0, Some(graph)),
+        Err(e) => {
+            (*graph).update(None, Some(format!("{e}")));
+            (-1, None)
+        }
+    }
+}
+
 /// # Safety
 ///
 /// * `yaml` must be a valid pointer containing valid utf8 data.
@@ -63,26 +97,58 @@ pub unsafe extern "C" fn forward_graph_initialize_from_yaml(
     burnin: f64,
     graph: *mut OpaqueForwardGraph,
 ) -> i32 {
-    if graph.is_null() {
-        return ErrorCode::GraphIsNull as i32;
-    }
-    if yaml.is_null() {
-        (*graph).update(None, Some("could not convert c_char to String".to_string()));
-        return -1;
-    }
-    let yaml = CStr::from_ptr(yaml);
-    let yaml = match yaml.to_owned().to_str() {
-        Ok(s) => s.to_string(),
-        Err(e) => {
-            (*graph).update(None, Some(format!("{e}")));
+    let dg = match process_input_yaml(yaml, graph) {
+        (x, Some(g)) => {
+            assert_eq!(x, 0);
+            g
+        }
+        (y, None) => {
+            assert!(y < 0);
             return -1;
         }
     };
-    let dg = match demes::loads(&yaml) {
+
+    match demes_forward::ForwardGraph::new(
+        dg,
+        burnin,
+        Some(demes_forward::demes::RoundTimeToInteger::F64),
+    ) {
+        Ok(fgraph) => (*graph).update(Some(fgraph), None),
+        Err(e) => (*graph).update(None, Some(format!("{e}"))),
+    };
+    0
+}
+
+/// Initialize and round epoch start/end sizes.
+///
+/// # Errors
+///
+/// If any epoch start/end sizes round to zero.
+///
+/// # Safety
+///
+/// * `yaml` must be a valid pointer containing valid utf8 data.
+/// * `graph` must be a valid pointer to OpaqueForwardGraph.
+#[no_mangle]
+pub unsafe extern "C" fn forward_graph_initialize_from_yaml_round_epoch_sizes(
+    yaml: *const c_char,
+    burnin: f64,
+    graph: *mut OpaqueForwardGraph,
+) -> i32 {
+    let dg = match process_input_yaml(yaml, graph) {
+        (x, Some(g)) => {
+            assert_eq!(x, 0);
+            g
+        }
+        (y, None) => {
+            assert!(y < 0);
+            return -1;
+        }
+    };
+    let dg = match dg.round_epoch_start_end_sizes() {
         Ok(graph) => graph,
         Err(e) => {
             (*graph).update(None, Some(format!("{e}")));
-
             return -1;
         }
     };
@@ -566,6 +632,18 @@ mod tests {
             let yaml_c_char: *const c_char = yaml_cstr.as_ptr() as *const c_char;
             unsafe { forward_graph_initialize_from_yaml(yaml_c_char, burnin, self.as_mut_ptr()) }
         }
+
+        fn init_with_yaml_round_epoch_sizes(&mut self, burnin: f64, yaml: &str) -> i32 {
+            let yaml_cstr = CString::new(yaml).unwrap();
+            let yaml_c_char: *const c_char = yaml_cstr.as_ptr() as *const c_char;
+            unsafe {
+                forward_graph_initialize_from_yaml_round_epoch_sizes(
+                    yaml_c_char,
+                    burnin,
+                    self.as_mut_ptr(),
+                )
+            }
+        }
     }
 
     impl Drop for GraphHolder {
@@ -954,7 +1032,7 @@ demes:
     }
 
     #[test]
-    fn test_model_with_bad_rounding() {
+    fn test_model_with_bad_time_rounding() {
         let yaml = "
 time_units: generations
 demes:
@@ -968,5 +1046,32 @@ demes:
         assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
         let x = graph.as_ptr();
         assert!(unsafe { forward_graph_is_error_state(x) });
+    }
+
+    #[test]
+    fn test_non_integer_sizes_with_and_without_rounding() {
+        let yaml = "
+time_units: generations
+demes:
+- name: deme1
+  start_time: .inf
+  epochs:
+  - {end_size: 99.99000049998334, end_time: 8000.0, start_size: 99.99000049998334}
+  - {end_size: 100.0, end_time: 4000.0, start_size: 99.99000049998334}
+  - {end_size: 100, end_time: 0, start_size: 100.0}
+migrations: []
+";
+        {
+            let mut graph = GraphHolder::new();
+            assert_eq!(graph.init_with_yaml(10.0, yaml), 0);
+            let x = graph.as_ptr();
+            assert!(unsafe { forward_graph_is_error_state(x) });
+        }
+        {
+            let mut graph = GraphHolder::new();
+            assert_eq!(graph.init_with_yaml_round_epoch_sizes(10.0, yaml), 0);
+            let x = graph.as_ptr();
+            assert!(!unsafe { forward_graph_is_error_state(x) });
+        }
     }
 }

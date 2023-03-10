@@ -4,10 +4,31 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::io::Read;
 
+/// ## Not Send/Sync
+///
+/// This type is meant to be used in an FFI context.
+/// We therefore deny Send/Sync:
+///
+/// ```{compile_fail}
+/// fn is_send<T: Send>()  {}
+///
+/// is_send::<demes_forward_capi::OpaqueForwardGraph>();
+/// ```
+///
+/// ```{compile_fail}
+/// fn is_sync<T: Sync>()  {}
+///
+/// is_send::<demes_forward_capi::OpaqueForwardGraph>();
+/// ```
 pub struct OpaqueForwardGraph {
     graph: Option<demes_forward::ForwardGraph>,
     error: Option<CString>,
     current_time: Option<f64>,
+    // Rust types containing raw pointers
+    // do not get blanket Send/Sync impl.
+    // We use a ZST here to prevent those impl
+    // for this type.
+    deny_send_sync: std::marker::PhantomData<*const ()>,
 }
 
 #[repr(i32)]
@@ -50,6 +71,7 @@ pub extern "C" fn forward_graph_allocate() -> *mut OpaqueForwardGraph {
         graph: None,
         error: None,
         current_time: None,
+        deny_send_sync: std::marker::PhantomData,
     }))
 }
 

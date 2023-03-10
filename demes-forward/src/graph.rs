@@ -76,21 +76,9 @@ impl SizeFunctionDetails {
     }
 }
 
-macro_rules! fast_return {
-    ($details: expr) => {
-        if !($details.epoch_start_time > $details.backwards_time) {
-            return $details.epoch_start_size.into();
-        }
-        if !($details.epoch_end_time < $details.backwards_time) {
-            return $details.epoch_end_size.into();
-        }
-    };
-}
-
 fn linear_size_change(details: SizeFunctionDetails) -> f64 {
-    fast_return!(details);
-    let duration = details.duration();
-    let x = details.time_from_epoch_start();
+    let duration = details.duration() + 1.0;
+    let x = details.time_from_epoch_start() + 1.0;
     let size_diff = f64::from(details.epoch_end_size) - f64::from(details.epoch_start_size);
     (f64::from(details.epoch_start_size) + (x / duration) * size_diff).round()
 }
@@ -1216,6 +1204,8 @@ migrations:
     fn test_two_epoch_model_linear_growth() {
         let demes_graph = two_epoch_model_linear_growth();
         let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+
+        let slope: f64 = (200. - 100.) / 50.;
         graph.update_state(100).unwrap(); // last generation of the 1st epoch
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
@@ -1228,7 +1218,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(100.))
+                Some(demes::DemeSize::from((100. + slope).round()))
             );
         } else {
             panic!();
@@ -1256,14 +1246,14 @@ migrations:
 
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
-        let expected_size: f64 = 100. + ((49. - 25.) / (49.)) * (200. - 100.);
+        let expected_size: f64 = (100.0 + 25_f64 * slope).round();
         let expected_size = demes::DemeSize::from(expected_size.round());
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
 
-        let expected_size: f64 = 100. + ((49. - 24.) / (49.)) * (200. - 100.);
+        let expected_size: f64 = (100.0 + 26_f64 * slope).round();
         let expected_size = demes::DemeSize::from(expected_size.round());
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
@@ -1284,10 +1274,11 @@ migrations:
         } else {
             panic!();
         }
+        let slope: f64 = (100. - 200.) / 50.;
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(demes::DemeSize::from((200. + slope).round()))
             );
         } else {
             panic!();
@@ -1315,15 +1306,12 @@ migrations:
 
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
-        let expected_size: demes::DemeSize = (200_f64 + ((49. - 25.) / (49.)) * (100. - 200.))
-            .round()
-            .into();
+        let expected_size: demes::DemeSize = (200_f64 + 25.0 * slope).round().into();
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
-        let expected_size =
-            demes::DemeSize::from((200_f64 + ((49. - 24.) / (49.)) * (100. - 200.)).round());
+        let expected_size = demes::DemeSize::from((200_f64 + 26.0 * slope).round());
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
             Some(&expected_size)

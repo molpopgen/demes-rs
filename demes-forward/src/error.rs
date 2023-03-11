@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Error type.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DemesForwardError {
     /// Stores a [`demes::DemesError`].
     #[error("{0:?}")]

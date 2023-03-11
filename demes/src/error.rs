@@ -25,6 +25,7 @@ use thiserror::Error;
 /// assert!(matches!(demes::loads(yaml), Err(demes::DemesError::EpochError(_))));
 /// ```
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DemesError {
     /// Errors related to demes
     #[error("{0:?}")]

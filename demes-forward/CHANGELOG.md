@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0-alpha.0] - 2023-03-13
+
+### Bug Fixes
+
+- Fix onset of, and formula for, exponential size change. ([#235](https://github.com/molpopgen/demes-rs/pull/235))
+- Fix pulse/migration event timings. ([#238](https://github.com/molpopgen/demes-rs/pull/238))
+- ForwardGraph::new Err on non-integer sizes ([#243](https://github.com/molpopgen/demes-rs/pull/243))
+
+### Documentation
+
+- Fix typo in crate-level documentation ([#224](https://github.com/molpopgen/demes-rs/pull/224))
+- Update README.md for workspace and crates ([#226](https://github.com/molpopgen/demes-rs/pull/226))
+
+### Miscellaneous Tasks
+
+- Reorganize as a cargo workspace ([#215](https://github.com/molpopgen/demes-rs/pull/215))
+- Update Cargo.toml to point to correct homepage/repo. ([#223](https://github.com/molpopgen/demes-rs/pull/223))
+
+### Refactor
+
+- [**breaking**] Mark DemesError and DemesForardError non_exhaustive ([#249](https://github.com/molpopgen/demes-rs/pull/249))
+- [**breaking**] Handle time conversion/rounding with callbacks ([#251](https://github.com/molpopgen/demes-rs/pull/251))
+
+### Testing
+
+- Add test of ancestry proportions for demes with size 0. ([#230](https://github.com/molpopgen/demes-rs/pull/230))
+
 ## [0.2.1] - 2023-02-08
 
 ### Miscellaneous Tasks

@@ -349,7 +349,7 @@ impl ForwardGraph {
                 "invalid time value: {burnin_time:?}",
             )));
         }
-        let graph = graph.to_integer_generations()?;
+        let graph = graph.into_integer_generations()?;
 
         validate_model_times(&graph)?;
 

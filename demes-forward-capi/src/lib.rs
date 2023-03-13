@@ -109,6 +109,8 @@ unsafe fn process_input_yaml(
     }
 }
 
+/// Initialize a discrete-time model from a yaml file
+///
 /// # Safety
 ///
 /// * `yaml` must be a valid pointer containing valid utf8 data.
@@ -130,11 +132,7 @@ pub unsafe extern "C" fn forward_graph_initialize_from_yaml(
         }
     };
 
-    match demes_forward::ForwardGraph::new(
-        dg,
-        burnin,
-        Some(demes_forward::demes::RoundTimeToInteger::F64),
-    ) {
+    match demes_forward::ForwardGraph::new_discrete_time(dg, burnin) {
         Ok(fgraph) => (*graph).update(Some(fgraph), None),
         Err(e) => (*graph).update(None, Some(format!("{e}"))),
     };
@@ -174,11 +172,7 @@ pub unsafe extern "C" fn forward_graph_initialize_from_yaml_round_epoch_sizes(
             return -1;
         }
     };
-    match demes_forward::ForwardGraph::new(
-        dg,
-        burnin,
-        Some(demes_forward::demes::RoundTimeToInteger::F64),
-    ) {
+    match demes_forward::ForwardGraph::new_discrete_time(dg, burnin) {
         Ok(fgraph) => (*graph).update(Some(fgraph), None),
         Err(e) => (*graph).update(None, Some(format!("{e}"))),
     };

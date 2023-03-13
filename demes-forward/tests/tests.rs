@@ -100,9 +100,7 @@ fn iterate_all_generations(graph: &mut demes_forward::ForwardGraph) -> ModelFirs
 #[test]
 fn test_ancestry_proportions_after_deme_has_gone_extinct_and_before_extant() {
     let demes_graph = four_deme_model();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100).unwrap();
     graph.update_state(100).unwrap();
 
     // Deme A is extinct and D hasn't "come alive" yet
@@ -118,9 +116,7 @@ fn test_ancestry_proportions_after_deme_has_gone_extinct_and_before_extant() {
 #[test]
 fn test_four_deme_model_pub_api_only() {
     let demes_graph = four_deme_model();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100).unwrap();
     let last_time = iterate_all_generations(&mut graph);
     assert_eq!(
         last_time.last,
@@ -132,9 +128,7 @@ fn test_four_deme_model_pub_api_only() {
 #[test]
 fn test_four_deme_model_pub_api_only_start_after_zero() {
     let demes_graph = four_deme_model();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100).unwrap();
     graph.update_state(50.0).unwrap();
     let last_time = iterate_all_generations(&mut graph);
     assert_eq!(
@@ -194,9 +188,7 @@ migrations:
 - {demes: [CEU, CHB], rate: 9.6e-5}
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 0, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 0).unwrap();
     // graph.update_state(0.0).unwrap();
     let _last_time = iterate_all_generations(&mut graph);
 }
@@ -293,9 +285,7 @@ pulses:
 - {sources: [Nea1], dest: CHB, time: 883.0, proportions: [0.002]}
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 0, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 0).unwrap();
     // graph.update_state(0.0).unwrap();
     let _last_time = iterate_all_generations(&mut graph);
 }
@@ -310,9 +300,7 @@ demes:
    - start_size: 100
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 0, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 0).unwrap();
     assert_eq!(graph.end_time(), 1.0.into());
     let last_time = iterate_all_generations(&mut graph);
     let first = last_time.first.expect("expected Some(time) for first");
@@ -333,9 +321,7 @@ demes:
    - start_size: 200
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    let mut graph =
-        demes_forward::ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64))
-            .unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100).unwrap();
     assert_eq!(graph.end_time(), 151.0.into());
     let last_time = iterate_all_generations(&mut graph);
     let first = last_time.first.expect("expected Some(time) for first");
@@ -358,12 +344,7 @@ demes:
 migrations: []
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    assert!(demes_forward::ForwardGraph::new(
-        demes_graph,
-        100,
-        Some(demes::RoundTimeToInteger::F64)
-    )
-    .is_err());
+    assert!(demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100,).is_err());
 }
 
 #[test]
@@ -380,10 +361,5 @@ demes:
 migrations: []
 ";
     let demes_graph = demes::loads(yaml).unwrap();
-    assert!(demes_forward::ForwardGraph::new(
-        demes_graph,
-        100,
-        Some(demes::RoundTimeToInteger::F64)
-    )
-    .is_err());
+    assert!(demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100,).is_err());
 }

@@ -41,7 +41,7 @@ fn iterate_model(graph: demes::Graph, burnin: i32) -> Result<demes_forward::Forw
     // NOTE: the implementation of rounding in demes is currently an enum.
     // In the future, it may become a trait, which would break API here
     // but allow for more flexibility in client code.
-    let mut forward_graph = demes_forward::ForwardGraph::new(graph, burnin, None)?;
+    let mut forward_graph = demes_forward::ForwardGraph::new_discrete_time(graph, burnin)?;
 
     // Update the internal model state
     // to parental generation 0, meaning

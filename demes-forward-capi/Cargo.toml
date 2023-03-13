@@ -1,6 +1,6 @@
 [package]
 name = "demes-forward-capi"
-version = "0.3.1-alpha.0"
+version = "0.4.0-alpha.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/molpopgen/demes-rs"

@@ -2,7 +2,7 @@
 name = "demes-forward"
 authors = ["Kevin R. Thornton"]
 description = "rust API for iterating demes models forwards in time"
-version = "0.2.2-alpha.0"
+version = "0.3.0-alpha.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/molpopgen/demes-rs"

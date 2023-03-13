@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0-alpha.0] - 2023-03-13
+
+### Documentation
+
+- Update README.md for workspace and crates ([#226](https://github.com/molpopgen/demes-rs/pull/226))
+
+### Features
+
+- Round epoch stard/end sizes ([#244](https://github.com/molpopgen/demes-rs/pull/244))
+
+### Miscellaneous Tasks
+
+- Reorganize as a cargo workspace ([#215](https://github.com/molpopgen/demes-rs/pull/215))
+- Update Cargo.toml to point to correct homepage/repo. ([#223](https://github.com/molpopgen/demes-rs/pull/223))
+
+### Refactor
+
+- Handle null pointer as error case ([#228](https://github.com/molpopgen/demes-rs/pull/228))
+- [**breaking**] OpaqueForwardGraph is no longer Send/Sync ([#245](https://github.com/molpopgen/demes-rs/pull/245))
+- [**breaking**] Handle time conversion/rounding with callbacks ([#251](https://github.com/molpopgen/demes-rs/pull/251))
+
+### Testing
+
+- Add test of importing model with bad epoch rounding ([#236](https://github.com/molpopgen/demes-rs/pull/236))
+
 ## [0.3.0] - 2022-10-27
 
 ### Bug Fixes

@@ -330,10 +330,9 @@ impl ForwardGraph {
     /// * graph: a [`demes::Graph`].
     /// * burnin_time: Burn-in time for the model.
     /// * rounding: Optional [`demes::RoundTimeToInteger`]
-    pub fn new<F: Into<ForwardTime> + std::fmt::Debug + Copy>(
+    pub fn new_discrete_time<F: Into<ForwardTime> + std::fmt::Debug + Copy>(
         graph: demes::Graph,
         burnin_time: F,
-        rounding: Option<demes::RoundTimeToInteger>,
     ) -> Result<Self, crate::DemesForwardError> {
         if let Some((name, index)) = graph.has_non_integer_sizes() {
             let deme = graph.get_deme_from_name(name).unwrap();
@@ -350,10 +349,7 @@ impl ForwardGraph {
                 "invalid time value: {burnin_time:?}",
             )));
         }
-        let graph = match rounding {
-            Some(r) => graph.to_integer_generations(r)?,
-            None => graph.to_generations()?,
-        };
+        let graph = graph.to_integer_generations()?;
 
         validate_model_times(&graph)?;
 
@@ -967,7 +963,7 @@ demes:
     #[test]
     fn one_deme_two_epochs() {
         let demes_graph = two_epoch_model();
-        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100_u32).unwrap();
         assert!(graph.update_state(-1.0).is_err());
         assert!(graph.update_state(f64::INFINITY).is_err());
         graph.update_state(125_i32).unwrap();
@@ -1029,7 +1025,7 @@ demes:
     #[test]
     fn invalid_conversion_error() {
         let demes_graph = two_epoch_model_invalid_conversion_to_generations();
-        let result = ForwardGraph::new(demes_graph, 100.0, Some(demes::RoundTimeToInteger::F64));
+        let result = ForwardGraph::new_discrete_time(demes_graph, 100.0);
         assert!(matches!(
             result,
             Err(crate::DemesForwardError::DemesError(
@@ -1056,7 +1052,7 @@ demes:
             let x = ForwardTime::from(f64::NAN);
             assert!(!x.valid());
             let graph = two_epoch_model();
-            assert!(ForwardGraph::new(graph, x, None).is_err());
+            assert!(ForwardGraph::new_discrete_time(graph, x).is_err());
         }
     }
 
@@ -1064,7 +1060,7 @@ demes:
     fn test_one_generation_model() {
         {
             let demes_graph = graphs_for_testing::one_generation_model();
-            let mut graph = ForwardGraph::new(demes_graph, 0, None).unwrap();
+            let mut graph = ForwardGraph::new_discrete_time(demes_graph, 0).unwrap();
             assert_eq!(graph.end_time(), 2.0.into());
             for i in graph.time_iterator() {
                 graph.update_state(i).unwrap();
@@ -1163,7 +1159,7 @@ migrations:
     #[test]
     fn test_size_history_two_deme_split_with_ancestral_size_change() {
         let demes_graph = two_deme_split_with_ancestral_size_change();
-        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100_u32).unwrap();
 
         // Manually iterate graph until we hit deme 1 for the first time as a child.
         graph.update_state(0.0).unwrap();
@@ -1203,7 +1199,7 @@ migrations:
     #[test]
     fn test_two_epoch_model_linear_growth() {
         let demes_graph = two_epoch_model_linear_growth();
-        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100_u32).unwrap();
 
         let slope: f64 = (200. - 100.) / 50.;
         graph.update_state(100).unwrap(); // last generation of the 1st epoch
@@ -1264,7 +1260,7 @@ migrations:
     #[test]
     fn test_two_epoch_model_linear_decline() {
         let demes_graph = two_epoch_model_linear_decline();
-        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100_u32).unwrap();
         graph.update_state(100).unwrap(); // last generation of the 1st epoch
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
@@ -1321,7 +1317,7 @@ migrations:
     #[test]
     fn test_two_epoch_model_exponential_growth() {
         let demes_graph = two_epoch_model_exponential_growth();
-        let mut graph = ForwardGraph::new(demes_graph, 100_u32, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100_u32).unwrap();
         graph.update_state(100).unwrap(); // last generation of the 1st epoch
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
@@ -1385,8 +1381,7 @@ mod test_deme_ancestors {
     #[test]
     fn test_four_deme_model() {
         let demes_graph = graphs_for_testing::four_deme_model();
-        let mut graph =
-            ForwardGraph::new(demes_graph, 100, Some(demes::RoundTimeToInteger::F64)).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 100).unwrap();
 
         {
             graph.update_state(0).unwrap();
@@ -1471,8 +1466,7 @@ mod test_deme_ancestors {
     #[test]
     fn test_four_deme_model_duration() {
         let demes_graph = graphs_for_testing::four_deme_model();
-        let mut graph =
-            ForwardGraph::new(demes_graph, 73, Some(demes::RoundTimeToInteger::F64)).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 73).unwrap();
         test_model_duration(&mut graph);
     }
 }
@@ -1503,7 +1497,7 @@ pulses:
     #[test]
     fn test_pulses() {
         let demes_g = model_with_pulses();
-        let mut g = ForwardGraph::new(demes_g, 200., None).unwrap();
+        let mut g = ForwardGraph::new_discrete_time(demes_g, 200.).unwrap();
 
         for time in [199, 200] {
             g.update_state(time).unwrap();
@@ -1555,7 +1549,7 @@ migrations:
     #[test]
     fn test_migration_rate_changes_1() {
         let demes_g = model_with_migrations();
-        let mut g = ForwardGraph::new(demes_g, 200., None).unwrap();
+        let mut g = ForwardGraph::new_discrete_time(demes_g, 200.).unwrap();
 
         // Making sure ;)
         // g.update_state(250).unwrap();
@@ -1618,7 +1612,7 @@ migrations:
   start_time: 10
 ";
         let demes_g = demes::loads(yaml).unwrap();
-        let mut g = ForwardGraph::new(demes_g, 10_u32, None).unwrap();
+        let mut g = ForwardGraph::new_discrete_time(demes_g, 10_u32).unwrap();
 
         //All ancestor demes are constant size.
         //Therefore, at the end of burn-in, the child generation
@@ -1747,7 +1741,7 @@ migrations:
 
     fn run_invalid_model(f: fn() -> demes::Graph) {
         let demes_graph = f();
-        assert!(ForwardGraph::new(demes_graph, 1, None).is_err());
+        assert!(ForwardGraph::new_discrete_time(demes_graph, 1).is_ok());
     }
 
     #[test]
@@ -1790,7 +1784,7 @@ pulses:
   time: 10
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 50, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 50).unwrap();
         let index_a: usize = 0;
         let index_b: usize = 1;
         let index_c: usize = 2;
@@ -1833,7 +1827,7 @@ pulses:
   time: 10
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 50, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 50).unwrap();
         graph.update_state(50.0).unwrap();
         assert_eq!(graph.ancestry_proportions(2).unwrap().len(), 3);
         let ancestry_proportions = ancestry_proportions_from_graph(&graph, 2).unwrap();
@@ -1884,7 +1878,7 @@ pulses:
    proportions: [0.5]
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 0, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 0).unwrap();
         graph.update_state(0.0).unwrap();
         for child_deme in [1, 2] {
             match graph.child_demes[child_deme].current_size() {
@@ -1928,7 +1922,7 @@ migrations:
    end_time: 0
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 50, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 50).unwrap();
         graph.update_state(51.0).unwrap();
 
         for child_deme in 0..3 {
@@ -1970,7 +1964,7 @@ migrations:
   rate: 0.25 
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 10, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 10).unwrap();
         // Parental generations 0-9 have no migration,
         // which starts at generation 10
         for generation in 0..9 {
@@ -2005,7 +1999,7 @@ migrations:
   rate: 0.25
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 10, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 10).unwrap();
         for generation in 0..10 {
             graph.update_state(generation).unwrap();
             for deme in 0..3 {
@@ -2037,7 +2031,7 @@ demes:
     - cloning_rate: 0.25
 ";
         let demes_graph = demes::loads(yaml).unwrap();
-        let mut graph = ForwardGraph::new(demes_graph, 10, None).unwrap();
+        let mut graph = ForwardGraph::new_discrete_time(demes_graph, 10).unwrap();
         graph.update_state(0.0).unwrap();
         match graph.selfing_rates() {
             Some(rates) => assert_eq!(rates[0], 0.5),

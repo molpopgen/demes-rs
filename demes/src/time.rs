@@ -1,6 +1,25 @@
 use crate::error::DemesError;
 use serde::{Deserialize, Serialize};
 
+pub(crate) fn to_generations(time: Time, generation_time: GenerationTime) -> Time {
+    let t = f64::from(time);
+    let g = f64::from(generation_time);
+
+    (t / g).into()
+}
+
+/// Convert a time value into generations, rounding output to closest integer.
+///
+/// # Note
+///
+/// Rounds result using [`f64::round`].
+pub fn round_time_to_integer_generations(time: Time, generation_time: GenerationTime) -> Time {
+    let t = f64::from(time);
+    let g = f64::from(generation_time);
+
+    (t / g).round().into()
+}
+
 /// Store time values.
 ///
 /// This is a newtype wrapper for [`f64`](std::primitive::f64).
@@ -61,14 +80,6 @@ pub struct GenerationTime(f64);
 
 impl_newtype_traits!(GenerationTime);
 
-/// Specify rounding method for
-/// [`Graph::to_integer_generations`](crate::Graph::to_integer_generations)
-#[derive(Copy, Clone)]
-pub enum RoundTimeToInteger {
-    /// Use [`f64::round`](std::primitive::f64::round)
-    F64,
-}
-
 /// The time units of a graph
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(from = "String")]
@@ -114,7 +125,7 @@ enum TimeTrampoline {
 // Workhorse behing Graph::to_generations
 pub(crate) fn convert_resolved_time_to_generations<F>(
     generation_time: GenerationTime,
-    rounding: Option<RoundTimeToInteger>,
+    rounding: fn(Time, GenerationTime) -> Time,
     f: F,
     message: &str,
     input: Option<Time>,
@@ -123,10 +134,19 @@ where
     F: std::ops::FnOnce(String) -> DemesError,
 {
     match input {
-        Some(value) => match rounding {
-            Some(rounding_policy) => Ok(rounding_policy.apply_rounding(value, generation_time)),
-            None => Ok(Time(value.0 / generation_time.0)),
-        },
+        Some(value) => {
+            if value.0.is_infinite() {
+                return Ok(value);
+            }
+            let time = rounding(value, generation_time);
+
+            if time.0.is_finite() && time >= 0.0 {
+                Ok(time)
+            } else {
+                println!("{time:?} | {input:?} {generation_time:?}");
+                Err(f("rounding resulted in invalid time".to_string()))
+            }
+        }
         None => Err(f(message.to_string())),
     }
 }
@@ -189,19 +209,6 @@ impl GenerationTime {
         } else {
             Ok(())
         }
-    }
-}
-
-impl RoundTimeToInteger {
-    fn apply_rounding(&self, time: Time, generation_time: GenerationTime) -> Time {
-        let mut temp_time = f64::from(time) / generation_time.0;
-
-        match self {
-            RoundTimeToInteger::F64 => {
-                temp_time = temp_time.round();
-            }
-        }
-        Time::from(temp_time)
     }
 }
 

@@ -227,7 +227,7 @@ impl AsymmetricMigration {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
+        rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
         self.start_time = convert_resolved_time_to_generations(
             generation_time,
@@ -557,7 +557,7 @@ impl Pulse {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
+        rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
         self.time = convert_resolved_time_to_generations(
             generation_time,
@@ -695,7 +695,7 @@ impl Epoch {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
+        rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
         self.start_time = match convert_resolved_time_to_generations(
             generation_time,
@@ -917,7 +917,7 @@ impl Deme {
     fn resolved_time_to_generations(
         &mut self,
         generation_time: GenerationTime,
-        rounding: Option<RoundTimeToInteger>,
+        rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
         self.start_time = match convert_resolved_time_to_generations(
             generation_time,
@@ -2628,7 +2628,7 @@ impl Graph {
 
     fn convert_to_generations_details(
         self,
-        round: Option<RoundTimeToInteger>,
+        round: fn(Time, GenerationTime) -> Time,
     ) -> Result<Self, DemesError> {
         let mut converted = self;
 
@@ -2664,12 +2664,21 @@ impl Graph {
     ///
     /// If any field is unresolved, an error will be returned.
     pub fn to_generations(self) -> Result<Self, DemesError> {
-        self.convert_to_generations_details(None)
+        self.to_generations_with(crate::time::to_generations)
     }
 
     /// Convert the time units to generations, rounding the output to an integer value.
-    pub fn to_integer_generations(self, round: RoundTimeToInteger) -> Result<Graph, DemesError> {
-        self.convert_to_generations_details(Some(round))
+    pub fn to_integer_generations(self) -> Result<Graph, DemesError> {
+        self.to_generations_with(crate::time::round_time_to_integer_generations)
+    }
+
+    /// Convert the time units to generations with a callback to specify the conversion
+    /// policy
+    pub fn to_generations_with(
+        self,
+        with: fn(Time, GenerationTime) -> Time,
+    ) -> Result<Graph, DemesError> {
+        self.convert_to_generations_details(with)
     }
 
     /// Return a representation of the graph as a string.
@@ -3348,8 +3357,6 @@ demes:
 
 #[cfg(test)]
 mod test_to_integer_generations {
-    use super::*;
-
     #[test]
     fn test_demelevel_default_epoch_conversion() {
         let yaml = "
@@ -3369,7 +3376,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+        let converted = g.to_integer_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), (103_f64 / 25.0).round());
         let deme = converted.deme(1);
@@ -3399,7 +3406,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+        g.to_integer_generations().unwrap();
     }
 
     #[test]
@@ -3420,7 +3427,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_integer_generations(RoundTimeToInteger::F64).unwrap();
+        let converted = g.to_integer_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 10.6_f64.round());
         let deme = converted.deme(1);
@@ -3444,8 +3451,6 @@ demes:
     - start_size: 100
 ";
         let graph = crate::loads(yaml).unwrap();
-        let _ = graph
-            .to_integer_generations(RoundTimeToInteger::F64)
-            .unwrap();
+        let _ = graph.to_integer_generations().unwrap();
     }
 }

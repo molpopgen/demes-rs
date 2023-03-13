@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0-alpha.3] - 2023-03-13
+
+### Documentation
+
+- Update README.md for workspace and crates ([#226](https://github.com/molpopgen/demes-rs/pull/226))
+
+### Features
+
+- Support setting top-level metadata in Builder ([#225](https://github.com/molpopgen/demes-rs/pull/225))
+- Check if demes::Graph has non-integer sizes ([#242](https://github.com/molpopgen/demes-rs/pull/242))
+- Round epoch stard/end sizes ([#244](https://github.com/molpopgen/demes-rs/pull/244))
+
+### Miscellaneous Tasks
+
+- Reorganize as a cargo workspace ([#215](https://github.com/molpopgen/demes-rs/pull/215))
+
+### Refactor
+
+- [**breaking**] Mark DemesError and DemesForardError non_exhaustive ([#249](https://github.com/molpopgen/demes-rs/pull/249))
+- [**breaking**] Handle time conversion/rounding with callbacks ([#251](https://github.com/molpopgen/demes-rs/pull/251))
+
 ## [0.4.0-alpha.2] - 2022-10-28
 
 ### Documentation

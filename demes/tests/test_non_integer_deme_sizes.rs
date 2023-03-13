@@ -42,14 +42,14 @@ fn test_rounding_to_integer_sizes() {
     {
         let graph = demes::loads(&yaml_non_integer()).unwrap();
         assert!(graph.has_non_integer_sizes().is_some());
-        let graph = graph.round_epoch_start_end_sizes().unwrap();
+        let graph = graph.into_integer_start_end_sizes().unwrap();
         assert!(graph.has_non_integer_sizes().is_none());
     }
 
     {
         let graph = demes::loads(&yaml_all_integer()).unwrap();
         assert!(graph.has_non_integer_sizes().is_none());
-        let graph = graph.round_epoch_start_end_sizes().unwrap();
+        let graph = graph.into_integer_start_end_sizes().unwrap();
         assert!(graph.has_non_integer_sizes().is_none());
     }
 }

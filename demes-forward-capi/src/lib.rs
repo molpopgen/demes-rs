@@ -165,7 +165,7 @@ pub unsafe extern "C" fn forward_graph_initialize_from_yaml_round_epoch_sizes(
             return -1;
         }
     };
-    let dg = match dg.round_epoch_start_end_sizes() {
+    let dg = match dg.into_integer_start_end_sizes() {
         Ok(graph) => graph,
         Err(e) => {
             (*graph).update(None, Some(format!("{e}")));

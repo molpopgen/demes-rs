@@ -2663,18 +2663,18 @@ impl Graph {
     /// durations) of length zero, which will return an error.
     ///
     /// If any field is unresolved, an error will be returned.
-    pub fn to_generations(self) -> Result<Self, DemesError> {
-        self.to_generations_with(crate::time::to_generations)
+    pub fn into_generations(self) -> Result<Self, DemesError> {
+        self.into_generations_with(crate::time::to_generations)
     }
 
     /// Convert the time units to generations, rounding the output to an integer value.
-    pub fn to_integer_generations(self) -> Result<Graph, DemesError> {
-        self.to_generations_with(crate::time::round_time_to_integer_generations)
+    pub fn into_integer_generations(self) -> Result<Graph, DemesError> {
+        self.into_generations_with(crate::time::round_time_to_integer_generations)
     }
 
     /// Convert the time units to generations with a callback to specify the conversion
     /// policy
-    pub fn to_generations_with(
+    pub fn into_generations_with(
         self,
         with: fn(Time, GenerationTime) -> Time,
     ) -> Result<Graph, DemesError> {
@@ -2814,7 +2814,7 @@ impl Graph {
     /// # Note
     ///
     /// Rounding uses [f64::round](f64::round)
-    pub fn round_epoch_start_end_sizes(self) -> Result<Self, DemesError> {
+    pub fn into_integer_start_end_sizes(self) -> Result<Self, DemesError> {
         self.round_epoch_start_end_sizes_with(f64::round)
     }
 }
@@ -3158,7 +3158,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 4.0);
         let deme = converted.deme(1);
@@ -3184,7 +3184,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 0.4);
         let deme = converted.deme(1);
@@ -3211,7 +3211,7 @@ pulses:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         for p in converted.pulses().iter() {
             assert_eq!(p.time(), 2.0);
         }
@@ -3239,7 +3239,7 @@ pulses:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         for p in converted.pulses().iter() {
             assert_eq!(p.time(), 2.0);
         }
@@ -3265,7 +3265,7 @@ migrations:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         for p in converted.migrations().iter() {
             assert_eq!(p.start_time(), 50.0 / 25.0);
             assert_eq!(p.end_time(), 10.0 / 25.0);
@@ -3294,7 +3294,7 @@ migrations:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         for p in converted.migrations().iter() {
             assert_eq!(p.start_time(), 50.0 / 25.0);
             assert_eq!(p.end_time(), 10.0 / 25.0);
@@ -3322,7 +3322,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_generations().unwrap();
+        let converted = g.into_generations().unwrap();
         assert!(matches!(
             converted.time_units(),
             super::TimeUnits::Generations
@@ -3351,7 +3351,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let _ = g.to_generations().unwrap();
+        let _ = g.into_generations().unwrap();
     }
 }
 
@@ -3376,7 +3376,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_integer_generations().unwrap();
+        let converted = g.into_integer_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), (103_f64 / 25.0).round());
         let deme = converted.deme(1);
@@ -3406,7 +3406,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        g.to_integer_generations().unwrap();
+        g.into_integer_generations().unwrap();
     }
 
     #[test]
@@ -3427,7 +3427,7 @@ demes:
 ";
         let g = crate::loads(yaml).unwrap();
 
-        let converted = g.to_integer_generations().unwrap();
+        let converted = g.into_integer_generations().unwrap();
         let deme = converted.deme(0);
         assert_eq!(deme.end_time(), 10.6_f64.round());
         let deme = converted.deme(1);
@@ -3451,6 +3451,6 @@ demes:
     - start_size: 100
 ";
         let graph = crate::loads(yaml).unwrap();
-        let _ = graph.to_integer_generations().unwrap();
+        let _ = graph.into_integer_generations().unwrap();
     }
 }

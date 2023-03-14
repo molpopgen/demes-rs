@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0-alpha.1] - 2023-03-14
+
+### Bug Fixes
+
+- Fix conversion to backwards time when all end_times > 0.0 ([#253](https://github.com/molpopgen/demes-rs/pull/253))
+
 ## [0.3.0-alpha.0] - 2023-03-13
 
 ### Bug Fixes

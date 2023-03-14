@@ -363,3 +363,68 @@ migrations: []
     let demes_graph = demes::loads(yaml).unwrap();
     assert!(demes_forward::ForwardGraph::new_discrete_time(demes_graph, 100,).is_err());
 }
+
+#[test]
+fn test_initial_sizes_when_model_ends_prior_to_time_zero() {
+    let yaml_with_default_end_sizes = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+  defaults:
+    epoch: {end_time: 10}
+- name: b
+  epochs:
+  - {start_size: 1, end_time: 90}
+  - {start_size: 2, end_time: 50}
+  - {start_size: 3}
+  defaults:
+    epoch: {end_time: 10}
+";
+    let yaml_shift_model_ten_gens_towards_present = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 1, end_time: 80}
+  - {start_size: 2, end_time: 40}
+  - {start_size: 3}
+";
+    let yaml_explicit_end_times = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 1}
+  defaults:
+    epoch: {end_time: 10}
+- name: b
+  epochs:
+  - {start_size: 1, end_time: 90}
+  - {start_size: 2, end_time: 50}
+  - {start_size: 3, end_time: 10}
+";
+    for yaml_model in [
+        yaml_shift_model_ten_gens_towards_present,
+        yaml_with_default_end_sizes,
+        yaml_explicit_end_times,
+    ] {
+        for burnin in (0..50).rev() {
+            let demes_graph = demes::loads(yaml_model).unwrap();
+            let mut graph =
+                demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+            graph.update_state(0.0).unwrap();
+            let parental_sizes = graph.parental_deme_sizes().unwrap();
+            assert!(
+                parental_sizes.iter().all(|x| x == &1.0),
+                "failed with burnin = {burnin} and model variant {yaml_model}"
+            );
+        }
+    }
+}

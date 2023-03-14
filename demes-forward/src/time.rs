@@ -76,6 +76,7 @@ pub struct ModelTime {
     model_start_time: demes::Time,
     model_duration: f64,
     burnin_generation: f64,
+    minimum_epoch_end_time: f64,
 }
 
 impl ModelTime {
@@ -85,7 +86,9 @@ impl ModelTime {
     ) -> Result<Option<demes::Time>, DemesForwardError> {
         if time.value() < self.model_duration + self.burnin_generation {
             Ok(Some(
-                (self.burnin_generation + self.model_duration - 1.0 - time.value()).into(),
+                (self.burnin_generation + self.model_duration - 1.0 - time.value()
+                    + self.minimum_epoch_end_time)
+                    .into(),
             ))
         } else {
             Ok(None)
@@ -163,6 +166,7 @@ impl ModelTime {
             model_start_time,
             model_duration,
             burnin_generation,
+            minimum_epoch_end_time: graph.most_recent_deme_end_time().into(),
         })
     }
 

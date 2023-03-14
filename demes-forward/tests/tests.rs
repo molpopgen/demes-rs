@@ -410,6 +410,11 @@ demes:
   - {start_size: 2, end_time: 50}
   - {start_size: 3, end_time: 10}
 ";
+    let validate_sizes = |s: &[demes::DemeSize], expected: &[f64]| {
+        for (i, j) in s.iter().zip(expected.iter()) {
+            assert_eq!(i, j);
+        }
+    };
     for yaml_model in [
         yaml_shift_model_ten_gens_towards_present,
         yaml_with_default_end_sizes,
@@ -420,11 +425,15 @@ demes:
             let mut graph =
                 demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
             graph.update_state(0.0).unwrap();
-            let parental_sizes = graph.parental_deme_sizes().unwrap();
-            assert!(
-                parental_sizes.iter().all(|x| x == &1.0),
-                "failed with burnin = {burnin} and model variant {yaml_model}"
-            );
+            validate_sizes(graph.parental_deme_sizes().unwrap(), &[1., 1.]);
+            graph.update_state(burnin).unwrap();
+            validate_sizes(graph.parental_deme_sizes().unwrap(), &[1., 1.]);
+            validate_sizes(graph.offspring_deme_sizes().unwrap(), &[1., 2.]);
+            graph.update_state(burnin + 40).unwrap();
+            validate_sizes(graph.parental_deme_sizes().unwrap(), &[1., 2.]);
+            validate_sizes(graph.offspring_deme_sizes().unwrap(), &[1., 3.]);
+            graph.update_state(graph.end_time()).unwrap();
+            assert!(graph.offspring_deme_sizes().is_none());
         }
     }
 }

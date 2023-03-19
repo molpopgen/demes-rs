@@ -759,6 +759,40 @@ impl Epoch {
     pub fn time_interval(&self) -> TimeInterval {
         TimeInterval::new(self.start_time(), self.end_time())
     }
+
+    /// Size of Epoch at a given time
+    pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<DemeSize, DemesError> {
+        let time: f64 = time.into();
+        Time::from(time).validate(DemesError::EpochError)?;
+
+        if time == f64::INFINITY && self.start_time == f64::INFINITY {
+            return Ok(self.start_size);
+        };
+
+        let start_time = f64::from(self.start_time);
+        let end_time = f64::from(self.end_time);
+        if time < end_time || time >= start_time {
+            return Err(DemesError::EpochError(
+                "time is not contained in epoch time span".to_string(),
+            ));
+        }
+
+        let time_span = start_time - end_time;
+        let dt = start_time - time;
+        let size = match self.size_function() {
+            SizeFunction::Constant => self.end_size,
+            SizeFunction::Linear => DemeSize::from(
+                f64::from(self.start_size)
+                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span,
+            ),
+            SizeFunction::Exponential => {
+                let r = (f64::from(self.end_size) / f64::from(self.start_size)).ln() / time_span;
+                DemeSize::from(f64::from(self.start_size) * (r * dt).exp())
+            }
+        };
+        size.validate(DemesError::EpochError)?;
+        Ok(size)
+    }
 }
 
 impl UnresolvedEpoch {
@@ -1058,6 +1092,26 @@ impl Deme {
     /// Resolved proportions
     pub fn proportions(&self) -> &[Proportion] {
         &self.proportions
+    }
+
+    /// Size of Deme at a given time
+    pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<Option<DemeSize>, DemesError> {
+        let time: f64 = time.into();
+        Time::from(time).validate(DemesError::DemeError)?;
+
+        if time == f64::INFINITY && self.start_time == f64::INFINITY {
+            return Ok(Some(self.epochs()[0].start_size));
+        };
+
+        let epoch = self.epochs().iter().find(|x| {
+            x.time_interval()
+                .contains_exclusive_start_inclusive_end(time)
+        });
+
+        match epoch {
+            None => Ok(None),
+            Some(e) => Ok(Some(e.size_at(time)?)),
+        }
     }
 }
 

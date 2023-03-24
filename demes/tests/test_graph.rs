@@ -910,3 +910,103 @@ pulses:
 ";
     let _ = demes::loads(yaml).unwrap();
 }
+
+#[test]
+fn test_deme_size_at() {
+    let yaml = "
+description: Multiple epochs with different size functions
+time_units: generations
+demes:
+- name: deme0
+  epochs:
+  - {end_time: 300, start_size: 200}
+  - {end_time: 200, start_size: 100}
+  - {end_time: 100, size_function: linear, end_size: 200}
+  - {end_time: 0, end_size: 1000}
+- name: deme1
+  ancestors: [deme0]
+  start_time: 50
+  epochs:
+  - {start_size: 10}
+";
+    let g = demes::loads(yaml).unwrap();
+
+    let epoch = g.deme(0).epochs()[3];
+    let dt = f64::from(epoch.start_time()) - 50_f64;
+    let r = (f64::from(epoch.end_size()) / f64::from(epoch.start_size())).ln()
+        / (f64::from(epoch.start_time()) - f64::from(epoch.end_time()));
+    let size_50 = f64::from(epoch.start_size()) * (r * dt).exp();
+
+    assert_eq!(
+        200_f64, // size at Infinity
+        f64::from(g.deme(0).size_at(f64::INFINITY).unwrap().unwrap())
+    );
+    assert_eq!(
+        200_f64, // size at transition between two epochs, [end_time, start_time)
+        f64::from(g.deme(0).size_at(300).unwrap().unwrap())
+    );
+    assert_eq!(
+        100_f64, // middle constant epoch
+        f64::from(g.deme(0).size_at(250).unwrap().unwrap())
+    );
+    assert_eq!(
+        150_f64, // middle linear increase epoch
+        f64::from(g.deme(0).size_at(150).unwrap().unwrap())
+    );
+    assert_eq!(
+        size_50, // middle exponential increase
+        f64::from(g.deme(0).size_at(50).unwrap().unwrap())
+    );
+    assert!(g.deme(0).size_at(-10).is_err());
+    assert_eq!(None, g.deme(1).size_at(100).unwrap()); // epoch that does not yet exist
+}
+
+#[test]
+fn test_epoch_size_at() {
+    let yaml = "
+description: Multiple epochs with different size functions
+time_units: generations
+demes:
+- name: deme0
+  epochs:
+  - {end_time: 300, start_size: 200}
+  - {end_time: 200, start_size: 100}
+  - {end_time: 100, size_function: linear, end_size: 200}
+  - {end_time: 0, end_size: 1000}
+- name: deme1
+  ancestors: [deme0]
+  start_time: 50
+  epochs:
+  - {start_size: 10}
+";
+    let g = demes::loads(yaml).unwrap();
+
+    let epoch = g.deme(0).epochs()[3];
+    let dt = f64::from(epoch.start_time()) - 50_f64;
+    let r = (f64::from(epoch.end_size()) / f64::from(epoch.start_size())).ln()
+        / (f64::from(epoch.start_time()) - f64::from(epoch.end_time()));
+    let size_50 = f64::from(epoch.start_size()) * (r * dt).exp();
+
+    assert_eq!(
+        200_f64, // size at Infinity
+        f64::from(g.deme(0).epochs()[0].size_at(f64::INFINITY).unwrap())
+    );
+    assert_eq!(
+        200_f64, // size at transition between two epochs, [end_time, start_time)
+        f64::from(g.deme(0).epochs()[0].size_at(300).unwrap())
+    );
+    assert_eq!(
+        100_f64, // middle constant epoch
+        f64::from(g.deme(0).epochs()[1].size_at(250).unwrap())
+    );
+    assert_eq!(
+        150_f64, // middle linear increase epoch
+        f64::from(g.deme(0).epochs()[2].size_at(150).unwrap())
+    );
+    assert_eq!(
+        size_50, // middle exponential increase
+        f64::from(g.deme(0).epochs()[3].size_at(50).unwrap())
+    );
+    assert!(g.deme(0).epochs()[0].size_at(-10).is_err());
+    assert!(g.deme(0).epochs()[0].size_at(10).is_err()); // time outside of epoch
+}

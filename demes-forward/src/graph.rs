@@ -196,6 +196,9 @@ impl Deme {
                         self.backwards_time,
                         exponential_size_change,
                     ),
+                    _ => unimplemented!(
+                        "encountered a SizeFunction variant that we do not know how to handle"
+                    ),
                 },
                 None => panic!("fatal error: epoch_index out of range"),
             },

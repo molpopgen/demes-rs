@@ -83,6 +83,7 @@ macro_rules! get_deme {
 /// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum SizeFunction {
     #[allow(missing_docs)]
     Constant,

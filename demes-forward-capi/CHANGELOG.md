@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.0-alpha.0] - 2023-03-13
+## [0.4.0] - 2023-03-30
 
 ### Documentation
 

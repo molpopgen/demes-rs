@@ -40,7 +40,21 @@ git cliff -u --include-path "demes/**" --tag v0.4.0 -p demes/CHANGELOG.md
 
 The configuration file for cliff is present in the workspace root.
 
-### Viewing the documentation
+### Tagging a release
+
+Any new release of any tool should have the following name:
+
+```
+tool-version
+```
+
+For example:
+
+```
+demes-forward-0.6.0
+```
+
+### Viewing the documentation locally
 
 ```
 cargo doc --open

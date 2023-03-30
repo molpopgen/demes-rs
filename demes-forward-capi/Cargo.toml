@@ -1,6 +1,6 @@
 [package]
 name = "demes-forward-capi"
-version = "0.4.0-alpha.2"
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/molpopgen/demes-rs"
@@ -18,5 +18,5 @@ crate-type = ["lib", "staticlib", "cdylib"]
 # strip = true
 
 [dependencies]
-demes-forward = {version = "0.3.0-alpha.2", path = "../demes-forward"}
+demes-forward = {version = "0.3.0", path = "../demes-forward"}
 libc = "~0.2"

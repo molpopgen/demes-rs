@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### Features
+
+- Add size_at methods for demes::Deme and demes::Epoch ([#256](https://github.com/molpopgen/demes-rs/pull/256))
+
+### Refactor
+
+- [**breaking**] Mark SizeFunction non_exhaustive ([#258](https://github.com/molpopgen/demes-rs/pull/258))
+
+### Testing
+
+- Update demes-spec submodule ([#259](https://github.com/molpopgen/demes-rs/pull/259))
+
 ## [0.4.0-alpha.3] - 2023-03-13
 
 ### Documentation

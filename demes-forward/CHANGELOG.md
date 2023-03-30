@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### Refactor
+
+- [**breaking**] Mark SizeFunction non_exhaustive ([#258](https://github.com/molpopgen/demes-rs/pull/258))
+
+### Testing
+
+- Test all size changes for test added in #253 ([#255](https://github.com/molpopgen/demes-rs/pull/255))
+
 ## [0.3.0-alpha.1] - 2023-03-14
 
 ### Bug Fixes

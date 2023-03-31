@@ -104,6 +104,27 @@ impl Display for SizeFunction {
     }
 }
 
+/// A deme can be identified as an index
+/// or as a name
+pub enum DemeId<'name> {
+    /// The index of a deme
+    Index(usize),
+    /// The name of a deme
+    Name(&'name str),
+}
+
+impl<'name> From<usize> for DemeId<'name> {
+    fn from(value: usize) -> Self {
+        Self::Index(value)
+    }
+}
+
+impl<'name> From<&'name str> for DemeId<'name> {
+    fn from(value: &'name str) -> Self {
+        Self::Name(value)
+    }
+}
+
 /// An unresolved migration epoch.
 ///
 /// All input migrations are resolved to [`AsymmetricMigration`](crate::AsymmetricMigration)
@@ -2629,22 +2650,43 @@ impl Graph {
     /// # Examples
     ///
     /// See [`here`](crate::SizeFunction).
+    #[deprecated(note = "Use Graph::get_deme instead")]
     pub fn get_deme_from_name<'name>(&'name self, name: &'name str) -> Option<&'name Deme> {
         get_deme!(name, &self.deme_map, &self.demes)
     }
 
-    /// Get the [`Deme`](crate::Deme) at index `at`.
-    pub fn deme(&self, at: usize) -> &Deme {
-        &self.demes[at]
+    /// Get the [`Deme`](crate::Deme) at identifier `id`.
+    ///
+    /// # Parameters
+    ///
+    /// * `id`, the [`DemeId`] to fetch.
+    ///
+    /// # Panics
+    ///
+    /// * If either variant of [`DemeId`] refers to an invalid deme
+    ///
+    /// # Note
+    ///
+    /// See [`Graph::deme_checked`] for a version that will not panic
+    pub fn deme<'name, I: Into<DemeId<'name>>>(&'name self, id: I) -> &Deme {
+        self.get_deme(id).unwrap()
     }
 
-    /// Get the [`Deme`](crate::Deme) at index `at`.
+    /// Get the [`Deme`](crate::Deme) at identifier `id`.
     ///
-    /// # Details
+    /// # Parameters
     ///
-    /// Returns `None` if `at` is out of range.
-    pub fn get_deme(&self, at: usize) -> Option<&Deme> {
-        self.demes.get(at)
+    /// * `id`, the [`DemeId`] to fetch.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(&[`Deme`])` if `id` is valid
+    /// * `None` otherwise
+    pub fn get_deme<'name, I: Into<DemeId<'name>>>(&'name self, id: I) -> Option<&Deme> {
+        match id.into() {
+            DemeId::Index(i) => self.demes.get(i),
+            DemeId::Name(name) => get_deme!(name, &self.deme_map, &self.demes),
+        }
     }
 
     /// Get the [`Deme`](crate::Deme) instances via a slice.

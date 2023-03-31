@@ -103,7 +103,7 @@ demes:
     let g = demes::loads(yaml).unwrap();
     assert_eq!(g.num_demes(), 1);
     assert_eq!(
-        f64::from(g.get_deme_from_name("A").unwrap().start_time()),
+        f64::from(g.get_deme("A").unwrap().start_time()),
         f64::INFINITY,
     );
     assert_graph_equality_after_round_trip!(g);

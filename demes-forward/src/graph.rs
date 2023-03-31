@@ -338,7 +338,7 @@ impl ForwardGraph {
         burnin_time: F,
     ) -> Result<Self, crate::DemesForwardError> {
         if let Some((name, index)) = graph.has_non_integer_sizes() {
-            let deme = graph.get_deme_from_name(name).unwrap();
+            let deme = graph.get_deme(name).unwrap();
             let epoch = deme.epochs()[index];
             for i in [f64::from(epoch.start_size()), f64::from(epoch.end_size())] {
                 if i.is_finite() && i.fract() != 0.0 {

@@ -27,6 +27,15 @@ cargo test
 * Pull requests should be rebased down to one commit.
 * Commit messages for CHANGELOGs should be
   [conventional](https://www.conventionalcommits.org/en/v1.0.0/).
+* We **strongly** suggest running semver checks locally.
+  While we run these upon merge into `main`, it is better to know
+  ahead of time if a PR breaks API.   It is even better to
+  avoid API breakage altogether!
+
+```sh
+cargo install cargo-semver-checks
+cargo semver-checks check-release
+```
 
 ### Generating CHANGELOG updates
 

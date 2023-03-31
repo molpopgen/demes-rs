@@ -96,7 +96,6 @@ fn apply_size_function(
     deme: &demes::Deme,
     epoch_index: usize,
     backwards_time: Option<demes::Time>,
-    size_function_details: impl Fn(SizeFunctionDetails) -> f64,
 ) -> Result<Option<demes::DemeSize>, DemesForwardError> {
     match backwards_time {
         Some(btime) => {
@@ -115,6 +114,13 @@ fn apply_size_function(
             let epoch_end_time = current_epoch.end_time();
             let epoch_start_size = current_epoch.start_size();
             let epoch_end_size = current_epoch.end_size();
+
+            let size_function_details = match current_epoch.size_function() {
+                demes::SizeFunction::Constant => return Ok(Some(epoch_start_size)),
+                demes::SizeFunction::Linear => linear_size_change,
+                demes::SizeFunction::Exponential => exponential_size_change,
+                _ => unimplemented!("unimplemented size function variant"),
+            };
 
             let size: f64 = size_function_details(SizeFunctionDetails {
                 epoch_start_time,
@@ -182,24 +188,7 @@ impl Deme {
     fn current_size(&self) -> Result<Option<demes::DemeSize>, DemesForwardError> {
         match self.status {
             DemeStatus::During(epoch_index) => match self.deme.get_epoch(epoch_index) {
-                Some(epoch) => match epoch.size_function() {
-                    demes::SizeFunction::Constant => Ok(Some(epoch.start_size())),
-                    demes::SizeFunction::Linear => apply_size_function(
-                        &self.deme,
-                        epoch_index,
-                        self.backwards_time,
-                        linear_size_change,
-                    ),
-                    demes::SizeFunction::Exponential => apply_size_function(
-                        &self.deme,
-                        epoch_index,
-                        self.backwards_time,
-                        exponential_size_change,
-                    ),
-                    _ => unimplemented!(
-                        "encountered a SizeFunction variant that we do not know how to handle"
-                    ),
-                },
+                Some(_) => apply_size_function(&self.deme, epoch_index, self.backwards_time),
                 None => panic!("fatal error: epoch_index out of range"),
             },
             _ => Ok(None),
@@ -783,6 +772,66 @@ impl ForwardGraph {
     /// at the current time.
     pub fn num_extant_offspring_demes(&self) -> usize {
         self.num_extant_demes(Generation::Child)
+    }
+
+    /// Obtain the size (number of parental individuals) of a given
+    /// deme at a given time.
+    ///
+    /// # Parameters
+    ///
+    /// * `deme`: a deme identifier
+    /// * `time`: a time
+    ///
+    /// # Returns
+    ///
+    /// * `Some(DemeSize)` if there are parents at the given time.
+    /// * `None` if `deme` does not exist or the deme exists but is
+    ///    not in existence at `time`.
+    ///
+    /// # Errors
+    ///
+    /// [`DemesForwardError`] if the calculation of deme size returns an
+    /// invalid [`demes::DemeSize`] or if `time` is not a valid value.
+    ///
+    /// # Notes
+    ///
+    /// * Time is measured backwards in time from 0.0 (inclusive of zero).
+    ///   The reason is that it is usually easier to reason about time
+    ///   in this way.
+    /// * Unlike a [`demes::Graph`], time does not go back in the past
+    ///   to "infinity". The first parental generation is considered
+    ///   to exist at a time one generation prior to the start of events
+    ///   in the graph plus the burn-in time.
+    pub fn size_at<'a, I: Into<demes::DemeId<'a>>, T: Into<demes::Time>>(
+        &self,
+        deme: I,
+        time: T,
+    ) -> Result<Option<demes::DemeSize>, DemesForwardError> {
+        let time = time.into();
+        let time_raw = f64::from(time);
+        if time_raw.is_nan() || !time_raw.is_sign_positive() {
+            return Err(DemesForwardError::TimeError(format!(
+                "invalid time value: {time_raw}"
+            )));
+        }
+        if time > self.model_times.model_start_time() {
+            return Ok(None);
+        }
+        let id = deme.into();
+        let deme = match self.graph.get_deme(id) {
+            Some(d) => d,
+            None => return Ok(None),
+        };
+        if let Some((index, _epoch)) = deme
+            .epochs()
+            .iter()
+            .enumerate()
+            .find(|(_, e)| time >= e.end_time() && time < e.start_time())
+        {
+            apply_size_function(deme, index, Some(time))
+        } else {
+            Ok(None)
+        }
     }
 }
 

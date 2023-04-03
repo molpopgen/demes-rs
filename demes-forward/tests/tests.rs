@@ -516,3 +516,176 @@ demes:
         iterate_all_generations(&mut graph);
     }
 }
+
+fn collector<I>(iterator: I) -> Vec<demes_forward::DemeSizeAt>
+where
+    I: Iterator<Item = Result<demes_forward::DemeSizeAt, demes_forward::DemesForwardError>>,
+{
+    iterator
+        .map(|x| match x {
+            Ok(s) => s,
+            Err(e) => panic!("{e:?}"),
+        })
+        .collect::<Vec<demes_forward::DemeSizeAt>>()
+}
+
+#[test]
+fn test_size_history() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+
+    let size_history = graph.deme_size_history(0, None, None).unwrap();
+
+    let g = graph.clone();
+    drop(graph); // The iterator is NOT coupled to the graph lifetime.
+
+    let history_deme_zero = collector(size_history);
+    assert_eq!(history_deme_zero.len(), 101);
+
+    let mut graph = g;
+
+    let mut sizes = vec![];
+    let mut sizes_deme_1 = vec![];
+    let mut forward_times = vec![];
+    for time in graph.time_iterator() {
+        graph.update_state(time).unwrap();
+        sizes.push(graph.parental_deme_sizes().unwrap()[0]);
+        sizes_deme_1.push(graph.parental_deme_sizes().unwrap()[1]);
+        forward_times.push(time);
+    }
+    assert_eq!(sizes.len(), history_deme_zero.len());
+    for ((&i, j), &t) in sizes
+        .iter()
+        .zip(history_deme_zero.iter())
+        .zip(forward_times.iter())
+    {
+        assert_eq!(i, j.size());
+        assert_eq!(t, j.forward_time());
+    }
+    let size_history = graph.deme_size_history(1, None, None).unwrap();
+    let history_deme_one = collector(size_history);
+    assert_eq!(history_deme_one.len(), sizes.len() - 10);
+    for (&i, j) in sizes_deme_1.iter().zip(history_deme_one.iter()) {
+        assert_eq!(i, j.size());
+    }
+}
+
+#[test]
+fn test_size_history_partial_iteration() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+
+    {
+        let size_history = graph
+            .deme_size_history(0, Some(10.0.try_into().unwrap()), None)
+            .unwrap();
+
+        let history_deme_zero = collector(size_history);
+        assert_eq!(history_deme_zero.len(), 11);
+    }
+
+    {
+        let size_history = graph
+            .deme_size_history(
+                0,
+                Some(10.0.try_into().unwrap()),
+                Some(5.0.try_into().unwrap()),
+            )
+            .unwrap();
+
+        let history_deme_zero = collector(size_history);
+        assert_eq!(history_deme_zero.len(), 6);
+    }
+}
+
+#[test]
+fn test_size_history_errors() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+
+    let infinity = demes::Time::try_from(f64::INFINITY).unwrap();
+    assert!(graph.deme_size_history(0, Some(infinity), None).is_ok());
+    assert!(graph.deme_size_history(0, None, Some(infinity)).is_err());
+}
+
+#[test]
+fn test_size_history_with_zeros() {
+    let yaml = "
+time_units: generations
+demes:
+ - name: A
+   epochs:
+    - start_size: 100
+      end_time: 50
+ - name: B
+   ancestors: [A]
+   epochs:
+    - start_size: 100
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+    let size_history_b = graph.deme_size_history("B", None, None).unwrap();
+    let collected = collector(size_history_b);
+    assert_eq!(collected.len(), 50);
+
+    let size_history_b = graph
+        .deme_size_history("B", Some(60_f64.try_into().unwrap()), None)
+        .unwrap();
+    let collected = collector(size_history_b);
+    assert_eq!(collected.len(), 50);
+
+    // "present" is more recent than demes' end_time
+    assert!(graph
+        .deme_size_history("A", Some(40_f64.try_into().unwrap()), None)
+        .is_err());
+    // "past" is more ancient than demes' start_time
+    assert!(graph
+        .deme_size_history("B", None, Some(52_f64.try_into().unwrap()))
+        .is_err());
+}

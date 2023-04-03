@@ -2651,8 +2651,9 @@ impl Graph {
     ///
     /// See [`here`](crate::SizeFunction).
     #[deprecated(note = "Use Graph::get_deme instead")]
-    pub fn get_deme_from_name<'name>(&'name self, name: &'name str) -> Option<&'name Deme> {
-        get_deme!(name, &self.deme_map, &self.demes)
+    pub fn get_deme_from_name<'name>(&'name self, name: &'name str) -> Option<&Deme> {
+        let id = DemeId::from(name);
+        self.get_deme(id)
     }
 
     /// Get the [`Deme`](crate::Deme) at identifier `id`.

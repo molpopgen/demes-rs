@@ -2651,7 +2651,7 @@ impl Graph {
     ///
     /// See [`here`](crate::SizeFunction).
     #[deprecated(note = "Use Graph::get_deme instead")]
-    pub fn get_deme_from_name<'name>(&'name self, name: &'name str) -> Option<&Deme> {
+    pub fn get_deme_from_name(&self, name: &str) -> Option<&Deme> {
         let id = DemeId::from(name);
         self.get_deme(id)
     }
@@ -2669,7 +2669,7 @@ impl Graph {
     /// # Note
     ///
     /// See [`Graph::deme_checked`] for a version that will not panic
-    pub fn deme<'name, I: Into<DemeId<'name>>>(&'name self, id: I) -> &Deme {
+    pub fn deme<'name, I: Into<DemeId<'name>>>(&self, id: I) -> &Deme {
         self.get_deme(id).unwrap()
     }
 
@@ -2683,7 +2683,7 @@ impl Graph {
     ///
     /// * `Some(&[`Deme`])` if `id` is valid
     /// * `None` otherwise
-    pub fn get_deme<'name, I: Into<DemeId<'name>>>(&'name self, id: I) -> Option<&Deme> {
+    pub fn get_deme<'name, I: Into<DemeId<'name>>>(&self, id: I) -> Option<&Deme> {
         match id.into() {
             DemeId::Index(i) => self.demes.get(i),
             DemeId::Name(name) => get_deme!(name, &self.deme_map, &self.demes),

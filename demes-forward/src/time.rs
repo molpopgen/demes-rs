@@ -94,6 +94,10 @@ impl ModelTime {
             Ok(None)
         }
     }
+
+    pub(crate) fn model_start_time(&self) -> demes::Time {
+        self.convert(0.into()).unwrap().unwrap()
+    }
 }
 
 fn get_model_start_time(graph: &demes::Graph) -> demes::Time {

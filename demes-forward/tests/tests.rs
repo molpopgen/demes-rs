@@ -437,3 +437,53 @@ demes:
         }
     }
 }
+
+#[test]
+fn test_size_at() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+
+    assert!(graph.size_at(1, 0.0).is_ok());
+    assert!(graph.size_at(1, 0.0).unwrap().is_none());
+    assert!(graph.size_at(0, 0.0).is_ok());
+    assert!(graph.size_at(0, 0.0).unwrap().is_some());
+    assert_eq!(graph.size_at(0, 0.0).unwrap(), Some(10.0.into()));
+
+    // Infinity ago is prior to start of "burn in"
+    assert!(graph.size_at(1, f64::INFINITY).is_ok());
+    assert!(graph.size_at(1, f64::INFINITY).unwrap().is_none());
+
+    assert!(graph.size_at(1, f64::NAN).is_err());
+    assert!(graph.size_at(1, -1.0).is_err());
+
+    assert!(graph.size_at(0, 10.0).is_ok());
+    assert_eq!(graph.size_at(0, 10.0).unwrap().unwrap(), 10.0);
+
+    // time 101 is past model_length + burnin
+    assert!(graph.size_at(0, 101.0).is_ok());
+    assert!(graph.size_at(0, 101.0).unwrap().is_none());
+
+    // time 100 is the first parental generation
+    // (time 0 forwards in time)
+    assert!(graph.size_at(0, 100.0).is_ok());
+    assert!(graph.size_at(0, 100.0).unwrap().is_some());
+
+    // There is no deme 2
+    assert!(graph.size_at(2, 0.0).is_ok());
+    assert!(graph.size_at(2, 0.0).unwrap().is_none());
+}

@@ -106,6 +106,7 @@ impl Display for SizeFunction {
 
 /// A deme can be identified as an index
 /// or as a name
+#[derive(Copy, Clone, Debug)]
 pub enum DemeId<'name> {
     /// The index of a deme
     Index(usize),

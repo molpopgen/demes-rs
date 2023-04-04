@@ -1,4 +1,5 @@
 use crate::time::ModelTime;
+use crate::CurrentSize;
 use crate::DemesForwardError;
 use crate::ForwardTime;
 
@@ -8,7 +9,7 @@ enum Generation {
 }
 
 fn time_minus_1(time: demes::Time) -> demes::Time {
-    demes::Time::from(f64::from(time) - 1.0)
+    demes::Time::try_from(f64::from(time) - 1.0).unwrap()
 }
 
 fn get_epoch_start_time_discrete_time_model(
@@ -96,7 +97,7 @@ fn apply_size_function(
     deme: &demes::Deme,
     epoch_index: usize,
     backwards_time: Option<demes::Time>,
-) -> Result<Option<demes::DemeSize>, DemesForwardError> {
+) -> Result<Option<CurrentSize>, DemesForwardError> {
     match backwards_time {
         Some(btime) => {
             let epoch_start_time = get_epoch_start_time_discrete_time_model(deme, epoch_index)?;
@@ -116,7 +117,7 @@ fn apply_size_function(
             let epoch_end_size = current_epoch.end_size();
 
             let size_function_details = match current_epoch.size_function() {
-                demes::SizeFunction::Constant => return Ok(Some(epoch_start_size)),
+                demes::SizeFunction::Constant => return Ok(Some(epoch_start_size.try_into()?)),
                 demes::SizeFunction::Linear => linear_size_change,
                 demes::SizeFunction::Exponential => exponential_size_change,
                 _ => unimplemented!("unimplemented size function variant"),
@@ -131,9 +132,9 @@ fn apply_size_function(
             });
 
             if !size.gt(&0.0) || !size.is_finite() {
-                Err(DemesForwardError::InvalidDemeSize(size.into()))
+                Err(DemesForwardError::InvalidDemeSize(size))
             } else {
-                Ok(Some(demes::DemeSize::from(size)))
+                Ok(Some(CurrentSize::try_from(size)?))
             }
         }
         None => Ok(None),
@@ -185,7 +186,7 @@ impl Deme {
     }
 
     // return None if !self.is_extant()
-    fn current_size(&self) -> Result<Option<demes::DemeSize>, DemesForwardError> {
+    fn current_size(&self) -> Result<Option<CurrentSize>, DemesForwardError> {
         match self.status {
             DemeStatus::During(epoch_index) => match self.deme.get_epoch(epoch_index) {
                 Some(_) => apply_size_function(&self.deme, epoch_index, self.backwards_time),
@@ -208,10 +209,10 @@ impl Deme {
         time: demes::Time,
         update_ancestors: bool,
         deme_to_index: &std::collections::HashMap<String, usize>,
-    ) -> Result<demes::DemeSize, DemesForwardError> {
+    ) -> Result<CurrentSize, DemesForwardError> {
         self.ancestors.clear();
         self.proportions.clear();
-        let mut current_size = demes::DemeSize::from(0.0);
+        let mut current_size = CurrentSize::try_from(0.0)?;
         if time < self.deme.start_time() {
             let i = self.epoch_index_for_update();
 
@@ -230,7 +231,7 @@ impl Deme {
                 self.backwards_time = Some(time);
                 if update_ancestors {
                     let generation_to_check_ancestors =
-                        demes::Time::from(f64::from(self.deme.start_time()) - 2.0);
+                        demes::Time::try_from(f64::from(self.deme.start_time()) - 2.0)?;
                     if time > generation_to_check_ancestors {
                         for (name, proportion) in self
                             .deme
@@ -270,7 +271,7 @@ fn update_demes(
     deme_to_index: &std::collections::HashMap<String, usize>,
     graph: &demes::Graph,
     demes: &mut Vec<Deme>,
-    sizes: &mut Vec<demes::DemeSize>,
+    sizes: &mut Vec<CurrentSize>,
 ) -> Result<(), DemesForwardError> {
     match backwards_time {
         Some(time) => {
@@ -278,7 +279,7 @@ fn update_demes(
                 sizes.clear();
                 for deme in graph.demes().iter() {
                     demes.push(Deme::new(deme.clone()));
-                    sizes.push(demes::DemeSize::from(0.0));
+                    sizes.push(CurrentSize::try_from(0.0)?);
                 }
             }
 
@@ -310,8 +311,8 @@ pub struct ForwardGraph {
     migration_matrix: ndarray::Array<f64, ndarray::Ix2>,
     cloning_rates: Vec<demes::CloningRate>,
     selfing_rates: Vec<demes::SelfingRate>,
-    parental_deme_sizes: Vec<demes::DemeSize>,
-    child_deme_sizes: Vec<demes::DemeSize>,
+    parental_deme_sizes: Vec<CurrentSize>,
+    child_deme_sizes: Vec<CurrentSize>,
 }
 
 impl ForwardGraph {
@@ -331,7 +332,7 @@ impl ForwardGraph {
             let epoch = deme.epochs()[index];
             for i in [f64::from(epoch.start_size()), f64::from(epoch.end_size())] {
                 if i.is_finite() && i.fract() != 0.0 {
-                    return Err(DemesForwardError::InvalidDemeSize(i.into()));
+                    return Err(DemesForwardError::InvalidDemeSize(i));
                 }
             }
         }
@@ -641,8 +642,8 @@ impl ForwardGraph {
                         .push(deme.deme.epochs()[x].selfing_rate());
                 }
                 _ => {
-                    self.cloning_rates.push(demes::CloningRate::from(0.0));
-                    self.selfing_rates.push(demes::SelfingRate::from(0.0));
+                    self.cloning_rates.push(demes::CloningRate::try_from(0.0)?);
+                    self.selfing_rates.push(demes::SelfingRate::try_from(0.0)?);
                 }
             }
         }
@@ -736,7 +737,7 @@ impl ForwardGraph {
     /// in the graph (see [`ForwardGraph::num_demes_in_model`]).
     ///
     /// Returns `None` if there are no parental demes at the current time.
-    pub fn parental_deme_sizes(&self) -> Option<&[demes::DemeSize]> {
+    pub fn parental_deme_sizes(&self) -> Option<&[CurrentSize]> {
         self.get_slice_if(Generation::Parent, self.parental_deme_sizes.as_slice())
     }
 
@@ -746,7 +747,7 @@ impl ForwardGraph {
     /// in the graph (see [`ForwardGraph::num_demes_in_model`]).
     ///
     /// Returns `None` if there are no offspring demes at the current time.
-    pub fn offspring_deme_sizes(&self) -> Option<&[demes::DemeSize]> {
+    pub fn offspring_deme_sizes(&self) -> Option<&[CurrentSize]> {
         self.get_slice_if(Generation::Child, self.child_deme_sizes.as_slice())
     }
 
@@ -802,12 +803,16 @@ impl ForwardGraph {
     ///   to "infinity". The first parental generation is considered
     ///   to exist at a time one generation prior to the start of events
     ///   in the graph plus the burn-in time.
-    pub fn size_at<'a, I: Into<demes::DemeId<'a>>, T: Into<demes::Time>>(
+    pub fn size_at<
+        'a,
+        I: Into<demes::DemeId<'a>>,
+        T: TryInto<demes::Time, Error = demes::DemesError>,
+    >(
         &self,
         deme: I,
         time: T,
-    ) -> Result<Option<demes::DemeSize>, DemesForwardError> {
-        let time = time.into();
+    ) -> Result<Option<CurrentSize>, DemesForwardError> {
+        let time = time.try_into()?;
         let time_raw = f64::from(time);
         if time_raw.is_nan() || !time_raw.is_sign_positive() {
             return Err(DemesForwardError::TimeError(format!(
@@ -1022,14 +1027,14 @@ demes:
         assert_eq!(graph.num_extant_parental_demes(), 1);
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
-            Some(&demes::DemeSize::from(100.0))
+            Some(&CurrentSize::try_from(100.0).unwrap())
         );
         graph.update_state(75_i32).unwrap();
         // assert_eq!(graph.parental_demes().unwrap().iter().count(), 1);
         assert_eq!(graph.num_extant_parental_demes(), 1);
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
-            Some(&demes::DemeSize::from(200.0))
+            Some(&CurrentSize::try_from(200.0).unwrap())
         );
 
         // The last generation
@@ -1258,7 +1263,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1266,7 +1271,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from((100. + slope).round()))
+                Some(CurrentSize::try_from((100. + slope).round()).unwrap())
             );
         } else {
             panic!();
@@ -1276,7 +1281,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1286,7 +1291,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1295,14 +1300,14 @@ migrations:
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
         let expected_size: f64 = (100.0 + 25_f64 * slope).round();
-        let expected_size = demes::DemeSize::from(expected_size.round());
+        let expected_size = CurrentSize::try_from(expected_size.round()).unwrap();
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
 
         let expected_size: f64 = (100.0 + 26_f64 * slope).round();
-        let expected_size = demes::DemeSize::from(expected_size.round());
+        let expected_size = CurrentSize::try_from(expected_size.round()).unwrap();
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
             Some(&expected_size)
@@ -1317,7 +1322,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1326,7 +1331,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from((200. + slope).round()))
+                Some(CurrentSize::try_from((200. + slope).round()).unwrap())
             );
         } else {
             panic!();
@@ -1336,7 +1341,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(100.))
+                Some(CurrentSize::try_from(100.).unwrap())
             );
         } else {
             panic!();
@@ -1346,7 +1351,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(100.))
+                Some(CurrentSize::try_from(100.).unwrap())
             );
         } else {
             panic!();
@@ -1354,12 +1359,12 @@ migrations:
 
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
-        let expected_size: demes::DemeSize = (200_f64 + 25.0 * slope).round().into();
+        let expected_size: CurrentSize = (200_f64 + 25.0 * slope).round().try_into().unwrap();
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
-        let expected_size = demes::DemeSize::from((200_f64 + 26.0 * slope).round());
+        let expected_size = CurrentSize::try_from((200_f64 + 26.0 * slope).round()).unwrap();
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
             Some(&expected_size)
@@ -1374,7 +1379,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1383,7 +1388,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from((100. * (1. + g)).round()))
+                Some(CurrentSize::try_from((100. * (1. + g)).round()).unwrap())
             );
         } else {
             panic!();
@@ -1393,7 +1398,7 @@ migrations:
         if let Some(deme) = graph.child_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1403,7 +1408,7 @@ migrations:
         if let Some(deme) = graph.parent_demes.get(0) {
             assert_eq!(
                 deme.current_size().unwrap(),
-                Some(demes::DemeSize::from(200.))
+                Some(CurrentSize::try_from(200.).unwrap())
             );
         } else {
             panic!();
@@ -1412,12 +1417,12 @@ migrations:
         // 1/2-way into the final epoch
         graph.update_state(125).unwrap();
         let g = (200_f64 / 100_f64).powf(1. / 50.0) - 1.;
-        let expected_size = demes::DemeSize::from((100.0 * ((1. + g).powf(25.))).round());
+        let expected_size = CurrentSize::try_from((100.0 * ((1. + g).powf(25.))).round()).unwrap();
         assert_eq!(
             graph.parental_deme_sizes().unwrap().get(0),
             Some(&expected_size)
         );
-        let expected_size = demes::DemeSize::from((100.0 * ((1. + g).powf(26.0))).round());
+        let expected_size = CurrentSize::try_from((100.0 * ((1. + g).powf(26.0))).round()).unwrap();
         assert_eq!(
             graph.offspring_deme_sizes().unwrap().get(0),
             Some(&expected_size)
@@ -1486,7 +1491,7 @@ mod test_deme_ancestors {
                 if descendant_deme == 2 {
                     assert_eq!(
                         graph.offspring_deme_sizes().unwrap().get(2),
-                        Some(&demes::DemeSize::from(0.0))
+                        Some(&CurrentSize::try_from(0.0).unwrap())
                     );
                 } else {
                     assert!(deme.is_extant());

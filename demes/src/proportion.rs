@@ -72,16 +72,13 @@ use serde::{Deserialize, Serialize};
 ///
 /// ## Using rust code
 ///
-/// Normally, one only needs to create a `Proportion` when
-/// working with [`GraphBuilder`](crate::GraphBuilder).
-///
 /// ```
-/// let t = demes::Proportion::from(0.5);
+/// let t = demes::Proportion::try_from(0.5).unwrap();
 /// assert_eq!(t, 0.5);
 /// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(from = "f64")]
+#[serde(try_from = "f64")]
 pub struct Proportion(f64);
 
 impl Proportion {
@@ -98,10 +95,53 @@ impl Proportion {
     }
 }
 
+impl TryFrom<f64> for Proportion {
+    type Error = DemesError;
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        let rv = Self(value);
+        rv.validate(DemesError::ValueError)?;
+        Ok(rv)
+    }
+}
+
 impl_newtype_traits!(Proportion);
 
 impl Validate for Proportion {
     fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
         self.validate(err)
+    }
+}
+
+/// Input value for [`Proportion`], used when loading or building graphs.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[serde(from = "f64")]
+pub struct InputProportion(f64);
+
+impl From<f64> for InputProportion {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<InputProportion> for f64 {
+    fn from(value: InputProportion) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<InputProportion> for Proportion {
+    type Error = DemesError;
+
+    fn try_from(value: InputProportion) -> Result<Self, Self::Error> {
+        let rv = Self(value.0);
+        rv.validate(DemesError::ValueError)?;
+        Ok(rv)
+    }
+}
+
+impl Default for InputProportion {
+    fn default() -> Self {
+        Self::from(0.0)
     }
 }

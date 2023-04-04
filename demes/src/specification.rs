@@ -3,7 +3,6 @@
 //! in terms of rust structs.
 
 use crate::time::*;
-use crate::traits::Validate;
 use crate::CloningRate;
 use crate::DemeSize;
 use crate::DemesError;
@@ -2486,8 +2485,6 @@ impl UnresolvedGraph {
                     source.name, dest.name
                 )));
             }
-
-            m.rate.validate(DemesError::MigrationError)?;
 
             {
                 let interval = source.get_time_interval()?;

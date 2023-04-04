@@ -1,5 +1,4 @@
 use crate::error::DemesError;
-use crate::traits::Validate;
 use serde::{Deserialize, Serialize};
 
 /// The selfing rate of an [`Epoch`](crate::Epoch).
@@ -30,18 +29,6 @@ impl TryFrom<f64> for SelfingRate {
         let rv = Self(value);
         rv.validate(DemesError::ValueError)?;
         Ok(rv)
-    }
-}
-
-impl Default for SelfingRate {
-    fn default() -> Self {
-        Self::try_from(0.0).unwrap()
-    }
-}
-
-impl Validate for SelfingRate {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::error::DemesError;
-use crate::traits::Validate;
 use serde::{Deserialize, Serialize};
 
 /// The cloning rate of an [`Epoch`](crate::Epoch).
@@ -32,18 +31,6 @@ impl TryFrom<f64> for CloningRate {
 }
 
 impl_newtype_traits!(CloningRate);
-
-impl Default for CloningRate {
-    fn default() -> Self {
-        Self::try_from(0.0).unwrap()
-    }
-}
-
-impl Validate for CloningRate {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
-    }
-}
 
 /// Input value for [`CloningRate`], used when loading or building graphs.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]

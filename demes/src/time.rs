@@ -80,10 +80,9 @@ impl TryFrom<f64> for Time {
 }
 
 /// Input value for [`Time`], used when loading or building graphs.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[serde(try_from = "TimeTrampoline")]
-#[serde(into = "TimeTrampoline")]
 pub struct InputTime(f64);
 
 impl InputTime {
@@ -220,7 +219,6 @@ where
             if time.0.is_finite() && time >= 0.0 {
                 Ok(time)
             } else {
-                println!("{time:?} | {input:?} {generation_time:?}");
                 Err(f("rounding resulted in invalid time".to_string()))
             }
         }
@@ -405,16 +403,6 @@ impl TryFrom<TimeTrampoline> for InputTime {
     }
 }
 
-impl From<InputTime> for TimeTrampoline {
-    fn from(value: InputTime) -> Self {
-        if value.0.is_infinite() {
-            Self::Infinity("Infinity".to_string())
-        } else {
-            Self::Float(f64::from(value))
-        }
-    }
-}
-
 impl std::hash::Hash for HashableTime {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let value = f64::from(self.0);
@@ -445,18 +433,6 @@ impl From<HashableTime> for Time {
 impl From<HashableTime> for f64 {
     fn from(value: HashableTime) -> Self {
         f64::from(value.0)
-    }
-}
-
-impl crate::traits::Validate for Time {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
-    }
-}
-
-impl crate::traits::Validate for GenerationTime {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
     }
 }
 

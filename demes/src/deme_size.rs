@@ -1,5 +1,4 @@
 use crate::error::DemesError;
-use crate::traits::Validate;
 use serde::{Deserialize, Serialize};
 
 /// The size of a [`Deme`](crate::Deme) at a given [`Time`](crate::Time).
@@ -68,12 +67,6 @@ impl TryFrom<f64> for DemeSize {
 
 impl_newtype_traits!(DemeSize);
 
-impl Validate for DemeSize {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
-    }
-}
-
 /// Input value for [`DemeSize`], used when loading or building graphs.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
@@ -93,12 +86,6 @@ impl TryFrom<InputDemeSize> for DemeSize {
         let rv = Self(value.0);
         rv.validate(DemesError::ValueError)?;
         Ok(rv)
-    }
-}
-
-impl Default for InputDemeSize {
-    fn default() -> Self {
-        Self::from(0.0)
     }
 }
 

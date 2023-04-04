@@ -1,5 +1,4 @@
 use crate::error::DemesError;
-use crate::traits::Validate;
 use serde::{Deserialize, Serialize};
 
 /// An ancestry proportion.
@@ -106,12 +105,6 @@ impl TryFrom<f64> for Proportion {
 
 impl_newtype_traits!(Proportion);
 
-impl Validate for Proportion {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
-    }
-}
-
 /// Input value for [`Proportion`], used when loading or building graphs.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
@@ -137,11 +130,5 @@ impl TryFrom<InputProportion> for Proportion {
         let rv = Self(value.0);
         rv.validate(DemesError::ValueError)?;
         Ok(rv)
-    }
-}
-
-impl Default for InputProportion {
-    fn default() -> Self {
-        Self::from(0.0)
     }
 }

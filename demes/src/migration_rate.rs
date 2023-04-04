@@ -1,5 +1,4 @@
 use crate::error::DemesError;
-use crate::traits::Validate;
 use serde::{Deserialize, Serialize};
 
 /// A migration rate.
@@ -60,15 +59,3 @@ impl MigrationRate {
 }
 
 impl_newtype_traits!(MigrationRate);
-
-//impl Default for MigrationRate {
-//    fn default() -> Self {
-//        Self(0.0)
-//    }
-//}
-
-impl Validate for MigrationRate {
-    fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
-        self.validate(err)
-    }
-}

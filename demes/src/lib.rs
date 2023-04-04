@@ -50,7 +50,6 @@ mod proportion;
 mod selfing_rate;
 mod specification;
 mod time;
-mod traits;
 
 use std::io::Read;
 

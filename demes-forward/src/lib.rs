@@ -26,6 +26,7 @@
 mod current_size;
 mod error;
 mod graph;
+mod square_matrix;
 mod time;
 
 pub use current_size::CurrentSize;

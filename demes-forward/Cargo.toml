@@ -11,7 +11,6 @@ rust-version = "1.58.1"
 
 [dependencies]
 demes = { version = "0.5.0", path = "../demes" }
-ndarray = "0.15.4"
 thiserror = "~1"
 
 [dev-dependencies]

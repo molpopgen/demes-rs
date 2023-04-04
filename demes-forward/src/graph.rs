@@ -1,3 +1,4 @@
+use crate::square_matrix::SquareMatrix;
 use crate::time::ModelTime;
 use crate::CurrentSize;
 use crate::DemesForwardError;
@@ -307,8 +308,8 @@ pub struct ForwardGraph {
     deme_to_index: std::collections::HashMap<String, usize>,
     pulses: Vec<demes::Pulse>,
     migrations: Vec<demes::AsymmetricMigration>,
-    ancestry_proportions: ndarray::Array<f64, ndarray::Ix2>,
-    migration_matrix: ndarray::Array<f64, ndarray::Ix2>,
+    ancestry_proportions: SquareMatrix,
+    migration_matrix: SquareMatrix,
     cloning_rates: Vec<demes::CloningRate>,
     selfing_rates: Vec<demes::SelfingRate>,
     parental_deme_sizes: Vec<CurrentSize>,
@@ -354,10 +355,8 @@ impl ForwardGraph {
             deme_to_index.insert(deme.name().to_string(), i);
         }
         let pulses = vec![];
-        let ancestry_proportions =
-            ndarray::Array2::<f64>::zeros((deme_to_index.len(), deme_to_index.len()));
-        let migration_matrix =
-            ndarray::Array2::<f64>::zeros((deme_to_index.len(), deme_to_index.len()));
+        let ancestry_proportions = SquareMatrix::zeros(deme_to_index.len());
+        let migration_matrix = SquareMatrix::zeros(deme_to_index.len());
         Ok(Self {
             graph,
             model_times,
@@ -414,13 +413,14 @@ impl ForwardGraph {
         for (i, deme) in self.child_demes.iter().enumerate() {
             if deme.is_extant() {
                 if deme.ancestors().is_empty() {
-                    self.ancestry_proportions[[i, i]] = 1.0;
+                    self.ancestry_proportions.set(i, i, 1.0);
                 } else {
                     deme.ancestors()
                         .iter()
                         .zip(deme.proportions().iter())
                         .for_each(|(ancestor, proportion)| {
-                            self.ancestry_proportions[[i, *ancestor]] = f64::from(*proportion)
+                            self.ancestry_proportions
+                                .set(i, *ancestor, f64::from(*proportion));
                         });
                 }
             }
@@ -490,7 +490,7 @@ impl ForwardGraph {
                 .iter()
                 .zip(proportions.iter())
                 .for_each(|(source, proportion)| {
-                    self.ancestry_proportions[[dest, *source]] += proportion;
+                    self.ancestry_proportions.set(dest, *source, *proportion);
                 });
         }
         Ok(())
@@ -538,7 +538,8 @@ impl ForwardGraph {
                     self.model_times.convert(parental_generation_time),
                 )));
             }
-            self.migration_matrix[[*dest, *source]] = migration.rate().into();
+            self.migration_matrix
+                .set(*dest, *source, migration.rate().into());
         }
         Ok(())
     }
@@ -547,16 +548,16 @@ impl ForwardGraph {
     // It is called after update_migration_matrix, which
     // does the extant/extinct checks already
     fn update_ancestry_proportions_from_migration_matrix(&mut self) {
-        self.ancestry_proportions
-            .outer_iter_mut()
-            .zip(self.migration_matrix.outer_iter())
-            .for_each(|(mut p, m)| {
-                let sum = m.sum();
-                p *= 1. - sum;
-                p.iter_mut().zip(m.iter()).for_each(|(a, b)| {
-                    *a += b;
-                })
+        for row in 0..self.ancestry_proportions.nrows() {
+            let migs = self.migration_matrix.row(row);
+            let props = self.ancestry_proportions.row_mut(row);
+            let one_minus_sum: f64 = 1. - migs.iter().sum::<f64>();
+
+            props.iter_mut().zip(migs.iter()).for_each(|(i, j)| {
+                *i *= one_minus_sum;
+                *i += *j;
             });
+        }
     }
 
     fn deme_slice(&self, generation: Generation) -> &[Deme] {
@@ -678,16 +679,7 @@ impl ForwardGraph {
             return None;
         }
         if !self.child_demes.is_empty() {
-            let start = offspring_deme * self.child_demes.len();
-            let stop = start + self.child_demes.len();
-            // NOTE: this is an ugly pattern:
-            // * We know that this cannot return None
-            // * But the ndarray API forces is to treat
-            //   it as if it can.
-            match &self.ancestry_proportions.as_slice() {
-                Some(ap) => Some(&ap[start..stop]),
-                None => None,
-            }
+            Some(self.ancestry_proportions.row(offspring_deme))
         } else {
             None
         }

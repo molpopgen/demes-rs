@@ -50,6 +50,9 @@ pub enum DemesError {
     #[error("{0:?}")]
     /// Errors coming from `serde_json`.
     JsonError(serde_json::Error),
+    /// Errors related to low-level types
+    #[error("{0:?}")]
+    ValueError(String),
 }
 
 impl From<serde_yaml::Error> for DemesError {

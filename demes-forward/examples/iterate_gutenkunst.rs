@@ -145,7 +145,7 @@ fn do_work(burnin: i32) -> Result<()> {
         generation_time,
         graph.time_units()
     );
-    let mut most_ancient_finite_epoch_start_time = demes::Time::from(0.0);
+    let mut most_ancient_finite_epoch_start_time = demes::Time::try_from(0.0).unwrap();
     for deme in graph.demes() {
         for epoch in deme.epochs() {
             let start_time = epoch.start_time();

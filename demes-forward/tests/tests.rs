@@ -1,4 +1,5 @@
 use demes_forward::demes;
+use demes_forward::CurrentSize;
 
 #[derive(Debug)]
 struct ModelFirstLast {
@@ -410,7 +411,7 @@ demes:
   - {start_size: 2, end_time: 50}
   - {start_size: 3, end_time: 10}
 ";
-    let validate_sizes = |s: &[demes::DemeSize], expected: &[f64]| {
+    let validate_sizes = |s: &[CurrentSize], expected: &[f64]| {
         for (i, j) in s.iter().zip(expected.iter()) {
             assert_eq!(i, j);
         }
@@ -462,7 +463,10 @@ demes:
     assert!(graph.size_at(1, 0.0).unwrap().is_none());
     assert!(graph.size_at(0, 0.0).is_ok());
     assert!(graph.size_at(0, 0.0).unwrap().is_some());
-    assert_eq!(graph.size_at(0, 0.0).unwrap(), Some(10.0.into()));
+    assert_eq!(
+        graph.size_at(0, 0.0).unwrap(),
+        Some(10.0.try_into().unwrap())
+    );
 
     // Infinity ago is prior to start of "burn in"
     assert!(graph.size_at(1, f64::INFINITY).is_ok());

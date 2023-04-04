@@ -55,12 +55,12 @@ mod traits;
 use std::io::Read;
 
 pub use builder::GraphBuilder;
-pub use cloning_rate::CloningRate;
-pub use deme_size::DemeSize;
+pub use cloning_rate::{CloningRate, InputCloningRate};
+pub use deme_size::{DemeSize, InputDemeSize};
 pub use error::DemesError;
-pub use migration_rate::MigrationRate;
-pub use proportion::Proportion;
-pub use selfing_rate::SelfingRate;
+pub use migration_rate::{InputMigrationRate, MigrationRate};
+pub use proportion::{InputProportion, Proportion};
+pub use selfing_rate::{InputSelfingRate, SelfingRate};
 pub use specification::*;
 pub use time::*;
 

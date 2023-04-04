@@ -88,7 +88,7 @@ impl ModelTime {
             Ok(Some(
                 (self.burnin_generation + self.model_duration - 1.0 - time.value()
                     + self.minimum_epoch_end_time)
-                    .into(),
+                    .try_into()?,
             ))
         } else {
             Ok(None)
@@ -100,7 +100,7 @@ impl ModelTime {
     }
 }
 
-fn get_model_start_time(graph: &demes::Graph) -> demes::Time {
+fn get_model_start_time(graph: &demes::Graph) -> Result<demes::Time, demes::DemesError> {
     // first end time of all demes with start time of infinity
     let mut times = graph
         .demes()
@@ -138,7 +138,7 @@ fn get_model_start_time(graph: &demes::Graph) -> demes::Time {
 
     debug_assert!(!times.is_empty());
 
-    demes::Time::from(f64::from(*times.iter().max().unwrap()) + 1.0)
+    demes::Time::try_from(f64::from(*times.iter().max().unwrap()) + 1.0)
 }
 
 impl ModelTime {
@@ -149,7 +149,7 @@ impl ModelTime {
         // The logic here is lifted from the fwdpy11
         // demes import code by Aaron Ragsdale.
 
-        let model_start_time = get_model_start_time(graph);
+        let model_start_time = get_model_start_time(graph)?;
 
         let most_recent_deme_end = graph
             .demes()
@@ -189,7 +189,9 @@ impl ModelTime {
         };
         TimeIterator {
             current_time,
-            final_time: (self.burnin_generation() + self.model_duration()).into(),
+            final_time: (self.burnin_generation() + self.model_duration())
+                .try_into()
+                .unwrap(),
         }
     }
 }

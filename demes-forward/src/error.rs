@@ -17,7 +17,7 @@ pub enum DemesForwardError {
     /// arising during application of size change
     /// functions.
     #[error("{0:?}")]
-    InvalidDemeSize(demes::DemeSize),
+    InvalidDemeSize(f64),
     /// Errors related to invalid internal states.
     /// In general, this error indicates a bug
     /// that should be reported.

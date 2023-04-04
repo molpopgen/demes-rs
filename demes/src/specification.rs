@@ -7,6 +7,11 @@ use crate::traits::Validate;
 use crate::CloningRate;
 use crate::DemeSize;
 use crate::DemesError;
+use crate::InputCloningRate;
+use crate::InputDemeSize;
+use crate::InputMigrationRate;
+use crate::InputProportion;
+use crate::InputSelfingRate;
 use crate::MigrationRate;
 use crate::Proportion;
 use crate::SelfingRate;
@@ -143,11 +148,11 @@ impl<'name> From<&'name str> for DemeId<'name> {
 /// ```
 /// let _ = demes::UnresolvedMigration{source: Some("A".to_string()),
 ///                                    dest: Some("B".to_string()),
-///                                    rate: Some(demes::MigrationRate::from(0.2)),
+///                                    rate: Some(0.2.into()),
 ///                                    ..Default::default()
 ///                                    };
 /// ```
-#[derive(Clone, Default, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedMigration {
     /// The demes involved in symmetric migration epochs
@@ -157,25 +162,24 @@ pub struct UnresolvedMigration {
     /// The destination deme of an asymmetric migration epoch
     pub dest: Option<String>,
     /// The start time of a migration epoch
-    pub start_time: Option<Time>,
+    pub start_time: Option<InputTime>,
     /// The end time of a migration epoch
-    pub end_time: Option<Time>,
+    pub end_time: Option<InputTime>,
     /// The rate during a migration epoch
-    pub rate: Option<MigrationRate>,
+    pub rate: Option<InputMigrationRate>,
 }
 
 impl UnresolvedMigration {
     fn validate(&self) -> Result<(), DemesError> {
         if let Some(value) = self.start_time {
-            value.validate(DemesError::MigrationError)?;
+            Time::try_from(value).map_err(|_| {
+                DemesError::MigrationError(format!("invalid start_time: {value:?}"))
+            })?;
         }
         if let Some(value) = self.end_time {
-            value.validate(DemesError::MigrationError)?;
+            Time::try_from(value)
+                .map_err(|_| DemesError::MigrationError(format!("invalid end_time: {value:?}")))?;
         }
-        if let Some(value) = self.rate {
-            value.validate(DemesError::MigrationError)?;
-        }
-
         Ok(())
     }
 
@@ -210,7 +214,7 @@ impl UnresolvedMigration {
         Ok(())
     }
 
-    fn resolved_rate_or_err(&self) -> Result<MigrationRate, DemesError> {
+    fn resolved_rate_or_err(&self) -> Result<InputMigrationRate, DemesError> {
         self.rate
             .ok_or_else(|| DemesError::MigrationError("migration rate not resolved".to_string()))
     }
@@ -366,7 +370,7 @@ pub struct Pulse {
 }
 
 /// An unresolved Pulse event.
-#[derive(Clone, Default, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedPulse {
     #[allow(missing_docs)]
@@ -374,14 +378,21 @@ pub struct UnresolvedPulse {
     #[allow(missing_docs)]
     pub dest: Option<String>,
     #[allow(missing_docs)]
-    pub time: Option<Time>,
+    pub time: Option<InputTime>,
     #[allow(missing_docs)]
-    pub proportions: Option<Vec<Proportion>>,
+    pub proportions: Option<Vec<InputProportion>>,
 }
 
 impl TryFrom<UnresolvedPulse> for Pulse {
     type Error = DemesError;
     fn try_from(value: UnresolvedPulse) -> Result<Self, Self::Error> {
+        let input_proportions = value.proportions.ok_or_else(|| {
+            DemesError::PulseError("pulse proportions are unresolved".to_string())
+        })?;
+        let mut proportions = vec![];
+        for p in input_proportions {
+            proportions.push(Proportion::try_from(p)?);
+        }
         Ok(Self {
             sources: value.sources.ok_or_else(|| {
                 DemesError::PulseError("pulse sources are unresolved".to_string())
@@ -391,10 +402,9 @@ impl TryFrom<UnresolvedPulse> for Pulse {
                 .ok_or_else(|| DemesError::PulseError("pulse dest are unresolved".to_string()))?,
             time: value
                 .time
-                .ok_or_else(|| DemesError::PulseError("pulse time are unresolved".to_string()))?,
-            proportions: value.proportions.ok_or_else(|| {
-                DemesError::PulseError("pulse proportions are unresolved".to_string())
-            })?,
+                .ok_or_else(|| DemesError::PulseError("pulse time are unresolved".to_string()))?
+                .try_into()?,
+            proportions,
         })
     }
 }
@@ -402,20 +412,28 @@ impl TryFrom<UnresolvedPulse> for Pulse {
 impl UnresolvedPulse {
     fn validate_as_default(&self) -> Result<(), DemesError> {
         if let Some(value) = self.time {
-            value.validate(DemesError::PulseError)?;
+            Time::try_from(value)
+                .map_err(|_| DemesError::PulseError(format!("invalid time: {value:?}")))?;
         }
 
         match &self.proportions {
-            Some(value) => value
-                .iter()
-                .try_for_each(|v| v.validate(DemesError::PulseError))?,
+            Some(value) => {
+                for v in value {
+                    if Proportion::try_from(*v).is_err() {
+                        return Err(DemesError::PulseError(format!(
+                            "invalid proportion: {:?}",
+                            *v
+                        )));
+                    }
+                }
+            }
             None => (),
         }
 
         Ok(())
     }
 
-    fn get_proportions(&self) -> Result<&[Proportion], DemesError> {
+    fn get_proportions(&self) -> Result<&[InputProportion], DemesError> {
         Ok(self
             .proportions
             .as_ref()
@@ -424,7 +442,8 @@ impl UnresolvedPulse {
 
     fn get_time(&self) -> Result<Time, DemesError> {
         self.time
-            .ok_or_else(|| DemesError::PulseError("time is None".to_string()))
+            .ok_or_else(|| DemesError::PulseError("time is None".to_string()))?
+            .try_into()
     }
 
     fn get_sources(&self) -> Result<&[String], DemesError> {
@@ -452,7 +471,8 @@ impl UnresolvedPulse {
         }
         let proportions = self.get_proportions()?;
         for p in proportions.iter() {
-            p.validate(DemesError::PulseError)?;
+            Proportion::try_from(*p)
+                .map_err(|_| DemesError::PulseError(format!("invalid proportion: {:?}", *p)))?;
         }
         if proportions.len() != sources.len() {
             return Err(DemesError::PulseError(format!("number of sources must equal number of proportions; got {} source and {} proportions", sources.len(), proportions.len())));
@@ -625,50 +645,63 @@ impl Pulse {
 ///
 /// ```
 /// let _ = demes::UnresolvedEpoch{
-///              start_size: Some(demes::DemeSize::from(1e6)),
+///              start_size: Some(demes::InputDemeSize::from(1e6)),
 ///              ..Default::default()
 ///              };
 /// ```
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+///
+/// Type inference improves ergonomics:
+///
+/// ```
+/// let _ = demes::UnresolvedEpoch{
+///              start_size: Some(1e6.into()),
+///              ..Default::default()
+///              };
+/// ```
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UnresolvedEpoch {
     #[allow(missing_docs)]
-    pub end_time: Option<Time>,
+    pub end_time: Option<InputTime>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
     #[allow(missing_docs)]
-    pub start_size: Option<DemeSize>,
+    pub start_size: Option<InputDemeSize>,
     // NOTE: the Option is for input. An actual value must be put in via resolution.
     #[allow(missing_docs)]
-    pub end_size: Option<DemeSize>,
+    pub end_size: Option<InputDemeSize>,
     #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size_function: Option<crate::specification::SizeFunction>,
     #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cloning_rate: Option<crate::specification::CloningRate>,
+    pub cloning_rate: Option<InputCloningRate>,
     #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub selfing_rate: Option<crate::specification::SelfingRate>,
+    pub selfing_rate: Option<InputSelfingRate>,
 }
 
 impl UnresolvedEpoch {
     fn validate_as_default(&self) -> Result<(), DemesError> {
         if let Some(value) = self.end_time {
-            value.validate(DemesError::EpochError)?;
+            Time::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid end_time: {value:?}")))?;
         }
         if let Some(value) = self.start_size {
-            value.validate(DemesError::EpochError)?;
+            DemeSize::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid start_size: {value:?}")))?;
         }
         if let Some(value) = self.end_size {
-            value.validate(DemesError::EpochError)?;
+            DemeSize::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid end_size: {value:?}")))?;
         }
         if let Some(value) = self.cloning_rate {
-            value.validate(DemesError::EpochError)?;
+            CloningRate::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid cloning_rate: {value:?}")))?;
         }
         if let Some(value) = self.selfing_rate {
-            value.validate(DemesError::EpochError)?;
+            SelfingRate::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid selfing_rate: {value:?}")))?;
         }
-
         Ok(())
     }
 }
@@ -689,29 +722,58 @@ pub struct Epoch {
 
 impl Epoch {
     fn new_from_unresolved(
-        start_time: Time,
+        start_time: InputTime,
         unresolved: UnresolvedEpoch,
     ) -> Result<Self, DemesError> {
         Ok(Self {
-            start_time,
+            start_time: start_time.try_into().map_err(|_| {
+                DemesError::EpochError(format!("invalid start_time: {start_time:?}"))
+            })?,
             end_time: unresolved
                 .end_time
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?
+                .try_into()
+                .map_err(|_| {
+                    DemesError::EpochError(format!("invalid end_time: {:?}", unresolved.end_time))
+                })?,
             start_size: unresolved
                 .start_size
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?
+                .try_into()
+                .map_err(|_| {
+                    DemesError::EpochError(format!(
+                        "invalid start_size: {:?}",
+                        unresolved.start_size
+                    ))
+                })?,
             end_size: unresolved
                 .end_size
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?
+                .try_into()
+                .map_err(|_| {
+                    DemesError::EpochError(format!(
+                        "invalid cloning_rate: {:?}",
+                        unresolved.cloning_rate
+                    ))
+                })?,
             size_function: unresolved
                 .size_function
                 .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
             cloning_rate: unresolved
                 .cloning_rate
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?
+                .try_into()
+                .map_err(|_| {
+                    DemesError::EpochError(format!(
+                        "invalid cloning_rate: {:?}",
+                        unresolved.cloning_rate
+                    ))
+                })?,
+
             selfing_rate: unresolved
                 .selfing_rate
-                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?,
+                .ok_or_else(|| DemesError::EpochError("end_time unresolved".to_string()))?
+                .try_into()?,
         })
     }
 
@@ -786,7 +848,8 @@ impl Epoch {
     /// Size of Epoch at a given time
     pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<DemeSize, DemesError> {
         let time: f64 = time.into();
-        Time::from(time).validate(DemesError::EpochError)?;
+        Time::try_from(time)
+            .map_err(|_| DemesError::EpochError(format!("invalid time value: {time:?}")))?;
 
         if time == f64::INFINITY && self.start_time == f64::INFINITY {
             return Ok(self.start_size);
@@ -804,16 +867,25 @@ impl Epoch {
         let dt = start_time - time;
         let size = match self.size_function() {
             SizeFunction::Constant => self.end_size,
-            SizeFunction::Linear => DemeSize::from(
-                f64::from(self.start_size)
-                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span,
-            ),
+            SizeFunction::Linear => {
+                let result = f64::from(self.start_size)
+                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span;
+                DemeSize::try_from(result).map_err(|_| {
+                    DemesError::EpochError(format!(
+                        "size calculation led to invalid size: {result}"
+                    ))
+                })?
+            }
             SizeFunction::Exponential => {
                 let r = (f64::from(self.end_size) / f64::from(self.start_size)).ln() / time_span;
-                DemeSize::from(f64::from(self.start_size) * (r * dt).exp())
+                let result = f64::from(self.start_size) * (r * dt).exp();
+                DemeSize::try_from(result).map_err(|_| {
+                    DemesError::EpochError(format!(
+                        "size calculation led to invalid size: {result}"
+                    ))
+                })?
             }
         };
-        size.validate(DemesError::EpochError)?;
         Ok(size)
     }
 }
@@ -844,7 +916,7 @@ impl UnresolvedEpoch {
                 Some(selfing_rate) => Some(selfing_rate),
                 None => match defaults.epoch.selfing_rate {
                     Some(selfing_rate) => Some(selfing_rate),
-                    None => Some(SelfingRate::default()),
+                    None => Some(InputSelfingRate::default()),
                 },
             }
         }
@@ -856,7 +928,7 @@ impl UnresolvedEpoch {
                 Some(cloning_rate) => Some(cloning_rate),
                 None => match defaults.epoch.cloning_rate {
                     Some(cloning_rate) => Some(cloning_rate),
-                    None => Some(CloningRate::default()),
+                    None => Some(InputCloningRate::default()),
                 },
             }
         }
@@ -884,7 +956,15 @@ impl UnresolvedEpoch {
 
     fn validate_cloning_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         match self.cloning_rate {
-            Some(value) => value.validate(DemesError::EpochError),
+            Some(value) => {
+                if CloningRate::try_from(value).is_err() {
+                    Err(DemesError::EpochError(format!(
+                        "deme {deme_name}, epoch {index}: invalid cloning_rate: {value:?}"
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
             None => Err(DemesError::EpochError(format!(
                 "deme {deme_name}, epoch {index}:cloning_rate is None",
             ))),
@@ -893,7 +973,9 @@ impl UnresolvedEpoch {
 
     fn validate_selfing_rate(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
         match self.selfing_rate {
-            Some(value) => value.validate(DemesError::EpochError),
+            Some(value) => SelfingRate::try_from(value)
+                .map_err(|_| DemesError::EpochError(format!("invalid selfing_rate: {value:?}")))
+                .map(|_| ()),
             None => Err(DemesError::EpochError(format!(
                 "deme {deme_name}, epoch {index}: selfing_rate is None",
             ))),
@@ -904,8 +986,8 @@ impl UnresolvedEpoch {
         &self,
         index: usize,
         deme_name: &str,
-        start_size: DemeSize,
-        end_size: DemeSize,
+        start_size: InputDemeSize,
+        end_size: InputDemeSize,
     ) -> Result<(), DemesError> {
         let size_function = self.size_function.ok_or_else(|| {
             DemesError::EpochError(format!(
@@ -931,11 +1013,13 @@ impl UnresolvedEpoch {
                 "deme {deme_name}, epoch {index}: start_size is None",
             ))
         })?;
-        start_size.validate(DemesError::EpochError)?;
+        DemeSize::try_from(start_size)
+            .map_err(|_| DemesError::EpochError(format!("invalid start_size: {start_size:?}")))?;
         let end_size = self.end_size.ok_or_else(|| {
             DemesError::EpochError(format!("deme {deme_name}, epoch {index}: end_size is None",))
         })?;
-        end_size.validate(DemesError::EpochError)?;
+        DemeSize::try_from(end_size)
+            .map_err(|_| DemesError::EpochError(format!("invalid end_size: {end_size:?}")))?;
         self.validate_end_time(index, deme_name)?;
         self.validate_cloning_rate(index, deme_name)?;
         self.validate_selfing_rate(index, deme_name)?;
@@ -1120,7 +1204,8 @@ impl Deme {
     /// Size of Deme at a given time
     pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<Option<DemeSize>, DemesError> {
         let time: f64 = time.into();
-        Time::from(time).validate(DemesError::DemeError)?;
+        Time::try_from(time)
+            .map_err(|_| DemesError::DemeError(format!("invalid time: {time:?}")))?;
 
         if time == f64::INFINITY && self.start_time == f64::INFINITY {
             return Ok(Some(self.epochs()[0].start_size));
@@ -1155,6 +1240,13 @@ impl TryFrom<UnresolvedDeme> for Deme {
             epoch_start_time = end_time;
             epochs.push(e);
         }
+        let input_proportions = value.history.proportions.ok_or_else(|| {
+            DemesError::PulseError("pulse proportions are unresolved".to_string())
+        })?;
+        let mut proportions = vec![];
+        for p in input_proportions {
+            proportions.push(Proportion::try_from(p)?);
+        }
         Ok(Self {
             description: value.description,
             ancestor_map: value.ancestor_map,
@@ -1162,10 +1254,10 @@ impl TryFrom<UnresolvedDeme> for Deme {
             ancestors: value.history.ancestors.ok_or_else(|| {
                 DemesError::DemeError(format!("deme {} ancestors are not resolved", value.name))
             })?,
-            proportions: value.history.proportions.ok_or_else(|| {
-                DemesError::DemeError(format!("deme {} proportions are not resolved", value.name))
+            proportions,
+            start_time: start_time.try_into().map_err(|_| {
+                DemesError::DemeError(format!("invalid start_time: {start_time:?}"))
             })?,
-            start_time,
             name: value.name,
         })
     }
@@ -1260,9 +1352,9 @@ pub struct UnresolvedDemeHistory {
     // we only fill them in when this value is None
     pub ancestors: Option<Vec<String>>,
     #[allow(missing_docs)]
-    pub proportions: Option<Vec<Proportion>>,
+    pub proportions: Option<Vec<InputProportion>>,
     #[allow(missing_docs)]
-    pub start_time: Option<Time>,
+    pub start_time: Option<InputTime>,
     #[serde(default = "DemeDefaults::default")]
     #[serde(skip_serializing)]
     #[allow(missing_docs)]
@@ -1315,7 +1407,7 @@ impl UnresolvedDeme {
             Some(start_time) => Some(start_time),
             None => match defaults.deme.start_time {
                 Some(start_time) => Some(start_time),
-                None => Some(Time::default_deme_start_time()),
+                None => Some(InputTime::default_deme_start_time()),
             },
         };
 
@@ -1327,7 +1419,7 @@ impl UnresolvedDeme {
             .is_empty()
             && self.start_time_resolved_or(|| {
                 DemesError::DemeError(format!("deme {}: start_time unresolved", self.name))
-            })? != Time::default_deme_start_time()
+            })? != InputTime::default_deme_start_time()
         {
             return Err(DemesError::DemeError(format!(
                 "deme {} has finite start time but no ancestors",
@@ -1340,19 +1432,19 @@ impl UnresolvedDeme {
 
             let deme_start_time = match self.history.start_time {
                 Some(start_time) => {
-                    if start_time == Time::default_deme_start_time() {
+                    if start_time == InputTime::default_deme_start_time() {
                         let first_ancestor_deme = get_deme!(first_ancestor_name, deme_map, demes)
                             .ok_or_else(|| {
                             DemesError::DemeError(
                                 "fatal error: ancestor maps to no Deme object".to_string(),
                             )
                         })?;
-                        first_ancestor_deme.get_end_time()?
+                        first_ancestor_deme.get_end_time()?.into()
                     } else {
                         start_time
                     }
                 }
-                None => Time::default_deme_start_time(),
+                None => InputTime::default_deme_start_time(),
             };
 
             deme_start_time.err_if_not_valid_deme_start_time()?;
@@ -1385,7 +1477,7 @@ impl UnresolvedDeme {
                 Some(end_time) => Some(end_time),
                 None => match defaults.epoch.end_time {
                     Some(end_time) => Some(end_time),
-                    None => Some(Time::default_epoch_end_time()),
+                    None => Some(InputTime::default_epoch_end_time()),
                 },
             }
         }
@@ -1393,7 +1485,11 @@ impl UnresolvedDeme {
         // apply default epoch start times
         for epoch in self.epochs.iter_mut() {
             match epoch.end_time {
-                Some(end_time) => end_time.validate(DemesError::EpochError)?,
+                Some(end_time) => {
+                    Time::try_from(end_time).map_err(|_| {
+                        DemesError::EpochError(format!("invalid end_time: {end_time:?}"))
+                    })?;
+                }
                 None => {
                     epoch.end_time = match self.history.defaults.epoch.end_time {
                         Some(end_time) => Some(end_time),
@@ -1418,10 +1514,14 @@ impl UnresolvedDeme {
                 ));
             }
             last_time = end_time;
-            epoch
-                .end_time
-                .ok_or_else(|| DemesError::EpochError("end_time is None".to_string()))?
-                .validate(DemesError::EpochError)?;
+            Time::try_from(
+                epoch
+                    .end_time
+                    .ok_or_else(|| DemesError::EpochError("end_time is None".to_string()))?,
+            )
+            .map_err(|_| {
+                DemesError::EpochError(format!("invalid end_time: {:?}", epoch.end_time))
+            })?;
         }
 
         Ok(())
@@ -1430,7 +1530,7 @@ impl UnresolvedDeme {
     fn resolve_first_epoch_sizes(
         &mut self,
         defaults: &GraphDefaults,
-    ) -> Result<Option<DemeSize>, DemesError> {
+    ) -> Result<Option<InputDemeSize>, DemesError> {
         let self_defaults = self.history.defaults.clone();
         let epoch_sizes = {
             let mut temp_epoch = self.epochs.get_mut(0).ok_or_else(|| {
@@ -1480,7 +1580,7 @@ impl UnresolvedDeme {
             DemesError::EpochError(format!("deme {} start_time is None", self.name))
         })?;
 
-        if start_time == Time::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
+        if start_time == InputTime::default_deme_start_time() && epoch_sizes.0 != epoch_sizes.1 {
             let msg = format!(
                     "first epoch of deme {} cannot have varying size and an infinite time interval: start_size = {}, end_size = {}",
                     self.name, f64::from(epoch_start_size), f64::from(epoch_end_size),
@@ -1530,7 +1630,7 @@ impl UnresolvedDeme {
             .ok_or_else(|| DemesError::DemeError("proportions is None".to_string()))?;
 
         if proportions.is_empty() && num_ancestors == 1 {
-            proportions.push(Proportion::from(1.0));
+            proportions.push(InputProportion::from(1.0));
         }
 
         if num_ancestors != proportions.len() {
@@ -1632,7 +1732,9 @@ impl UnresolvedDeme {
     fn validate_start_time(&self) -> Result<(), DemesError> {
         match self.history.start_time {
             Some(start_time) => {
-                start_time.validate(DemesError::DemeError)?;
+                Time::try_from(start_time).map_err(|_| {
+                    DemesError::DemeError(format!("invalid start_time: {start_time:?}"))
+                })?;
                 start_time.err_if_not_valid_deme_start_time()
             }
             None => Err(DemesError::DemeError("start_time is None".to_string())),
@@ -1642,7 +1744,7 @@ impl UnresolvedDeme {
     fn start_time_resolved_or<F: FnOnce() -> DemesError>(
         &self,
         err: F,
-    ) -> Result<Time, DemesError> {
+    ) -> Result<InputTime, DemesError> {
         self.history.start_time.ok_or_else(err)
     }
 
@@ -1688,8 +1790,9 @@ impl UnresolvedDeme {
             .as_ref()
             .ok_or_else(|| DemesError::DemeError("proportions is None".to_string()))?;
         for p in proportions.iter() {
-            p.validate(DemesError::DemeError)?;
+            Proportion::try_from(*p)?;
         }
+
         if !proportions.is_empty() {
             let sum_proportions: f64 = proportions.iter().map(|p| f64::from(*p)).sum();
             // NOTE: this is same default as Python's math.isclose().
@@ -1721,13 +1824,17 @@ impl UnresolvedDeme {
     }
 
     fn get_start_time(&self) -> Result<Time, DemesError> {
-        self.history.start_time.ok_or_else(|| {
+        match self.history.start_time.ok_or_else(|| {
             DemesError::DemeError(format!("deme {} start_time is unresolved", self.name))
-        })
+        }) {
+            Ok(value) => value.try_into(),
+            Err(e) => Err(e),
+        }
     }
 
     fn get_end_time(&self) -> Result<Time, DemesError> {
-        self.epochs
+        match self
+            .epochs
             .last()
             .as_ref()
             .ok_or_else(|| DemesError::DemeError(format!("deme {} has no epochs", self.name)))?
@@ -1737,7 +1844,10 @@ impl UnresolvedDeme {
                     "last epoch of deme {} end_time unresolved",
                     self.name
                 ))
-            })
+            }) {
+            Ok(value) => value.try_into(),
+            Err(e) => Err(e),
+        }
     }
 
     fn get_num_ancestors(&self) -> Result<usize, DemesError> {
@@ -1805,14 +1915,20 @@ impl GraphDefaults {
         self.deme.validate()
     }
 
-    fn apply_default_epoch_start_size(&self, start_size: Option<DemeSize>) -> Option<DemeSize> {
+    fn apply_default_epoch_start_size(
+        &self,
+        start_size: Option<InputDemeSize>,
+    ) -> Option<InputDemeSize> {
         if start_size.is_some() {
             return start_size;
         }
         self.epoch.start_size
     }
 
-    fn apply_default_epoch_end_size(&self, end_size: Option<DemeSize>) -> Option<DemeSize> {
+    fn apply_default_epoch_end_size(
+        &self,
+        end_size: Option<InputDemeSize>,
+    ) -> Option<InputDemeSize> {
         if end_size.is_some() {
             return end_size;
         }
@@ -1889,24 +2005,29 @@ pub struct TopLevelDemeDefaults {
     #[allow(missing_docs)]
     pub description: Option<String>,
     #[allow(missing_docs)]
-    pub start_time: Option<Time>,
+    pub start_time: Option<InputTime>,
     #[allow(missing_docs)]
     pub ancestors: Option<Vec<String>>,
     #[allow(missing_docs)]
-    pub proportions: Option<Vec<Proportion>>,
+    pub proportions: Option<Vec<InputProportion>>,
 }
 
 impl TopLevelDemeDefaults {
     fn validate(&self) -> Result<(), DemesError> {
         if let Some(value) = self.start_time {
-            value.validate(DemesError::DemeError)?
+            Time::try_from(value)
+                .map_err(|_| DemesError::DemeError(format!("invalid start_time: {value:?}")))?;
         }
 
         match &self.proportions {
             Some(value) => {
-                value
-                    .iter()
-                    .try_for_each(|v| v.validate(DemesError::DemeError))?;
+                for v in value {
+                    if Proportion::try_from(*v).is_err() {
+                        return Err(DemesError::GraphError(format!(
+                            "invalid default proportion: {v:?}"
+                        )));
+                    }
+                }
             }
             None => (),
         }
@@ -2010,7 +2131,7 @@ pub(crate) struct UnresolvedGraph {
     metadata: Metadata,
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
-    generation_time: Option<GenerationTime>,
+    generation_time: Option<InputGenerationTime>,
     pub(crate) demes: Vec<UnresolvedDeme>,
     #[serde(default = "Vec::<UnresolvedMigration>::default")]
     #[serde(rename = "migrations")]
@@ -2030,7 +2151,7 @@ pub(crate) struct UnresolvedGraph {
 impl UnresolvedGraph {
     pub(crate) fn new(
         time_units: TimeUnits,
-        generation_time: Option<GenerationTime>,
+        generation_time: Option<InputGenerationTime>,
         defaults: Option<GraphDefaults>,
     ) -> Self {
         let input_defaults = match defaults {
@@ -2064,9 +2185,9 @@ impl UnresolvedGraph {
         demes: Option<Vec<String>>,
         source: Option<String>,
         dest: Option<String>,
-        rate: Option<MigrationRate>,
-        start_time: Option<Time>,
-        end_time: Option<Time>,
+        rate: Option<InputMigrationRate>,
+        start_time: Option<InputTime>,
+        end_time: Option<InputTime>,
     ) {
         self.input_migrations.push(UnresolvedMigration {
             demes,
@@ -2082,8 +2203,8 @@ impl UnresolvedGraph {
         &mut self,
         sources: Option<Vec<String>>,
         dest: Option<String>,
-        time: Option<Time>,
-        proportions: Option<Vec<Proportion>>,
+        time: Option<InputTime>,
+        proportions: Option<Vec<InputProportion>>,
     ) {
         self.pulses.push(UnresolvedPulse {
             sources,
@@ -2113,9 +2234,9 @@ impl UnresolvedGraph {
         &mut self,
         source: String,
         dest: String,
-        rate: MigrationRate,
-        start_time: Option<Time>,
-        end_time: Option<Time>,
+        rate: InputMigrationRate,
+        start_time: Option<InputTime>,
+        end_time: Option<InputTime>,
     ) -> Result<(), DemesError> {
         let source_deme = get_deme!(&source, &self.deme_map, &self.demes).ok_or_else(|| {
             crate::DemesError::MigrationError(format!("invalid source deme name {source}"))
@@ -2126,12 +2247,14 @@ impl UnresolvedGraph {
 
         let start_time = match start_time {
             Some(t) => t,
-            None => std::cmp::min(source_deme.get_start_time()?, dest_deme.get_start_time()?),
+            None => {
+                std::cmp::min(source_deme.get_start_time()?, dest_deme.get_start_time()?).into()
+            }
         };
 
         let end_time = match end_time {
             Some(t) => t,
-            None => std::cmp::max(source_deme.get_end_time()?, dest_deme.get_end_time()?),
+            None => std::cmp::max(source_deme.get_end_time()?, dest_deme.get_end_time()?).into(),
         };
 
         deme_name_exists(&self.deme_map, &source, DemesError::MigrationError)?;
@@ -2140,9 +2263,13 @@ impl UnresolvedGraph {
         let a = AsymmetricMigration {
             source,
             dest,
-            rate,
-            start_time,
-            end_time,
+            rate: rate.try_into()?,
+            start_time: start_time.try_into().map_err(|_| {
+                DemesError::MigrationError(format!("invalid start_time: {start_time:?}"))
+            })?,
+            end_time: end_time.try_into().map_err(|_| {
+                DemesError::MigrationError(format!("invalid end_time: {end_time:?}"))
+            })?,
         };
 
         self.resolved_migrations.push(a);
@@ -2300,7 +2427,7 @@ impl UnresolvedGraph {
         // REVERSE sort
         end_times.sort_by(|a, b| b.cmp(a));
 
-        let mut start_times = vec![Time::from(f64::INFINITY)];
+        let mut start_times = vec![Time::try_from(f64::INFINITY).unwrap()];
 
         if let Some((_last, elements)) = end_times.split_last() {
             start_times.extend_from_slice(elements);
@@ -2458,10 +2585,10 @@ impl UnresolvedGraph {
         self.validate_migrations()?;
 
         match self.generation_time {
-            Some(value) => value.validate(DemesError::GraphError)?,
+            Some(_) => (), //value.validate(DemesError::GraphError)?,
             None => {
                 if matches!(self.time_units, TimeUnits::Generations) {
-                    self.generation_time = Some(GenerationTime::from(1.));
+                    self.generation_time = Some(InputGenerationTime::from(1.));
                 }
             }
         }
@@ -2481,7 +2608,7 @@ impl UnresolvedGraph {
 
         if matches!(&self.time_units, TimeUnits::Generations) {
             if let Some(value) = self.generation_time {
-                if !value.eq(&1.0) {
+                if !value.equals(1.0) {
                     return Err(DemesError::GraphError(
                         "time units are generations but generation_time != 1.0".to_string(),
                     ));
@@ -2576,9 +2703,10 @@ impl TryFrom<UnresolvedGraph> for Graph {
             doi: value.doi,
             metadata: value.metadata,
             time_units: value.time_units,
-            generation_time: value.generation_time.ok_or_else(|| {
-                DemesError::GraphError("generation_time is unresolved".to_string())
-            })?,
+            generation_time: value
+                .generation_time
+                .ok_or_else(|| DemesError::GraphError("generation_time is unresolved".to_string()))?
+                .try_into()?,
             demes,
             resolved_migrations: value.resolved_migrations,
             pulses,
@@ -2747,7 +2875,7 @@ impl Graph {
             })?;
 
         converted.time_units = TimeUnits::Generations;
-        converted.generation_time = GenerationTime::from(1.0);
+        converted.generation_time = GenerationTime::try_from(1.0)?;
 
         Ok(converted)
     }
@@ -2876,7 +3004,7 @@ impl Graph {
                 let msg = format!("invalid size after rounding: {new_size}");
                 return Err(DemesError::EpochError(msg));
             }
-            return Ok(new_size.into());
+            return new_size.try_into();
         }
         Ok(old_size)
     }
@@ -2935,25 +3063,21 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let t = Time::from(1.0);
+        let t = Time::try_from(1.0).unwrap();
         let f = format!("{t}");
         assert_eq!(f, String::from("1"));
     }
 
     #[test]
+    #[should_panic]
     fn test_time_validity() {
-        let t = Time::from(f64::NAN);
-
-        match t.validate(DemesError::DemeError) {
-            Ok(_) => (),
-            Err(e) => assert!(matches!(e, DemesError::DemeError(_))),
-        }
+        let _ = Time::try_from(f64::NAN).unwrap();
     }
 
     #[test]
     fn test_newtype_compare_to_f64() {
         {
-            let v = Time::from(100.0);
+            let v = Time::try_from(100.0).unwrap();
             assert_eq!(v, 100.0);
             assert_eq!(100.0, v);
             assert!(v > 50.0);
@@ -2961,54 +3085,34 @@ mod tests {
         }
 
         {
-            let v = DemeSize::from(100.0);
+            let v = DemeSize::try_from(100.0).unwrap();
             assert_eq!(v, 100.0);
             assert_eq!(100.0, v);
         }
 
         {
-            let v = SelfingRate::from(1.0);
+            let v = SelfingRate::try_from(1.0).unwrap();
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = CloningRate::from(1.0);
+            let v = CloningRate::try_from(1.0).unwrap();
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = Proportion::from(1.0);
+            let v = Proportion::try_from(1.0).unwrap();
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
 
         {
-            let v = MigrationRate::from(1.0);
+            let v = MigrationRate::try_from(1.0).unwrap();
             assert_eq!(v, 1.0);
             assert_eq!(1.0, v);
         }
-    }
-}
-
-#[cfg(test)]
-mod test_newtype_ordering {
-    use super::*;
-
-    #[test]
-    fn test_start_time() {
-        let s = Time::from(1e-3);
-        let sd = Time::default_deme_start_time();
-        assert!(s < sd);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_fraud_with_start_time() {
-        let s = Time::from(1e-3);
-        let sd = Time::from(f64::NAN);
-        let _ = s < sd;
     }
 }
 
@@ -3233,7 +3337,10 @@ demes:
         assert_eq!(g.pulses().len(), 1);
         assert_eq!(g.pulses()[0].sources(), vec!["A".to_string()]);
         assert_eq!(g.pulses()[0].dest(), "B");
-        assert_eq!(g.pulses()[0].proportions(), vec![Proportion::from(0.25)]);
+        assert_eq!(
+            g.pulses()[0].proportions(),
+            vec![Proportion::try_from(0.25).unwrap()]
+        );
         assert_eq!(g.pulses()[0].time(), 100.0);
     }
 }

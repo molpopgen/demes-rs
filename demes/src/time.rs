@@ -5,7 +5,7 @@ pub(crate) fn to_generations(time: Time, generation_time: GenerationTime) -> Tim
     let t = f64::from(time);
     let g = f64::from(generation_time);
 
-    (t / g).into()
+    (t / g).try_into().unwrap()
 }
 
 /// Convert a time value into generations, rounding output to closest integer.
@@ -17,7 +17,7 @@ pub fn round_time_to_integer_generations(time: Time, generation_time: Generation
     let t = f64::from(time);
     let g = f64::from(generation_time);
 
-    (t / g).round().into()
+    (t / g).round().try_into().unwrap()
 }
 
 /// Store time values.
@@ -54,11 +54,11 @@ pub fn round_time_to_integer_generations(time: Time, generation_time: Generation
 ///
 /// ## Using rust code
 ///
-/// Normally, one only needs to create a `Time` when
-/// working with [`GraphBuilder`](crate::GraphBuilder).
+/// The only method to create a `Time` is to
+/// apply `TryFrom<f64>`:
 ///
 /// ```
-/// let t = demes::Time::from(0.0);
+/// let t = demes::Time::try_from(0.0).unwrap();
 /// assert_eq!(t, 0.0);
 /// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -69,13 +69,90 @@ pub struct Time(f64);
 
 impl_newtype_traits!(Time);
 
+impl TryFrom<f64> for Time {
+    type Error = DemesError;
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        let rv = Self(value);
+        rv.validate(DemesError::ValueError)?;
+
+        Ok(rv)
+    }
+}
+
+/// Input value for [`Time`], used when loading or building graphs.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[serde(try_from = "TimeTrampoline")]
+#[serde(into = "TimeTrampoline")]
+pub struct InputTime(f64);
+
+impl InputTime {
+    pub(crate) fn is_valid_epoch_end_time(&self) -> bool {
+        self.0.is_finite()
+    }
+
+    pub(crate) fn err_if_not_valid_epoch_end_time(&self) -> Result<(), DemesError> {
+        if self.is_valid_epoch_end_time() {
+            Ok(())
+        } else {
+            let msg = format!("end_time must be <= t < Infinity, got: {}", self.0);
+            Err(DemesError::EpochError(msg))
+        }
+    }
+    pub(crate) fn default_deme_start_time() -> Self {
+        Self(f64::INFINITY)
+    }
+    pub(crate) fn default_epoch_end_time() -> Self {
+        Self(0.0)
+    }
+    pub(crate) fn is_valid_deme_start_time(&self) -> bool {
+        self.0 > 0.0
+    }
+    pub(crate) fn err_if_not_valid_deme_start_time(&self) -> Result<(), DemesError> {
+        if self.is_valid_deme_start_time() {
+            Ok(())
+        } else {
+            let msg = format!("start_time must be > 0.0, got: {}", self.0);
+            Err(DemesError::DemeError(msg))
+        }
+    }
+}
+
+impl From<f64> for InputTime {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<InputTime> for f64 {
+    fn from(value: InputTime) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<InputTime> for Time {
+    type Error = DemesError;
+
+    fn try_from(value: InputTime) -> Result<Self, Self::Error> {
+        let rv = Self(value.0);
+        rv.validate(DemesError::ValueError)?;
+        Ok(rv)
+    }
+}
+
+impl From<Time> for InputTime {
+    fn from(value: Time) -> Self {
+        Self(value.into())
+    }
+}
+
 /// Generation time.
 ///
 /// If [`TimeUnits`] are in generations, this value
 /// must be 1.0.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
-#[serde(from = "f64")]
+#[serde(try_from = "f64")]
 pub struct GenerationTime(f64);
 
 impl_newtype_traits!(GenerationTime);
@@ -152,40 +229,6 @@ where
 }
 
 impl Time {
-    pub(crate) fn default_deme_start_time() -> Self {
-        Self(f64::INFINITY)
-    }
-
-    pub(crate) fn default_epoch_end_time() -> Self {
-        Self(0.0)
-    }
-
-    pub(crate) fn is_valid_deme_start_time(&self) -> bool {
-        self.0 > 0.0
-    }
-
-    pub(crate) fn err_if_not_valid_deme_start_time(&self) -> Result<(), DemesError> {
-        if self.is_valid_deme_start_time() {
-            Ok(())
-        } else {
-            let msg = format!("start_time must be > 0.0, got: {}", self.0);
-            Err(DemesError::DemeError(msg))
-        }
-    }
-
-    pub(crate) fn is_valid_epoch_end_time(&self) -> bool {
-        self.0.is_finite()
-    }
-
-    pub(crate) fn err_if_not_valid_epoch_end_time(&self) -> Result<(), DemesError> {
-        if self.is_valid_epoch_end_time() {
-            Ok(())
-        } else {
-            let msg = format!("end_time must be <= t < Infinity, got: {}", self.0);
-            Err(DemesError::EpochError(msg))
-        }
-    }
-
     pub(crate) fn is_valid_pulse_time(&self) -> bool {
         self.0.is_sign_positive() && !self.0.is_infinite()
     }
@@ -209,6 +252,42 @@ impl GenerationTime {
         } else {
             Ok(())
         }
+    }
+}
+
+impl TryFrom<f64> for GenerationTime {
+    type Error = DemesError;
+    fn try_from(value: f64) -> Result<GenerationTime, Self::Error> {
+        let rv = Self(value);
+        rv.validate(Self::Error::GraphError)?;
+        Ok(rv)
+    }
+}
+
+/// Input value for [`GenerationTime`], used when loading or building graphs.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(from = "f64")]
+pub struct InputGenerationTime(f64);
+
+impl From<f64> for InputGenerationTime {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl InputGenerationTime {
+    pub(crate) fn equals(&self, value: f64) -> bool {
+        self.0 == value
+    }
+}
+
+impl TryFrom<InputGenerationTime> for GenerationTime {
+    type Error = DemesError;
+    fn try_from(value: InputGenerationTime) -> Result<Self, Self::Error> {
+        let rv = Self(value.0);
+        rv.validate(DemesError::GraphError)?;
+        Ok(rv)
     }
 }
 
@@ -260,7 +339,6 @@ impl TimeInterval {
     }
 
     pub(crate) fn contains_start_time(&self, other: Time) -> bool {
-        assert!(other.is_valid_deme_start_time());
         self.contains(other)
     }
 
@@ -293,13 +371,42 @@ impl TryFrom<TimeTrampoline> for Time {
                 }
             }
             // Fall back to valid YAML representations
-            TimeTrampoline::Float(f) => Ok(Self::from(f)),
+            TimeTrampoline::Float(f) => Ok(Self::try_from(f)?),
         }
     }
 }
 
 impl From<Time> for TimeTrampoline {
     fn from(value: Time) -> Self {
+        if value.0.is_infinite() {
+            Self::Infinity("Infinity".to_string())
+        } else {
+            Self::Float(f64::from(value))
+        }
+    }
+}
+
+impl TryFrom<TimeTrampoline> for InputTime {
+    type Error = DemesError;
+
+    fn try_from(value: TimeTrampoline) -> Result<Self, Self::Error> {
+        match value {
+            // Handle string inputs
+            TimeTrampoline::Infinity(string) => {
+                if &string == "Infinity" {
+                    Ok(Self(f64::INFINITY))
+                } else {
+                    Err(DemesError::GraphError(string))
+                }
+            }
+            // Fall back to valid YAML representations
+            TimeTrampoline::Float(f) => Ok(Self::from(f)),
+        }
+    }
+}
+
+impl From<InputTime> for TimeTrampoline {
+    fn from(value: InputTime) -> Self {
         if value.0.is_infinite() {
             Self::Infinity("Infinity".to_string())
         } else {

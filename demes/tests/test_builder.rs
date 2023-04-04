@@ -1,9 +1,9 @@
-use demes::DemeSize;
-use demes::GenerationTime;
 use demes::GraphBuilder;
 use demes::GraphDefaults;
-use demes::Proportion;
-use demes::Time;
+use demes::InputDemeSize;
+use demes::InputGenerationTime;
+use demes::InputProportion;
+use demes::InputTime;
 use demes::TimeUnits;
 use demes::TopLevelDemeDefaults;
 use demes::UnresolvedDemeHistory;
@@ -32,24 +32,24 @@ demes:
         pulse: UnresolvedPulse {
             sources: Some(vec!["A".to_string()]),
             dest: Some("B".to_string()),
-            proportions: Some(vec![Proportion::try_from(0.25).unwrap()]),
-            time: Some(Time::try_from(100.).unwrap()),
+            proportions: Some(vec![InputProportion::from(0.25)]),
+            time: Some(InputTime::from(100.)),
         },
         ..Default::default()
     };
 
     let epochs_a = UnresolvedEpoch {
-        start_size: Some(DemeSize::try_from(100.0).unwrap()),
+        start_size: Some(InputDemeSize::from(100.0)),
         ..Default::default()
     };
     let epochs_b = UnresolvedEpoch {
-        start_size: Some(DemeSize::try_from(250.0).unwrap()),
+        start_size: Some(InputDemeSize::from(250.0)),
         ..Default::default()
     };
 
     let mut builder = GraphBuilder::new(
         TimeUnits::Years,
-        Some(GenerationTime::from(25.0)),
+        Some(InputGenerationTime::from(25.0)),
         Some(toplevel_defaults),
     );
     builder.add_deme("A", vec![epochs_a], UnresolvedDemeHistory::default(), None);
@@ -62,7 +62,7 @@ demes:
 fn builder_toplevel_epoch_defaults() {
     let _ = GraphDefaults {
         epoch: UnresolvedEpoch {
-            end_time: Some(Time::try_from(100.0).unwrap()),
+            end_time: Some(InputTime::from(100.0)),
             ..Default::default()
         },
         ..Default::default()
@@ -95,7 +95,7 @@ fn builder_toplevel_deme_defaults() {
     {
         let _ = GraphDefaults {
             deme: TopLevelDemeDefaults {
-                start_time: Some(Time::try_from(100.0).unwrap()),
+                start_time: Some(InputTime::from(100.0)),
                 ..Default::default()
             },
             ..Default::default()
@@ -115,7 +115,7 @@ fn builder_toplevel_deme_defaults() {
     {
         let _ = GraphDefaults {
             deme: TopLevelDemeDefaults {
-                proportions: Some(vec![Proportion::try_from(1.0).unwrap()]),
+                proportions: Some(vec![InputProportion::from(1.0)]),
                 ..Default::default()
             },
             ..Default::default()
@@ -131,7 +131,7 @@ fn test_metadata_round_trip_through_builder() {
         bar: String,
     }
     let edata = demes::UnresolvedEpoch {
-        start_size: Some(demes::DemeSize::from(100.0)),
+        start_size: Some(demes::InputDemeSize::from(100.0)),
         ..Default::default()
     };
     let mut builder = demes::GraphBuilder::new_generations(None);

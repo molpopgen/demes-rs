@@ -7,10 +7,10 @@ use crate::specification::UnresolvedDemeHistory;
 use crate::specification::UnresolvedEpoch;
 use crate::specification::UnresolvedGraph;
 use crate::DemesError;
-use crate::GenerationTime;
-use crate::MigrationRate;
-use crate::Proportion;
-use crate::Time;
+use crate::InputGenerationTime;
+use crate::InputMigrationRate;
+use crate::InputProportion;
+use crate::InputTime;
 use crate::TimeUnits;
 
 #[derive(Error, Debug)]
@@ -44,7 +44,7 @@ impl GraphBuilder {
     /// [`Graph`](crate::Graph).
     pub fn new(
         time_units: TimeUnits,
-        generation_time: Option<GenerationTime>,
+        generation_time: Option<InputGenerationTime>,
         defaults: Option<GraphDefaults>,
     ) -> Self {
         Self {
@@ -68,7 +68,7 @@ impl GraphBuilder {
     /// # Examples
     ///
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
@@ -93,7 +93,7 @@ impl GraphBuilder {
     /// # Examples
     ///
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
@@ -101,7 +101,7 @@ impl GraphBuilder {
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
     /// b.add_asymmetric_migration(Some("A"),
     ///                            Some("B"),
-    ///                            Some(demes::MigrationRate::from(1e-4)),
+    ///                            Some(1e-4.into()),
     ///                            None, // Using None for the times
     ///                                  // will mean continuous migration for the
     ///                                  // duration for which the demes coexist.
@@ -112,9 +112,9 @@ impl GraphBuilder {
         &mut self,
         source: Option<S>,
         dest: Option<D>,
-        rate: Option<MigrationRate>,
-        start_time: Option<Time>,
-        end_time: Option<Time>,
+        rate: Option<InputMigrationRate>,
+        start_time: Option<InputTime>,
+        end_time: Option<InputTime>,
     ) {
         self.add_migration::<String, _, _>(None, source, dest, rate, start_time, end_time);
     }
@@ -123,14 +123,14 @@ impl GraphBuilder {
     ///
     /// # Examples
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
     /// b.add_symmetric_migration(Some(&["A", "B"]),
-    ///                           Some(demes::MigrationRate::from(1e-4)),
+    ///                           Some(1e-4.into()),
     ///                           None, // Using None for the times
     ///                                 // will mean continuous migration for the
     ///                                 // duration for which the demes coexist.
@@ -140,9 +140,9 @@ impl GraphBuilder {
     pub fn add_symmetric_migration<D: ToString>(
         &mut self,
         demes: Option<&[D]>,
-        rate: Option<MigrationRate>,
-        start_time: Option<Time>,
-        end_time: Option<Time>,
+        rate: Option<InputMigrationRate>,
+        start_time: Option<InputTime>,
+        end_time: Option<InputTime>,
     ) {
         self.add_migration::<_, String, String>(demes, None, None, rate, start_time, end_time);
     }
@@ -160,7 +160,7 @@ impl GraphBuilder {
     /// ## Adding an asymmetric migration
     ///
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
@@ -169,7 +169,7 @@ impl GraphBuilder {
     /// b.add_migration::<String, _, _>(None,
     ///                   Some("A"),
     ///                   Some("B"),
-    ///                   Some(demes::MigrationRate::from(1e-4)),
+    ///                   Some(1e-4.into()),
     ///                   None, // Using None for the times
     ///                         // will mean continuous migration for the
     ///                         // duration for which the demes coexist.
@@ -180,7 +180,7 @@ impl GraphBuilder {
     /// ## Adding a symmetric migration
     ///
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
@@ -189,7 +189,7 @@ impl GraphBuilder {
     /// b.add_migration::<_, String, String>(Some(&["A", "B"]),
     ///                   None,
     ///                   None,
-    ///                   Some(demes::MigrationRate::from(1e-4)),
+    ///                   Some(1e-4.into()),
     ///                   None, // Using None for the times
     ///                         // will mean continuous migration for the
     ///                         // duration for which the demes coexist.
@@ -201,9 +201,9 @@ impl GraphBuilder {
         demes: Option<&[D]>,
         source: Option<S>,
         dest: Option<E>,
-        rate: Option<MigrationRate>,
-        start_time: Option<Time>,
-        end_time: Option<Time>,
+        rate: Option<InputMigrationRate>,
+        start_time: Option<InputTime>,
+        end_time: Option<InputTime>,
     ) {
         let demes = demes.map(|value| value.iter().map(|v| v.to_string()).collect::<Vec<_>>());
         let source = source.map(|value| value.to_string());
@@ -217,7 +217,7 @@ impl GraphBuilder {
     /// # Examples
     ///
     /// ```
-    /// let start_size = demes::DemeSize::from(100.);
+    /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
     /// let history = demes::UnresolvedDemeHistory::default();
     /// let mut b = demes::GraphBuilder::new_generations(None);
@@ -225,16 +225,16 @@ impl GraphBuilder {
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
     /// b.add_pulse(Some(&["A"]),
     ///             Some("B"),
-    ///             Some(demes::Time::from(50.0)),
-    ///             Some(vec![demes::Proportion::from(0.5)]));
+    ///             Some(demes::InputTime::from(50.0)),
+    ///             Some(vec![demes::InputProportion::from(0.5)]));
     /// b.resolve().unwrap();
     /// ```
     pub fn add_pulse(
         &mut self,
         sources: Option<&[&str]>,
         dest: Option<&str>,
-        time: Option<Time>,
-        proportions: Option<Vec<Proportion>>,
+        time: Option<InputTime>,
+        proportions: Option<Vec<InputProportion>>,
     ) {
         let sources = sources.map(|value| value.iter().map(|v| v.to_string()).collect::<Vec<_>>());
         let dest = dest.map(|value| value.to_string());
@@ -297,7 +297,7 @@ impl GraphBuilder {
 mod tests {
     use super::*;
     use crate::specification::DemeDefaults;
-    use crate::DemeSize;
+    use crate::InputDemeSize;
 
     #[test]
     #[should_panic]
@@ -310,7 +310,7 @@ mod tests {
     fn add_deme_with_epochs() {
         let mut b = GraphBuilder::new_generations(Some(GraphDefaults::default()));
         let edata = UnresolvedEpoch {
-            start_size: Some(DemeSize::from(100.0)),
+            start_size: Some(InputDemeSize::from(100.0)),
             ..Default::default()
         };
         b.add_deme("CEU", vec![edata], UnresolvedDemeHistory::default(), None);
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn use_proportion_for_proportions() {
-        let p = Proportion::from(0.5);
+        let p = InputProportion::from(0.5);
         let _ = UnresolvedDemeHistory {
             proportions: Some(vec![p, p]),
             ..Default::default()
@@ -330,7 +330,7 @@ mod tests {
     fn builder_deme_defaults() {
         let defaults = DemeDefaults {
             epoch: UnresolvedEpoch {
-                end_size: Some(DemeSize::from(100.)),
+                end_size: Some(InputDemeSize::from(100.)),
                 ..Default::default()
             },
         };

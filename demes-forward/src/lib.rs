@@ -23,10 +23,12 @@
 #![warn(missing_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]
 
+mod current_size;
 mod error;
 mod graph;
 mod time;
 
+pub use current_size::CurrentSize;
 pub use demes;
 pub use error::DemesForwardError;
 pub use graph::ForwardGraph;

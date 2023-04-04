@@ -34,15 +34,12 @@ use serde::{Deserialize, Serialize};
 ///
 /// ## Using rust code
 ///
-/// Normally, one only needs to create a `DemeSize` when
-/// working with [`GraphBuilder`](crate::GraphBuilder).
-///
 /// ```
-/// let t = demes::DemeSize::from(50.0);
+/// let t = demes::DemeSize::try_from(50.0).unwrap();
 /// assert_eq!(t, 50.0);
 /// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(from = "f64")]
+#[serde(try_from = "f64")]
 #[repr(transparent)]
 pub struct DemeSize(f64);
 
@@ -60,10 +57,53 @@ impl DemeSize {
     }
 }
 
+impl TryFrom<f64> for DemeSize {
+    type Error = DemesError;
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        let rv = Self(value);
+        rv.validate(DemesError::ValueError)?;
+        Ok(rv)
+    }
+}
+
 impl_newtype_traits!(DemeSize);
 
 impl Validate for DemeSize {
     fn validate<F: FnOnce(String) -> DemesError>(&self, err: F) -> Result<(), DemesError> {
         self.validate(err)
+    }
+}
+
+/// Input value for [`DemeSize`], used when loading or building graphs.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[repr(transparent)]
+#[serde(from = "f64")]
+pub struct InputDemeSize(f64);
+
+impl From<f64> for InputDemeSize {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<InputDemeSize> for DemeSize {
+    type Error = DemesError;
+
+    fn try_from(value: InputDemeSize) -> Result<Self, Self::Error> {
+        let rv = Self(value.0);
+        rv.validate(DemesError::ValueError)?;
+        Ok(rv)
+    }
+}
+
+impl Default for InputDemeSize {
+    fn default() -> Self {
+        Self::from(0.0)
+    }
+}
+
+impl From<InputDemeSize> for f64 {
+    fn from(value: InputDemeSize) -> Self {
+        value.0
     }
 }

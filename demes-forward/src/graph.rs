@@ -231,8 +231,15 @@ impl Deme {
                 self.status = DemeStatus::During(j);
                 self.backwards_time = Some(time);
                 if update_ancestors {
-                    let generation_to_check_ancestors =
-                        demes::Time::try_from(f64::from(self.deme.start_time()) - 2.0)?;
+                    // NOTE: PR 272 introduced much stricter value
+                    // checking in demes. The strict checks
+                    // led to a regression here if we try
+                    // to convert this value into demes::Time.
+                    // (The value can get < 0.0.)
+                    //
+                    // TODO: investigate why we subtract 2 here.
+                    // It seems "off" to me.
+                    let generation_to_check_ancestors = f64::from(self.deme.start_time()) - 2.0;
                     if time > generation_to_check_ancestors {
                         for (name, proportion) in self
                             .deme
@@ -249,6 +256,7 @@ impl Deme {
                             self.proportions.push(*proportion);
                         }
                     }
+                    //}
                 }
                 let deme_size = self.current_size()?;
                 current_size = deme_size.ok_or_else(|| {

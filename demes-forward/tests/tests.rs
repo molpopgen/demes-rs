@@ -491,3 +491,28 @@ demes:
     assert!(graph.size_at(2, 0.0).is_ok());
     assert!(graph.size_at(2, 0.0).unwrap().is_none());
 }
+
+#[test]
+fn test_immediate_size_change() {
+    let yaml = "
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+     - {end_time: 2, start_size: 100}
+ - name: transient
+   ancestors: [ancestor]
+   epochs:
+     - {end_time: 1, start_size: 100}
+ - name: final
+   ancestors: [transient]
+   epochs:
+     - {end_time: 0, start_size: 200}
+";
+    for burnin in [0, 1, 2, 10] {
+        let demes_graph = demes::loads(yaml).unwrap();
+        let mut graph =
+            demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+        iterate_all_generations(&mut graph);
+    }
+}

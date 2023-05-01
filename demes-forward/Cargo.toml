@@ -7,7 +7,7 @@ edition = "2021"
 license = "MIT"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
-rust-version = "1.58.1"
+rust-version = "1.60.0"
 
 [dependencies]
 demes = { version = "0.5.0", path = "../demes" }

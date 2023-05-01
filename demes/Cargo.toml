@@ -6,7 +6,7 @@ license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
-rust-version = "1.58.1"
+rust-version = "1.60.0"
 
 [package.metadata.docs.rs]
 all-features = true

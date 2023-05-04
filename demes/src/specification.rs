@@ -2634,7 +2634,7 @@ impl UnresolvedGraph {
 /// * [`load`](crate::load)
 /// * [`loads`](crate::loads)
 /// * [`GraphBuilder`](crate::GraphBuilder)
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields, try_from = "UnresolvedGraph")]
 pub struct Graph {
     #[serde(skip_serializing_if = "Option::is_none")]

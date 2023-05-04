@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SquareMatrix {
     data: Vec<f64>,
     nrows: usize,

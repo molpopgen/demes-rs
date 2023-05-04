@@ -70,7 +70,7 @@ impl Iterator for TimeIterator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ModelTime {
     #[allow(dead_code)]
     model_start_time: demes::Time,

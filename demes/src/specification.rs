@@ -871,26 +871,19 @@ impl Epoch {
         let time_span = start_time - end_time;
         let dt = start_time - time;
         let size = match self.size_function() {
-            SizeFunction::Constant => self.end_size,
+            SizeFunction::Constant => return Ok(self.end_size),
             SizeFunction::Linear => {
-                let result = f64::from(self.start_size)
-                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span;
-                DemeSize::try_from(result).map_err(|_| {
-                    DemesError::EpochError(format!(
-                        "size calculation led to invalid size: {result}"
-                    ))
-                })?
+                f64::from(self.start_size)
+                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span
             }
             SizeFunction::Exponential => {
                 let r = (f64::from(self.end_size) / f64::from(self.start_size)).ln() / time_span;
-                let result = f64::from(self.start_size) * (r * dt).exp();
-                DemeSize::try_from(result).map_err(|_| {
-                    DemesError::EpochError(format!(
-                        "size calculation led to invalid size: {result}"
-                    ))
-                })?
+                f64::from(self.start_size) * (r * dt).exp()
             }
         };
+        let size = DemeSize::try_from(size).map_err(|_| {
+            DemesError::EpochError(format!("size calculation led to invalid size: {size}"))
+        })?;
         Ok(size)
     }
 }

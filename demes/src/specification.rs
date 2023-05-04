@@ -845,6 +845,12 @@ impl Epoch {
     }
 
     /// Size of Epoch at a given time
+    ///
+    /// # Errors
+    ///
+    /// * If `time` is not `end_time < time <= start_time`.
+    /// * If `time` fails to convert into [`Time`].
+    /// * If conversion from [`f64`] to [`DemeSize`] failes.
     pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<DemeSize, DemesError> {
         let time: f64 = time.into();
         Time::try_from(time)
@@ -1201,6 +1207,10 @@ impl Deme {
     }
 
     /// Size of Deme at a given time
+    ///
+    /// # Errors
+    ///
+    /// See [`Epoch::size_at`] for details.
     pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<Option<DemeSize>, DemesError> {
         let time: f64 = time.into();
         Time::try_from(time)

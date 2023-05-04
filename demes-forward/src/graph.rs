@@ -142,7 +142,7 @@ fn apply_size_function(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Deme {
     deme: demes::Deme,
     status: DemeStatus,
@@ -151,7 +151,7 @@ struct Deme {
     proportions: Vec<demes::Proportion>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum DemeStatus {
     /// Before the deme first appears.
     /// (Moving forwards in time.)
@@ -306,7 +306,7 @@ fn update_demes(
 }
 
 /// Forward-time representation of a [`demes::Graph`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ForwardGraph {
     graph: demes::Graph,
     model_times: ModelTime,

@@ -972,6 +972,14 @@ impl ForwardGraph {
     pub fn deme_names(&self) -> Box<[&str]> {
         self.graph.deme_names()
     }
+
+    pub fn into_state_iterator(
+        self,
+        from: Option<demes::Time>,
+        until: Option<demes::Time>,
+    ) -> impl Iterator<Item = crate::iterators::ModelState> {
+        crate::iterators::StateIterator::new(self, from, until)
+    }
 }
 
 #[cfg(test)]

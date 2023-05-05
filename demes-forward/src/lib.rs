@@ -26,6 +26,7 @@
 mod current_size;
 mod error;
 mod graph;
+mod iterators;
 mod square_matrix;
 mod time;
 
@@ -34,3 +35,27 @@ pub use demes;
 pub use error::DemesForwardError;
 pub use graph::ForwardGraph;
 pub use time::ForwardTime;
+
+/// The size of a deme at a given time.
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub struct DemeSizeAt {
+    time: demes::Time,
+    forward_time: ForwardTime,
+    size: CurrentSize,
+}
+
+impl DemeSizeAt {
+    /// The current time (in the past)
+    pub fn time(&self) -> demes::Time {
+        self.time
+    }
+    /// The current time measured since the
+    /// start of the model, forwards in time
+    pub fn forward_time(&self) -> ForwardTime {
+        self.forward_time
+    }
+    /// The current size
+    pub fn size(&self) -> CurrentSize {
+        self.size
+    }
+}

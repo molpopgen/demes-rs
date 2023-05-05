@@ -1,3 +1,4 @@
+use crate::iterators::DemeSizeHistory;
 use crate::square_matrix::SquareMatrix;
 use crate::time::ModelTime;
 use crate::CurrentSize;
@@ -837,6 +838,62 @@ impl ForwardGraph {
         } else {
             Ok(None)
         }
+    }
+
+    /// Generate an iterator over the size history of a deme.
+    ///
+    /// # Parameters
+    ///
+    /// * `deme`: the index or name of the deme
+    /// * `past`: the time in the past when iteration begins.
+    /// * `present`: the time in the present when iteration ends.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over instances of [`DemeSizeAt`].
+    /// However, these instances are returned via [`Result`] because
+    /// the underlying calls to [`demes::Epoch::size_at`] may error.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    ///
+    /// * `deme` does not exist in the graph
+    /// * `past` is more recent than the deme's
+    ///    end time
+    /// * `present` is more ancient than the deme's
+    ///    start time
+    /// * `present` >= `past`
+    ///
+    /// # Notes
+    ///
+    /// * If `past` is >= the start time of a deme's most
+    ///   ancient epoch, iteration will start at that time.
+    /// * Likewise, if `present` is < the deme's end time,
+    ///   iteration will end at the end time.
+    /// * The iterator contains a clone of the deme,
+    ///   meaning there are no lifetime issues.
+    ///
+    /// # Panics
+    ///
+    /// * If cloning the deme results in the system
+    ///   running out of memory.
+    pub fn deme_size_history<'a, I>(
+        &self,
+        deme: I,
+        past: Option<demes::Time>,
+        present: Option<demes::Time>,
+    ) -> Result<impl Iterator<Item = Result<crate::DemeSizeAt, DemesForwardError>>, DemesForwardError>
+    where
+        I: std::fmt::Debug + Into<demes::DemeId<'a>>,
+    {
+        let deme_id = deme.into();
+        let deme = self
+            .graph
+            .get_deme(deme_id)
+            .ok_or_else(|| demes::DemesError::DemeError(format!("invalid deme id: {deme_id:?}")))?;
+        let forward_model_start_time = f64::from(self.model_times.model_start_time());
+        DemeSizeHistory::new(deme.clone(), forward_model_start_time, past, present)
     }
 }
 

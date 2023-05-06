@@ -692,6 +692,6 @@ demes:
 
     for s in state_iterator.iter() {
         println!("here");
-        assert!(false);
     }
+    assert!(false);
 }

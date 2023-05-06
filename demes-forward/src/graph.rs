@@ -978,6 +978,7 @@ impl ForwardGraph {
         from: Option<demes::Time>,
         until: Option<demes::Time>,
     ) -> Result<impl Iterator<Item = crate::iterators::ModelState>, DemesForwardError> {
+        todo!("we have messed up here and are using backward time when we should be using forward");
         let model_start = self.backwards_start_time();
         let model_end = self.graph.most_recent_deme_end_time();
         let from: f64 = match from {

@@ -72,8 +72,7 @@ impl Iterator for TimeIterator {
 
 #[derive(Debug, Clone)]
 pub struct ModelTime {
-    #[allow(dead_code)]
-    model_start_time: demes::Time,
+    backwards_burn_in_time: demes::Time,
     model_duration: f64,
     burnin_generation: f64,
     minimum_epoch_end_time: f64,
@@ -97,6 +96,10 @@ impl ModelTime {
 
     pub(crate) fn model_start_time(&self) -> demes::Time {
         self.convert(0.into()).unwrap().unwrap()
+    }
+
+    pub fn backwards_burn_in_time(&self) -> demes::Time {
+        self.backwards_burn_in_time
     }
 }
 
@@ -167,7 +170,7 @@ impl ModelTime {
 
         let burnin_generation = burnin_time_length.value();
         Ok(Self {
-            model_start_time,
+            backwards_burn_in_time: model_start_time,
             model_duration,
             burnin_generation,
             minimum_epoch_end_time: graph.most_recent_deme_end_time().into(),

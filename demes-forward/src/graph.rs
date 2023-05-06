@@ -978,11 +978,10 @@ impl ForwardGraph {
         from: Option<demes::Time>,
         until: Option<demes::Time>,
     ) -> Result<impl Iterator<Item = crate::iterators::ModelState>, DemesForwardError> {
-        todo!("we have messed up here and are using backward time when we should be using forward");
-        let model_start = self.backwards_start_time();
-        let model_end = self.graph.most_recent_deme_end_time();
+        let model_start = 0.0;
+        let model_end = self.end_time().value();
         let from: f64 = match from {
-            None => model_start.into(),
+            None => model_start,
             Some(time) if time < model_end => {
                 return Err(DemesForwardError::TimeError(format!(
                     "from ({from:?}) is more recent than the end of the model"
@@ -990,14 +989,14 @@ impl ForwardGraph {
             }
             Some(time) => match self.time_to_forward(time) {
                 Ok(Some(forward_time)) => forward_time.value(),
-                Ok(None) => model_start.into(),
+                Ok(None) => model_start,
                 Err(e) => {
                     return Err(e);
                 }
             },
         };
         let until: f64 = match until {
-            None => model_end.into(),
+            None => model_end,
             Some(time) if time >= model_start => {
                 return Err(DemesForwardError::TimeError(format!(
                     "until ({until:?}) is more ancient than the start of the model"
@@ -1005,7 +1004,7 @@ impl ForwardGraph {
             }
             Some(time) => match self.time_to_forward(time) {
                 Ok(Some(forward_time)) => forward_time.value(),
-                Ok(None) => model_end.into(),
+                Ok(None) => model_end,
                 Err(e) => {
                     return Err(e);
                 }

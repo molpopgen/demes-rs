@@ -805,23 +805,21 @@ impl ForwardGraph {
     ///   to "infinity". The first parental generation is considered
     ///   to exist at a time one generation prior to the start of events
     ///   in the graph plus the burn-in time.
-    pub fn size_at<
-        'a,
-        I: Into<demes::DemeId<'a>>,
-        T: TryInto<demes::Time, Error = demes::DemesError>,
-    >(
+    pub fn size_at<'a, I: Into<demes::DemeId<'a>>, T: Into<crate::time::BackwardTimeWrapper>>(
         &self,
         deme: I,
         time: T,
     ) -> Result<Option<CurrentSize>, DemesForwardError> {
-        let time = time.try_into()?;
-        let time_raw = f64::from(time);
+        let time_raw: f64 = match time.into() {
+            crate::time::BackwardTimeWrapper::Float(time) => demes::Time::try_from(time)?.into(),
+            crate::time::BackwardTimeWrapper::Time(time) => time.into(),
+        };
         if time_raw.is_nan() || !time_raw.is_sign_positive() {
             return Err(DemesForwardError::TimeError(format!(
                 "invalid time value: {time_raw}"
             )));
         }
-        if time > self.model_times.model_start_time() {
+        if time_raw > self.model_times.model_start_time() {
             return Ok(None);
         }
         let id = deme.into();
@@ -833,9 +831,11 @@ impl ForwardGraph {
             .epochs()
             .iter()
             .enumerate()
-            .find(|(_, e)| time >= e.end_time() && time < e.start_time())
+            .find(|(_, e)| time_raw >= e.end_time() && time_raw < e.start_time())
         {
-            apply_size_function(deme, index, Some(time))
+            // We can unwrap b/c we either made a valid demes::Time
+            // or had one passed in.
+            apply_size_function(deme, index, Some(time_raw.try_into().unwrap()))
         } else {
             Ok(None)
         }
@@ -925,11 +925,14 @@ impl ForwardGraph {
     ///
     /// * `None` if `time` is ancestral to the start of the model
     ///   or more recent than the model's end.
-    pub fn time_to_backwards<T>(&self, time: T) -> Result<Option<demes::Time>, DemesForwardError>
-    where
-        T: Into<ForwardTime>,
-    {
-        let time = time.into();
+    pub fn time_to_backward<T: Into<crate::time::ForwardTimeWrapper>>(
+        &self,
+        time: T,
+    ) -> Result<Option<demes::Time>, DemesForwardError> {
+        let time: ForwardTime = match time.into() {
+            crate::time::ForwardTimeWrapper::Float(time) => time.into(),
+            crate::time::ForwardTimeWrapper::Time(time) => time,
+        };
         if !time.valid() {
             return Err(DemesForwardError::TimeError(format!(
                 "invalid time value: {time:?}"
@@ -945,11 +948,14 @@ impl ForwardGraph {
     ///
     /// * `None` if `time` is ancestral to the start of the model
     ///   or more recent than the model's end.
-    pub fn time_to_forwards<T>(&self, time: T) -> Result<Option<ForwardTime>, DemesForwardError>
-    where
-        T: TryInto<demes::Time, Error = demes::DemesError>,
-    {
-        let time = time.try_into()?;
+    pub fn time_to_forward<T: Into<crate::time::BackwardTimeWrapper>>(
+        &self,
+        time: T,
+    ) -> Result<Option<ForwardTime>, DemesForwardError> {
+        let time: demes::Time = match time.into() {
+            crate::time::BackwardTimeWrapper::Float(value) => value.try_into()?,
+            crate::time::BackwardTimeWrapper::Time(value) => value,
+        };
         if time > self.backwards_start_time() || time < self.graph.most_recent_deme_end_time() {
             Ok(None)
         } else {

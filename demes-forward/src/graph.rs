@@ -895,6 +895,69 @@ impl ForwardGraph {
         let forward_model_start_time = f64::from(self.model_times.model_start_time());
         DemeSizeHistory::new(graph, deme_index, forward_model_start_time)
     }
+
+    /// Return the time in the past when the first generation
+    /// of the model exists.
+    /// This time point represents the individuals alive at
+    /// time zero (forwards in time) who are the ancestors
+    /// of those individuals born at time 1 of the model.
+    pub fn backwards_start_time(&self) -> demes::Time {
+        self.model_times.model_start_time()
+    }
+
+    /// Return the time in the model at the end of
+    /// any "burn-in".
+    ///
+    /// # Note
+    ///
+    /// This value is distinct from the burn-in *duration*.
+    /// Instead, this value represents the time when all alive
+    /// individuals are the ancestors of the first finite
+    /// time in the [`demes::Graph`].
+    pub fn backwards_burn_in_time(&self) -> demes::Time {
+        self.model_times.backwards_burn_in_time()
+    }
+
+    /// Convert a forward time value ([`ForwardTime`]) into a backwards time value
+    /// ([`demes::Time`])
+    ///
+    /// # Returns
+    ///
+    /// * `None` if `time` is ancestral to the start of the model
+    ///   or more recent than the model's end.
+    pub fn time_to_backwards<T>(&self, time: T) -> Result<Option<demes::Time>, DemesForwardError>
+    where
+        T: Into<ForwardTime>,
+    {
+        let time = time.into();
+        if !time.valid() {
+            return Err(DemesForwardError::TimeError(format!(
+                "invalid time value: {time:?}"
+            )));
+        }
+        self.model_times.convert(time)
+    }
+
+    /// Convert a backwards time value ([`demes::Time`]) into a forward time value
+    /// ([`ForwardTime`])
+    ///
+    /// # Returns
+    ///
+    /// * `None` if `time` is ancestral to the start of the model
+    ///   or more recent than the model's end.
+    pub fn time_to_forwards<T>(&self, time: T) -> Result<Option<ForwardTime>, DemesForwardError>
+    where
+        T: TryInto<demes::Time, Error = demes::DemesError>,
+    {
+        let time = time.try_into()?;
+        if time > self.backwards_start_time() || time < self.graph.most_recent_deme_end_time() {
+            Ok(None)
+        } else {
+            Ok(Some(
+                (f64::from(self.backwards_start_time()) - f64::from(time)).into(),
+            ))
+        }
+    }
 }
 
 #[cfg(test)]

@@ -641,3 +641,29 @@ demes:
         size_history_b.filter(|x| x.size() > 0.).collect();
     assert_eq!(collected.len(), 50);
 }
+
+#[test]
+fn test_backwards_times() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 10.0).unwrap();
+    assert_eq!(graph.backwards_start_time(), 100.0);
+    assert_eq!(graph.time_to_backwards(0.0).unwrap().unwrap(), 100.0);
+    assert!(graph.time_to_backwards(101.0).unwrap().is_none());
+    assert_eq!(graph.time_to_forwards(100.0).unwrap().unwrap(), 0.0.into());
+    assert!(graph.time_to_forwards(101.0).unwrap().is_none());
+    assert_eq!(graph.backwards_burn_in_time(), 91.0);
+}

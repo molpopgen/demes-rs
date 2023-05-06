@@ -198,3 +198,37 @@ impl ModelTime {
         }
     }
 }
+
+pub enum BackwardTimeWrapper {
+    Float(f64),
+    Time(demes::Time),
+}
+
+impl From<f64> for BackwardTimeWrapper {
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl From<demes::Time> for BackwardTimeWrapper {
+    fn from(value: demes::Time) -> Self {
+        Self::Time(value)
+    }
+}
+
+pub enum ForwardTimeWrapper {
+    Float(f64),
+    Time(ForwardTime),
+}
+
+impl From<f64> for ForwardTimeWrapper {
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl From<ForwardTime> for ForwardTimeWrapper {
+    fn from(value: ForwardTime) -> Self {
+        Self::Time(value)
+    }
+}

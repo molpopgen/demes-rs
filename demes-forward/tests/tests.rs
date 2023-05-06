@@ -661,9 +661,9 @@ demes:
     let demes_graph = demes::loads(yaml).unwrap();
     let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, 10.0).unwrap();
     assert_eq!(graph.backwards_start_time(), 100.0);
-    assert_eq!(graph.time_to_backwards(0.0).unwrap().unwrap(), 100.0);
-    assert!(graph.time_to_backwards(101.0).unwrap().is_none());
-    assert_eq!(graph.time_to_forwards(100.0).unwrap().unwrap(), 0.0.into());
-    assert!(graph.time_to_forwards(101.0).unwrap().is_none());
+    assert_eq!(graph.time_to_backward(0.0).unwrap().unwrap(), 100.0);
+    assert!(graph.time_to_backward(101.0).unwrap().is_none());
+    assert_eq!(graph.time_to_forward(100.0).unwrap().unwrap(), 0.0.into());
+    assert!(graph.time_to_forward(101.0).unwrap().is_none());
     assert_eq!(graph.backwards_burn_in_time(), 91.0);
 }

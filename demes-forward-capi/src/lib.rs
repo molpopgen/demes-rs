@@ -759,23 +759,26 @@ demes:
         let mut graph = GraphHolder::new();
         graph.init_with_yaml(100.0, yaml);
         let mut status = -1;
-        let pstatus: *mut i32 = &mut status;
-        assert!(unsafe { forward_graph_selfing_rates(graph.as_ptr(), pstatus) }.is_null());
+        assert!(unsafe { forward_graph_selfing_rates(graph.as_ptr(), &mut status) }.is_null());
         assert_eq!(status, 0);
         status = -1;
-        assert!(unsafe { forward_graph_cloning_rates(graph.as_ptr(), pstatus) }.is_null());
+        assert!(unsafe { forward_graph_cloning_rates(graph.as_ptr(), &mut status) }.is_null());
         assert_eq!(status, 0);
         status = -1;
-        assert!(unsafe { forward_graph_parental_deme_sizes(graph.as_ptr(), pstatus) }.is_null(),);
+        assert!(
+            unsafe { forward_graph_parental_deme_sizes(graph.as_ptr(), &mut status) }.is_null(),
+        );
         assert_eq!(status, 0);
         status = -1;
-        assert!(unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), pstatus) }.is_null(),);
+        assert!(
+            unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), &mut status) }.is_null(),
+        );
         assert_eq!(status, 0);
         status = -1;
-        assert!(!unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), pstatus) });
+        assert!(!unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), &mut status) });
         assert_eq!(status, 0);
         status = -1;
-        assert!(!unsafe { forward_graph_any_extant_parent_demes(graph.as_ptr(), pstatus) });
+        assert!(!unsafe { forward_graph_any_extant_parent_demes(graph.as_ptr(), &mut status) });
         assert_eq!(status, 0);
 
         {
@@ -807,15 +810,15 @@ demes:
                     0,
                 );
                 let mut status = -1;
-                let pstatus: *mut i32 = &mut status;
-                if unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), pstatus) } {
+                if unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), &mut status) }
+                {
                     assert_eq!(status, 0);
                     let offspring_deme_sizes =
-                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), pstatus) };
+                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), &mut status) };
                     assert_eq!(status, 0);
                     assert!(!offspring_deme_sizes.is_null());
                     ancestry_proportions = unsafe {
-                        forward_graph_ancestry_proportions(0, pstatus, graph.as_mut_ptr())
+                        forward_graph_ancestry_proportions(0, &mut status, graph.as_mut_ptr())
                     };
                     assert_eq!(status, 0);
                     let ancestry_proportions =
@@ -826,11 +829,11 @@ demes:
                 } else {
                     status = -1;
                     let offspring_deme_sizes =
-                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), pstatus) };
+                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), &mut status) };
                     assert_eq!(status, 0);
                     assert!(offspring_deme_sizes.is_null());
                 }
-                ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+                ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
             }
             assert!(ptime.is_null());
             assert_eq!(times.first().unwrap(), &0.0);
@@ -855,8 +858,7 @@ demes:
             sizes.append(&mut vec![200.0; 50]);
 
             let mut status = -1;
-            let pstatus: *mut i32 = &mut status;
-            ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+            ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
             while !ptime.is_null() {
                 assert_eq!(status, 0);
                 ngens += 1;
@@ -866,11 +868,11 @@ demes:
                     0,
                 );
                 let mut status = -1;
-                let pstatus: *mut i32 = &mut status;
-                if unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), pstatus) } {
+                if unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), &mut status) }
+                {
                     assert_eq!(status, 0);
                     let offspring_deme_sizes =
-                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), pstatus) };
+                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), &mut status) };
                     assert_eq!(status, 0);
                     assert!(!offspring_deme_sizes.is_null());
                     let deme_sizes = unsafe { std::slice::from_raw_parts(offspring_deme_sizes, 1) };
@@ -878,11 +880,11 @@ demes:
                 } else {
                     status = -1;
                     let offspring_deme_sizes =
-                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), pstatus) };
+                        unsafe { forward_graph_offspring_deme_sizes(graph.as_ptr(), &mut status) };
                     assert_eq!(status, 0);
                     assert!(offspring_deme_sizes.is_null());
                 }
-                ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+                ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
             }
             assert!(ptime.is_null());
             assert_eq!(times.first().unwrap(), &50.0);
@@ -945,13 +947,12 @@ demes:
         );
         let mut ptime: *const f64;
         let mut status: i32 = -1;
-        let pstatus: *mut i32 = &mut status;
-        ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+        ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
         let mut ngens = 0;
         while !ptime.is_null() {
             assert_eq!(status, 0);
             ngens += 1;
-            ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+            ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
         }
         // This is a subtle point:
         // 1. We iterate over parent generation 0.
@@ -973,10 +974,10 @@ demes:
         ngens = 0;
 
         // 2. Iterate
-        let _ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
+        let _ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
 
         // Only continue iteration while there are offspring demes.
-        while unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), pstatus) } {
+        while unsafe { forward_graph_any_extant_offspring_demes(graph.as_ptr(), &mut status) } {
             ngens += 1;
             let _ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), &mut status) };
             unsafe { forward_graph_update_state(*_ptime, graph.as_mut_ptr()) };

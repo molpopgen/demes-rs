@@ -1470,7 +1470,7 @@ impl UnresolvedDeme {
 
         // last epoch end time defaults to 0,
         // unless defaults are specified
-        let mut last_epoch_ref = self
+        let last_epoch_ref = self
             .epochs
             .last_mut()
             .ok_or_else(|| DemesError::DemeError("epochs are empty".to_string()))?;
@@ -1535,7 +1535,7 @@ impl UnresolvedDeme {
     ) -> Result<Option<InputDemeSize>, DemesError> {
         let self_defaults = self.history.defaults.clone();
         let epoch_sizes = {
-            let mut temp_epoch = self.epochs.get_mut(0).ok_or_else(|| {
+            let temp_epoch = self.epochs.get_mut(0).ok_or_else(|| {
                 DemesError::DemeError(format!("deme {} has no epochs", self.name))
             })?;
 

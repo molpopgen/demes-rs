@@ -1,0 +1,10 @@
+#[test]
+fn {name}() {{
+    let yaml = "{path}";
+    let file = std::fs::File::open(yaml).unwrap();
+    let result = demes::load(file);
+    assert!(result.is_ok());
+    let graph = result.unwrap();
+    round_trip_equality(&graph);
+    json_roundtrip(graph, "{path}");
+}}

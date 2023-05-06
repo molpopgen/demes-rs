@@ -1,5 +1,6 @@
 [package]
 name = "demes"
+build = "build.rs"
 version = "0.5.0"
 edition = "2021"
 license = "MIT"
@@ -28,7 +29,6 @@ default-features = false
 features = ["std", "unicode-perl"]
 
 [dev-dependencies]
-glob = "0.3.0"
 anyhow = "~1"
 
 [[example]]

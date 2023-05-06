@@ -8,12 +8,10 @@ pub struct StateIterator {
 }
 
 impl StateIterator {
-    pub fn new(
-        graph: crate::ForwardGraph,
-        from: Option<demes::Time>,
-        until: Option<demes::Time>,
-    ) -> Self {
-        todo!()
+    pub fn new(graph: crate::ForwardGraph, from: f64, until: f64) -> Self {
+        let mut graph = graph;
+        graph.update_state(from).unwrap();
+        Self { graph, from, until }
     }
 }
 

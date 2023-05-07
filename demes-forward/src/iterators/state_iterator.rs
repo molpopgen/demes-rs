@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::square_matrix::SquareMatrix;
 use crate::time::ForwardTime;
 use crate::{CurrentSize, ForwardGraph};
@@ -9,7 +11,7 @@ pub struct ModelState {
     parental_deme_sizes: Option<Vec<CurrentSize>>,
     offspring_deme_sizes: Option<Vec<CurrentSize>>,
     ancestry_proportions: Option<SquareMatrix>,
-    name_to_index: std::collections::HashMap<String, usize>,
+    name_to_index: HashMap<String, usize>,
 }
 
 impl ModelState {
@@ -31,6 +33,9 @@ impl ModelState {
                 Some(ancestry_proportions)
             }
         };
+        let name_to_index = HashMap::new();
+        for(i,n) in graph.deme_names().iter().enumerate() {
+        }
         todo!("need a deme id -> ancestry_proportion map");
         Self {
             time,

@@ -91,7 +91,6 @@ impl Iterator for StateIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self.time_iterator.next() {
             Some(time) => {
-                println!("{time:?}");
                 if (time.value() >= self.iterate_from) && (time.value() <= self.iterate_until) {
                     self.graph.update_state(time).unwrap();
                     Some(ModelState::new(&self.graph))
@@ -99,10 +98,7 @@ impl Iterator for StateIterator {
                     None
                 }
             }
-            None => {
-                println!("none??");
-                None
-            }
+            None => None,
         }
     }
 }

@@ -686,11 +686,17 @@ demes:
 ";
     let demes_graph = demes::loads(yaml).unwrap();
     let burnin = 10;
-    let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
 
     let state_iterator = graph.clone().into_state_iterator(None, None).unwrap();
 
-    for s in state_iterator {
-        println!("{s:?}");
+    let ti = graph.time_iterator();
+
+    for (state, time) in state_iterator.zip(ti) {
+        graph.update_state(time).unwrap();
+        assert_eq!(state.forward_time(), time);
+        assert_eq!(state.parental_deme_sizes(), graph.parental_deme_sizes());
+        assert_eq!(state.offspring_deme_sizes(), graph.offspring_deme_sizes());
+        todo!("test ancestry proportions!");
     }
 }

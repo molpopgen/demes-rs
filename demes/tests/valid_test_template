@@ -5,6 +5,7 @@ fn {name}() {{
     let result = demes::load(file);
     assert!(result.is_ok());
     let graph = result.unwrap();
+    validate_names_in_graph(&graph);
     round_trip_equality(&graph);
     json_roundtrip(graph, "{path}");
 }}

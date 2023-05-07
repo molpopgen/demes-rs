@@ -1,5 +1,22 @@
 use demes::Graph;
 
+fn validate_names_in_graph(graph: &Graph) {
+    let names: Vec<String> = graph.demes().iter().map(|d| d.name().to_owned()).collect();
+    for (i, &n) in graph.deme_names().iter().enumerate() {
+        assert_eq!(&names[i], n);
+        if let Some(deme) = graph.get_deme(i) {
+            assert_eq!(n, deme.name())
+        } else {
+            panic!();
+        }
+        if let Some(deme) = graph.get_deme(n) {
+            assert_eq!(n, deme.name())
+        } else {
+            panic!();
+        }
+    }
+}
+
 fn round_trip_equality(graph: &Graph) {
     let s = graph.as_string().unwrap();
     let round_trip = demes::loads(&s).unwrap();

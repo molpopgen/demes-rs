@@ -3044,6 +3044,24 @@ impl Graph {
     pub fn into_integer_start_end_sizes(self) -> Result<Self, DemesError> {
         self.round_epoch_start_end_sizes_with(f64::round)
     }
+
+    /// Obtain names of all demes in the graph.
+    ///
+    /// # Note
+    ///
+    /// These are ordered by a deme's index in the model.
+    ///
+    /// # Panics
+    ///
+    /// This function allocates space for the return value,
+    /// which may panic upon out-of-memory.
+    pub fn deme_names(&self) -> Box<[&str]> {
+        self.demes
+            .iter()
+            .map(|deme| deme.name())
+            .collect::<Vec<&str>>()
+            .into_boxed_slice()
+    }
 }
 
 #[cfg(test)]

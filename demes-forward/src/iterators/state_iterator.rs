@@ -1,7 +1,16 @@
+use demes::DemeSize;
+
 use crate::time::ForwardTime;
 use crate::ForwardGraph;
 
-pub struct ModelState {}
+pub struct ModelState {
+    time: demes::Time,
+    forward_time: ForwardTime,
+    parental_deme_sizes: Option<Vec<DemeSize>>,
+    offspring_deme_sizes: Option<Vec<DemeSize>>,
+    // TODO: we need something about ancestry proportions
+    // here...
+}
 
 impl ModelState {
     fn new() -> Self {

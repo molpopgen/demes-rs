@@ -964,6 +964,15 @@ impl ForwardGraph {
             ))
         }
     }
+
+    /// Get the names of each deme in the model.
+    ///
+    /// # Note
+    ///
+    /// Implemented by calling [`demes::Graph::deme_names`].
+    pub fn deme_names(&self) -> Box<[&str]> {
+        self.graph.deme_names()
+    }
 }
 
 #[cfg(test)]

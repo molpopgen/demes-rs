@@ -33,16 +33,17 @@ impl ModelState {
                 Some(ancestry_proportions)
             }
         };
-        let name_to_index = HashMap::new();
-        for(i,n) in graph.deme_names().iter().enumerate() {
+        let mut name_to_index = HashMap::new();
+        for (i, n) in graph.deme_names().iter().enumerate() {
+            name_to_index.insert(n.to_string(), i);
         }
-        todo!("need a deme id -> ancestry_proportion map");
         Self {
             time,
             forward_time,
             parental_deme_sizes,
             offspring_deme_sizes,
             ancestry_proportions,
+            name_to_index,
         }
     }
 

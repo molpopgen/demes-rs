@@ -9,6 +9,7 @@ pub struct ModelState {
     parental_deme_sizes: Option<Vec<CurrentSize>>,
     offspring_deme_sizes: Option<Vec<CurrentSize>>,
     ancestry_proportions: Option<SquareMatrix>,
+    name_to_index: std::collections::HashMap<String, usize>,
 }
 
 impl ModelState {
@@ -38,6 +39,22 @@ impl ModelState {
             offspring_deme_sizes,
             ancestry_proportions,
         }
+    }
+
+    pub fn time(&self) -> demes::Time {
+        self.time
+    }
+
+    pub fn forward_time(&self) -> ForwardTime {
+        self.forward_time
+    }
+
+    pub fn parental_deme_sizes(&self) -> Option<&[CurrentSize]> {
+        self.parental_deme_sizes.as_deref()
+    }
+
+    pub fn offspring_deme_sizes(&self) -> Option<&[CurrentSize]> {
+        self.offspring_deme_sizes.as_deref()
     }
 }
 

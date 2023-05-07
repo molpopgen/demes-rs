@@ -978,6 +978,7 @@ impl ForwardGraph {
         from: Option<demes::Time>,
         until: Option<demes::Time>,
     ) -> Result<impl Iterator<Item = crate::iterators::ModelState>, DemesForwardError> {
+        todo!("make a type for the from/until args");
         let model_start = 0.0;
         let model_end = self.end_time().value();
         let from: f64 = match from {

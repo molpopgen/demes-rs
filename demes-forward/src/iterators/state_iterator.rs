@@ -63,10 +63,7 @@ impl ModelState {
         self.offspring_deme_sizes.as_deref()
     }
 
-    pub fn ancestry_proportions<'a, I: Into<demes::DemeId<'a>>>(
-        &self,
-        deme: I,
-    ) -> Option<&[f64]> {
+    pub fn ancestry_proportions<'a, I: Into<demes::DemeId<'a>>>(&self, deme: I) -> Option<&[f64]> {
         match self.ancestry_proportions.as_ref() {
             None => None,
             Some(matrix) => {

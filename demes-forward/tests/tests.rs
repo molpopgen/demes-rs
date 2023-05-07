@@ -688,10 +688,9 @@ demes:
     let burnin = 10;
     let graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
 
-    let state_iterator = graph.clone().into_state_iterator(None, None);
+    let state_iterator = graph.clone().into_state_iterator(None, None).unwrap();
 
-    for s in state_iterator.iter() {
+    for s in state_iterator {
         println!("here");
     }
-    assert!(false);
 }

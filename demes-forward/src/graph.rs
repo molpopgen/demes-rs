@@ -1010,6 +1010,7 @@ impl ForwardGraph {
                 }
             },
         };
+        println!("from = {from}, until = {until}");
         Ok(crate::iterators::StateIterator::new(self, from, until))
     }
 }

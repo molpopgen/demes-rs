@@ -697,6 +697,11 @@ demes:
         assert_eq!(state.forward_time(), time);
         assert_eq!(state.parental_deme_sizes(), graph.parental_deme_sizes());
         assert_eq!(state.offspring_deme_sizes(), graph.offspring_deme_sizes());
-        todo!("test ancestry proportions!");
+        for deme in 0..graph.num_demes_in_model() {
+            assert_eq!(
+                graph.ancestry_proportions(deme),
+                state.ancestry_proportions(deme)
+            );
+        }
     }
 }

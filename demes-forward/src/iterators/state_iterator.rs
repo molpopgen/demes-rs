@@ -62,6 +62,26 @@ impl ModelState {
     pub fn offspring_deme_sizes(&self) -> Option<&[CurrentSize]> {
         self.offspring_deme_sizes.as_deref()
     }
+
+    pub fn ancestry_proportions<'a, I: Into<demes::DemeId<'a>>>(
+        &self,
+        deme: I,
+    ) -> Option<&[f64]> {
+        match self.ancestry_proportions.as_ref() {
+            None => None,
+            Some(matrix) => {
+                let deme = match deme.into() {
+                    demes::DemeId::Index(index) => index,
+                    demes::DemeId::Name(name) => match self.name_to_index.get(name) {
+                        Some(&index) => index,
+                        None => self.name_to_index.len(),
+                    },
+                };
+                assert!(deme < self.name_to_index.len());
+                Some(matrix.row(deme))
+            }
+        }
+    }
 }
 
 pub struct StateIterator {

@@ -691,6 +691,6 @@ demes:
     let state_iterator = graph.clone().into_state_iterator(None, None).unwrap();
 
     for s in state_iterator {
-        println!("here");
+        println!("{s:?}");
     }
 }

@@ -1,20 +1,43 @@
-use demes::DemeSize;
-
+use crate::square_matrix::SquareMatrix;
 use crate::time::ForwardTime;
-use crate::ForwardGraph;
+use crate::{CurrentSize, ForwardGraph};
 
+#[derive(Debug)]
 pub struct ModelState {
     time: demes::Time,
     forward_time: ForwardTime,
-    parental_deme_sizes: Option<Vec<DemeSize>>,
-    offspring_deme_sizes: Option<Vec<DemeSize>>,
-    // TODO: we need something about ancestry proportions
-    // here...
+    parental_deme_sizes: Option<Vec<CurrentSize>>,
+    offspring_deme_sizes: Option<Vec<CurrentSize>>,
+    ancestry_proportions: Option<SquareMatrix>,
 }
 
 impl ModelState {
-    fn new() -> Self {
-        todo!("implement ModelState::new()");
+    fn new(graph: &ForwardGraph) -> Self {
+        let forward_time = graph.last_time_updated().unwrap();
+        let time = graph.time_to_backward(forward_time).unwrap().unwrap();
+        let parental_deme_sizes = graph.parental_deme_sizes().map(|x| x.to_vec());
+        let offspring_deme_sizes = graph.offspring_deme_sizes().map(|x| x.to_vec());
+        let ancestry_proportions = match offspring_deme_sizes {
+            None => None,
+            Some(_) => {
+                let mut ancestry_proportions = SquareMatrix::zeros(graph.num_demes_in_model());
+                for i in 0..graph.num_demes_in_model() {
+                    if let Some(a) = graph.ancestry_proportions(i) {
+                        let r = ancestry_proportions.row_mut(i);
+                        r.copy_from_slice(a);
+                    }
+                }
+                Some(ancestry_proportions)
+            }
+        };
+        todo!("need a deme id -> ancestry_proportion map");
+        Self {
+            time,
+            forward_time,
+            parental_deme_sizes,
+            offspring_deme_sizes,
+            ancestry_proportions,
+        }
     }
 }
 
@@ -48,7 +71,7 @@ impl Iterator for StateIterator {
                 println!("{time:?}");
                 if (time.value() >= self.iterate_from) && (time.value() <= self.iterate_until) {
                     self.graph.update_state(time).unwrap();
-                    Some(ModelState::new())
+                    Some(ModelState::new(&self.graph))
                 } else {
                     None
                 }

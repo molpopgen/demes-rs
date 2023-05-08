@@ -712,5 +712,5 @@ demes:
             ..Default::default()
         }))
         .unwrap();
-    assert_eq!(state_iterator.count(), 11);
+    assert_eq!(state_iterator.count(), 21);
 }

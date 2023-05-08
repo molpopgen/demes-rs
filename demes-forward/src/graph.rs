@@ -1014,6 +1014,8 @@ impl ForwardGraph {
                 }
             },
         };
+        println!("{from}, {until}");
+        todo!("the semantics are wrong -- the demes::Times are getting treated relative to the end_time of the graph and not to zero");
         Ok(StateIterator::new(self, from, until))
     }
 }

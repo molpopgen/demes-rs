@@ -984,7 +984,7 @@ impl ForwardGraph {
         let model_end = self.end_time().value();
         let from: f64 = match duration.from {
             None => model_start,
-            Some(time) if time < model_end => {
+            Some(time) if time < self.graph.most_recent_deme_end_time() => {
                 return Err(DemesForwardError::TimeError(format!(
                     "from ({:?}) is more recent than the end of the model",
                     duration.from

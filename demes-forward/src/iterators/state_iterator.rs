@@ -2,7 +2,56 @@ use std::collections::HashMap;
 
 use crate::square_matrix::SquareMatrix;
 use crate::time::ForwardTime;
-use crate::{CurrentSize, ForwardGraph};
+use crate::{CurrentSize, DemesForwardError, ForwardGraph};
+
+/// The duration over which to iterate a model.
+///
+/// From present to past, the iteration interval
+/// is [until, from].
+/// Note that the interval is *inclusive* on both ends!
+#[derive(Default, Debug, Copy, Clone)]
+pub struct StateIteratorDuration {
+    /// The time of the first "parental generation"
+    /// in the past.
+    pub from: Option<demes::Time>,
+    /// The time when the final offspring will be born.
+    pub until: Option<demes::Time>,
+}
+
+impl StateIteratorDuration {
+    /// Construct a new duration.
+    ///
+    /// # Errors
+    ///
+    /// * [`DemesForwardError`] if from < until (and both are not-None).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use demes_forward::StateIteratorDuration;
+    /// let from = demes::Time::try_from(10.0).unwrap();
+    /// let until = demes::Time::try_from(0.0).unwrap();
+    /// assert!(StateIteratorDuration::new(Some(from), Some(until)).is_ok());
+    /// ```
+    ///
+    /// ```
+    /// # use demes_forward::StateIteratorDuration;
+    /// let time = demes::Time::try_from(10.0).unwrap();
+    /// assert!(StateIteratorDuration::new(Some(time), Some(time)).is_err());
+    /// ```
+    pub fn new(
+        from: Option<demes::Time>,
+        until: Option<demes::Time>,
+    ) -> Result<Self, DemesForwardError> {
+        if from.is_some() && until.is_some() && from <= until {
+            Err(DemesForwardError::TimeError(
+                "from must be > until".to_owned(),
+            ))
+        } else {
+            Ok(Self { from, until })
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ModelState {

@@ -1,10 +1,12 @@
 use crate::iterators::DemeSizeHistory;
+use crate::iterators::StateIterator;
 use crate::square_matrix::SquareMatrix;
 use crate::time::ModelTime;
 use crate::CurrentSize;
 use crate::DemeSizeAt;
 use crate::DemesForwardError;
 use crate::ForwardTime;
+use crate::StateIteratorDuration;
 
 enum Generation {
     Parent,
@@ -975,17 +977,17 @@ impl ForwardGraph {
 
     pub fn into_state_iterator(
         self,
-        from: Option<demes::Time>,
-        until: Option<demes::Time>,
+        duration: Option<StateIteratorDuration>,
     ) -> Result<impl Iterator<Item = crate::iterators::ModelState>, DemesForwardError> {
-        todo!("make a type for the from/until args");
+        let duration = duration.map_or_else(StateIteratorDuration::default, |d| d);
         let model_start = 0.0;
         let model_end = self.end_time().value();
-        let from: f64 = match from {
+        let from: f64 = match duration.from {
             None => model_start,
             Some(time) if time < model_end => {
                 return Err(DemesForwardError::TimeError(format!(
-                    "from ({from:?}) is more recent than the end of the model"
+                    "from ({:?}) is more recent than the end of the model",
+                    duration.from
                 )));
             }
             Some(time) => match self.time_to_forward(time) {
@@ -996,11 +998,12 @@ impl ForwardGraph {
                 }
             },
         };
-        let until: f64 = match until {
+        let until: f64 = match duration.until {
             None => model_end,
             Some(time) if time >= model_start => {
                 return Err(DemesForwardError::TimeError(format!(
-                    "until ({until:?}) is more ancient than the start of the model"
+                    "until ({:?}) is more ancient than the start of the model",
+                    duration.until
                 )));
             }
             Some(time) => match self.time_to_forward(time) {
@@ -1011,7 +1014,7 @@ impl ForwardGraph {
                 }
             },
         };
-        Ok(crate::iterators::StateIterator::new(self, from, until))
+        Ok(StateIterator::new(self, from, until))
     }
 }
 

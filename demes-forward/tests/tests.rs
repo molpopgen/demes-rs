@@ -688,7 +688,7 @@ demes:
     let burnin = 10;
     let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
 
-    let state_iterator = graph.clone().into_state_iterator(None, None).unwrap();
+    let state_iterator = graph.clone().into_state_iterator(None).unwrap();
 
     let ti = graph.time_iterator();
 
@@ -704,4 +704,13 @@ demes:
             );
         }
     }
+
+    let state_iterator = graph
+        .clone()
+        .into_state_iterator(Some(demes_forward::StateIteratorDuration {
+            from: Some(20.0.try_into().unwrap()),
+            ..Default::default()
+        }))
+        .unwrap();
+    assert_eq!(state_iterator.count(), 11);
 }

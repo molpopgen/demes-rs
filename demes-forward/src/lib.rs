@@ -34,6 +34,7 @@ pub use current_size::CurrentSize;
 pub use demes;
 pub use error::DemesForwardError;
 pub use graph::ForwardGraph;
+pub use iterators::StateIteratorDuration;
 pub use time::ForwardTime;
 
 /// The size of a deme at a given time.

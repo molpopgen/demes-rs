@@ -2437,7 +2437,7 @@ impl UnresolvedGraph {
 
         start_times
             .into_iter()
-            .zip(end_times.into_iter())
+            .zip(end_times)
             .map(|times| TimeInterval::new(times.0, times.1))
             .collect::<Vec<_>>()
     }

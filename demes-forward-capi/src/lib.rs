@@ -576,7 +576,7 @@ pub unsafe extern "C" fn forward_graph_ancestry_proportions(
                 std::ptr::null()
             } else {
                 match fgraph.ancestry_proportions(offspring_deme) {
-                    Some(proportions) => proportions.as_ptr() as *const f64,
+                    Some(proportions) => proportions.as_ptr(),
                     None => std::ptr::null(),
                 }
             }
@@ -736,9 +736,7 @@ demes:
             {
                 let graph = forward_graph_allocate();
                 let cstr = CString::new(yaml).unwrap();
-                unsafe {
-                    forward_graph_initialize_from_yaml(cstr.as_ptr() as *const i8, 100., graph)
-                };
+                unsafe { forward_graph_initialize_from_yaml(cstr.as_ptr(), 100., graph) };
                 let num_demes = unsafe { forward_graph_number_of_demes(graph) };
                 assert_eq!(num_demes, 1);
             }

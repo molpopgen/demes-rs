@@ -111,8 +111,7 @@ demes:
 #[test]
 fn test_initialize_from_yaml_with_null_graph() {
     let cstr = simple_yaml();
-    let status = unsafe {
-        forward_graph_initialize_from_yaml(cstr.as_ptr() as *const i8, 100.0, std::ptr::null_mut())
-    };
+    let status =
+        unsafe { forward_graph_initialize_from_yaml(cstr.as_ptr(), 100.0, std::ptr::null_mut()) };
     assert!(status < 0);
 }

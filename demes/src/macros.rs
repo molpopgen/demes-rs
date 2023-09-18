@@ -62,3 +62,61 @@ macro_rules! impl_newtype_traits {
         }
     };
 }
+
+macro_rules! impl_input_newtype_arithmetic {
+    ($type: ty, $op: ident, $fn: ident) => {
+        impl std::ops::$op for $type {
+            type Output = Self;
+            fn $fn(self, value: Self) -> Self::Output {
+                self.0.$fn(value.0).into()
+            }
+        }
+
+        impl std::ops::$op<f64> for $type {
+            type Output = Self;
+            fn $fn(self, value: f64) -> Self::Output {
+                self.0.$fn(value).into()
+            }
+        }
+
+        impl std::ops::$op<$type> for f64 {
+            type Output = Self;
+            fn $fn(self, value: $type) -> Self::Output {
+                self.$fn(value.0).into()
+            }
+        }
+    };
+}
+
+macro_rules! impl_input_newtype_traits {
+    ($type: ty) => {
+        impl From<f64> for $type {
+            fn from(value: f64) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<$type> for f64 {
+            fn from(value: $type) -> Self {
+                value.0
+            }
+        }
+
+        impl PartialEq<$type> for f64 {
+            fn eq(&self, other: &$type) -> bool {
+                self.eq(&other.0)
+            }
+        }
+
+        impl PartialEq<f64> for $type {
+            fn eq(&self, other: &f64) -> bool {
+                self.0.eq(other)
+            }
+        }
+
+        impl_input_newtype_arithmetic!($type, Add, add);
+        impl_input_newtype_arithmetic!($type, Sub, sub);
+        impl_input_newtype_arithmetic!($type, Mul, mul);
+        impl_input_newtype_arithmetic!($type, Div, div);
+    };
+}

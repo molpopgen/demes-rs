@@ -24,16 +24,21 @@ impl TryFrom<f64> for MigrationRate {
 /// ## Using [`GraphBuilder`](crate::GraphBuilder)
 ///
 /// * [`GraphBuilder::migration`](crate::GraphBuilder::add_migration)
+///
+/// ```
+/// let t = demes::InputMigrationRate::from(0.1);
+/// assert_eq!(t, 0.1);
+/// let t = t - 1.0;
+/// assert_eq!(t, 0.1 - 1.0);
+/// let t = 1.0 + t;
+/// assert_eq!(t, 0.1 - 1.0 + 1.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[repr(transparent)]
 #[serde(from = "f64")]
 pub struct InputMigrationRate(f64);
 
-impl From<f64> for InputMigrationRate {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
+impl_input_newtype_traits!(InputMigrationRate);
 
 impl TryFrom<InputMigrationRate> for MigrationRate {
     type Error = DemesError;

@@ -80,6 +80,17 @@ impl TryFrom<f64> for Time {
 }
 
 /// Input value for [`Time`], used when loading or building graphs.
+///
+/// # Examples
+///
+/// ```
+/// let t = demes::InputTime::from(1.0);
+/// assert_eq!(t, 1.0);
+/// let t = t - 1.0;
+/// assert_eq!(t, 0.0);
+/// let t = 1.0 + t;
+/// assert_eq!(t, 1.0);
+/// ```
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[serde(try_from = "TimeTrampoline")]
@@ -117,17 +128,7 @@ impl InputTime {
     }
 }
 
-impl From<f64> for InputTime {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<InputTime> for f64 {
-    fn from(value: InputTime) -> Self {
-        value.0
-    }
-}
+impl_input_newtype_traits!(InputTime);
 
 impl TryFrom<InputTime> for Time {
     type Error = DemesError;

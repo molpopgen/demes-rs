@@ -333,7 +333,6 @@ impl ForwardGraph {
     ///
     /// * graph: a [`demes::Graph`].
     /// * burnin_time: Burn-in time for the model.
-    /// * rounding: Optional [`demes::RoundTimeToInteger`]
     pub fn new_discrete_time<F: Into<ForwardTime> + std::fmt::Debug + Copy>(
         graph: demes::Graph,
         burnin_time: F,

@@ -2182,23 +2182,8 @@ impl UnresolvedGraph {
         self.demes.push(deme);
     }
 
-    pub(crate) fn add_migration(
-        &mut self,
-        demes: Option<Vec<String>>,
-        source: Option<String>,
-        dest: Option<String>,
-        rate: Option<InputMigrationRate>,
-        start_time: Option<InputTime>,
-        end_time: Option<InputTime>,
-    ) {
-        self.input_migrations.push(UnresolvedMigration {
-            demes,
-            source,
-            dest,
-            rate,
-            start_time,
-            end_time,
-        });
+    pub(crate) fn add_migration<I: Into<UnresolvedMigration>>(&mut self, migration: I) {
+        self.input_migrations.push(migration.into());
     }
 
     pub(crate) fn add_pulse(

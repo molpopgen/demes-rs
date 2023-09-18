@@ -2,13 +2,6 @@ use crate::error::DemesError;
 use serde::{Deserialize, Serialize};
 
 /// A migration rate.
-///
-/// # Examples
-///
-/// ## Using [`GraphBuilder`](crate::GraphBuilder)
-///
-/// * [`GraphBuilder::add_symmetric_migration`](crate::GraphBuilder::add_symmetric_migration)
-/// * [`GraphBuilder::add_asymmetric_migration`](crate::GraphBuilder::add_asymmetric_migration)
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(try_from = "f64")]
@@ -25,6 +18,12 @@ impl TryFrom<f64> for MigrationRate {
 }
 
 /// Input value for [`MigrationRate`], used when loading or building graphs.
+///
+/// # Examples
+///
+/// ## Using [`GraphBuilder`](crate::GraphBuilder)
+///
+/// * [`GraphBuilder::migration`](crate::GraphBuilder::add_migration)
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[repr(transparent)]
 #[serde(from = "f64")]

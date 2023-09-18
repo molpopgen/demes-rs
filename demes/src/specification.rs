@@ -2782,7 +2782,7 @@ impl Graph {
     ///
     /// # Note
     ///
-    /// See [`Graph::deme_checked`] for a version that will not panic
+    /// See [`Graph::get_deme`] for a version that will not panic
     pub fn deme<'name, I: Into<DemeId<'name>>>(&self, id: I) -> &Deme {
         self.get_deme(id).unwrap()
     }

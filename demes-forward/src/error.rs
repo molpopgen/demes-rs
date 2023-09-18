@@ -5,8 +5,8 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum DemesForwardError {
     /// Stores a [`demes::DemesError`].
-    #[error("{0:?}")]
-    DemesError(demes::DemesError),
+    #[error(transparent)]
+    DemesError(#[from] demes::DemesError),
     /// Errors related to time.
     /// Will be returned if invalid time
     /// values occur after converting
@@ -23,10 +23,4 @@ pub enum DemesForwardError {
     /// that should be reported.
     #[error("{0:?}")]
     InternalError(String),
-}
-
-impl From<demes::DemesError> for DemesForwardError {
-    fn from(error: demes::DemesError) -> Self {
-        Self::DemesError(error)
-    }
 }

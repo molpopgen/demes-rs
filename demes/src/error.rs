@@ -42,29 +42,15 @@ pub enum DemesError {
     #[error("{0:?}")]
     /// Errors related to pulses
     PulseError(String),
-    #[error("{0:?}")]
+    #[error(transparent)]
     /// Errors coming from `serde_yaml`.
-    YamlError(serde_yaml::Error),
+    YamlError(#[from] serde_yaml::Error),
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
-    #[error("{0:?}")]
+    #[error(transparent)]
     /// Errors coming from `serde_json`.
-    JsonError(serde_json::Error),
+    JsonError(#[from] serde_json::Error),
     /// Errors related to low-level types
     #[error("{0:?}")]
     ValueError(String),
-}
-
-impl From<serde_yaml::Error> for DemesError {
-    fn from(error: serde_yaml::Error) -> Self {
-        Self::YamlError(error)
-    }
-}
-
-#[cfg(feature = "json")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
-impl From<serde_json::Error> for DemesError {
-    fn from(error: serde_json::Error) -> Self {
-        Self::JsonError(error)
-    }
 }

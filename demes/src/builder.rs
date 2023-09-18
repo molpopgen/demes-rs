@@ -12,11 +12,14 @@ use crate::InputMigrationRate;
 use crate::InputProportion;
 use crate::InputTime;
 use crate::TimeUnits;
+use crate::UnresolvedMigration;
 
+/// Error type raised by [`GraphBuilder`]
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum BuilderError {
-    #[error("{0:?}")]
+    /// Error type when defaults fail to serialize
+    #[error(transparent)]
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
@@ -33,6 +36,72 @@ pub enum BuilderError {
 pub struct GraphBuilder {
     graph: UnresolvedGraph,
     metadata: Option<crate::Metadata>,
+}
+
+/// Build a symmetric migration epoch.
+///
+/// # Examples
+///
+/// See [`GraphBuilder::add_migration`].
+#[derive(Clone, Default)]
+pub struct SymmetricMigrationBuilder<A: AsRef<str>, S: std::ops::Deref<Target = [A]>> {
+    /// The demes that are involved
+    pub demes: Option<S>,
+    /// The start time
+    pub start_time: Option<InputTime>,
+    /// The end time
+    pub end_time: Option<InputTime>,
+    /// The symmetric migration rate.
+    pub rate: Option<InputMigrationRate>,
+}
+
+impl<A: AsRef<str>, D: std::ops::Deref<Target = [A]>> From<SymmetricMigrationBuilder<A, D>>
+    for UnresolvedMigration
+{
+    fn from(value: SymmetricMigrationBuilder<A, D>) -> Self {
+        let demes = value.demes.map(|v| {
+            v.iter()
+                .map(|a| a.as_ref().to_owned())
+                .collect::<Vec<String>>()
+        });
+        Self {
+            demes,
+            start_time: value.start_time,
+            end_time: value.end_time,
+            rate: value.rate,
+            ..Default::default()
+        }
+    }
+}
+
+/// Build an asymmetric migration epoch.
+#[derive(Clone, Default)]
+pub struct AsymmetricMigrationBuilder<A: AsRef<str>> {
+    /// The source deme
+    pub source: Option<A>,
+    /// The destination deme
+    pub dest: Option<A>,
+    /// The start time
+    pub start_time: Option<InputTime>,
+    /// The end time
+    pub end_time: Option<InputTime>,
+    /// The migration rate from `source` to `dest`
+    pub rate: Option<InputMigrationRate>,
+}
+
+impl<A: AsRef<str>> From<AsymmetricMigrationBuilder<A>> for UnresolvedMigration {
+    fn from(value: AsymmetricMigrationBuilder<A>) -> Self {
+        let source = value.source.map(|s| s.as_ref().to_owned());
+        let dest = value.dest.map(|s| s.as_ref().to_owned());
+        Self {
+            source,
+            dest,
+            rate: value.rate,
+            start_time: value.start_time,
+            end_time: value.end_time,
+            ..Default::default()
+        }
+    }
 }
 
 impl GraphBuilder {
@@ -88,77 +157,14 @@ impl GraphBuilder {
         self.graph.add_deme(ptr);
     }
 
-    /// Add an asymmetric migration
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let start_size = demes::InputDemeSize::from(100.);
-    /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
-    /// let history = demes::UnresolvedDemeHistory::default();
-    /// let mut b = demes::GraphBuilder::new_generations(None);
-    /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
-    /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_asymmetric_migration(Some("A"),
-    ///                            Some("B"),
-    ///                            Some(1e-4.into()),
-    ///                            None, // Using None for the times
-    ///                                  // will mean continuous migration for the
-    ///                                  // duration for which the demes coexist.
-    ///                            None);
-    /// b.resolve().unwrap();
-    /// ```
-    pub fn add_asymmetric_migration<S: ToString, D: ToString>(
-        &mut self,
-        source: Option<S>,
-        dest: Option<D>,
-        rate: Option<InputMigrationRate>,
-        start_time: Option<InputTime>,
-        end_time: Option<InputTime>,
-    ) {
-        self.add_migration::<String, _, _>(None, source, dest, rate, start_time, end_time);
-    }
-
-    /// Add a symmetric migration
-    ///
-    /// # Examples
-    /// ```
-    /// let start_size = demes::InputDemeSize::from(100.);
-    /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
-    /// let history = demes::UnresolvedDemeHistory::default();
-    /// let mut b = demes::GraphBuilder::new_generations(None);
-    /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
-    /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_symmetric_migration(Some(&["A", "B"]),
-    ///                           Some(1e-4.into()),
-    ///                           None, // Using None for the times
-    ///                                 // will mean continuous migration for the
-    ///                                 // duration for which the demes coexist.
-    ///                           None);
-    /// b.resolve().unwrap();
-    /// ```
-    pub fn add_symmetric_migration<D: ToString>(
-        &mut self,
-        demes: Option<&[D]>,
-        rate: Option<InputMigrationRate>,
-        start_time: Option<InputTime>,
-        end_time: Option<InputTime>,
-    ) {
-        self.add_migration::<_, String, String>(demes, None, None, rate, start_time, end_time);
-    }
-
     /// Add a migration to the graph.
-    ///
-    /// # Note
-    ///
-    /// This function can be inconvenient due to the generics.
-    /// Prefer [`add_symmetric_migration`](crate::GraphBuilder::add_symmetric_migration)
-    /// or [`add_asymmetric_migration`](crate::GraphBuilder::add_asymmetric_migration).
     ///
     /// # Examples
     ///
     /// ## Adding an asymmetric migration
     ///
+    /// See [`AsymmetricMigrationBuilder`].
+    ///
     /// ```
     /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
@@ -166,19 +172,14 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration::<String, _, _>(None,
-    ///                   Some("A"),
-    ///                   Some("B"),
-    ///                   Some(1e-4.into()),
-    ///                   None, // Using None for the times
-    ///                         // will mean continuous migration for the
-    ///                         // duration for which the demes coexist.
-    ///                   None);
+    /// b.add_migration(demes::AsymmetricMigrationBuilder{source: Some("A"), dest: Some("B"), rate: Some(1e-4.into()), ..Default::default()});
     /// b.resolve().unwrap();
     /// ```
     ///
     /// ## Adding a symmetric migration
     ///
+    /// See [`SymmetricMigrationBuilder`].
+    ///
     /// ```
     /// let start_size = demes::InputDemeSize::from(100.);
     /// let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
@@ -186,30 +187,40 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration::<_, String, String>(Some(&["A", "B"]),
-    ///                   None,
-    ///                   None,
-    ///                   Some(1e-4.into()),
-    ///                   None, // Using None for the times
-    ///                         // will mean continuous migration for the
-    ///                         // duration for which the demes coexist.
-    ///                   None);
+    /// b.add_migration(demes::SymmetricMigrationBuilder{demes: Some(["A", "B"].as_slice()), rate: Some(1e-4.into()), ..Default::default()});
     /// b.resolve().unwrap();
     /// ```
-    pub fn add_migration<D: ToString, S: ToString, E: ToString>(
-        &mut self,
-        demes: Option<&[D]>,
-        source: Option<S>,
-        dest: Option<E>,
-        rate: Option<InputMigrationRate>,
-        start_time: Option<InputTime>,
-        end_time: Option<InputTime>,
-    ) {
-        let demes = demes.map(|value| value.iter().map(|v| v.to_string()).collect::<Vec<_>>());
-        let source = source.map(|value| value.to_string());
-        let dest = dest.map(|value| value.to_string());
-        self.graph
-            .add_migration(demes, source, dest, rate, start_time, end_time);
+    ///
+    /// We can also use a `Vec` instead of an array:
+    ///
+    /// ```
+    /// # let start_size = demes::InputDemeSize::from(100.);
+    /// # let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
+    /// # let history = demes::UnresolvedDemeHistory::default();
+    /// # let mut b = demes::GraphBuilder::new_generations(None);
+    /// # b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
+    /// # b.add_deme("B", vec![epoch], history, Some("this is deme B"));
+    /// b.add_migration(demes::SymmetricMigrationBuilder{demes: Some(vec!["A", "B"]), rate: Some(1e-4.into()), ..Default::default()});
+    /// # b.resolve().unwrap();
+    /// ```
+    ///
+    /// # Using an unresolved migration
+    ///
+    /// This function also accepts [`UnresolvedMigration`] directly.
+    /// However, the ergonomics aren't as good because this type requires concrete types.
+    ///
+    /// ```
+    /// # let start_size = demes::InputDemeSize::from(100.);
+    /// # let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
+    /// # let history = demes::UnresolvedDemeHistory::default();
+    /// # let mut b = demes::GraphBuilder::new_generations(None);
+    /// # b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
+    /// # b.add_deme("B", vec![epoch], history, Some("this is deme B"));
+    /// b.add_migration(demes::UnresolvedMigration{demes: Some(vec!["A".to_string(), "B".to_string()]), rate: Some(1e-4.into()), ..Default::default()});
+    /// # b.resolve().unwrap();
+    /// ```
+    pub fn add_migration<I: Into<UnresolvedMigration>>(&mut self, migration: I) {
+        self.graph.add_migration(migration);
     }
 
     /// Add an [`UnresolvedPulse`](crate::UnresolvedPulse) to the graph.

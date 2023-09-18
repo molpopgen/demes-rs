@@ -235,6 +235,121 @@ impl UnresolvedMigration {
             )),
         }
     }
+
+    /// Set the source deme
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_source("A");
+    /// ```
+    pub fn set_source<A>(self, source: A) -> Self
+    where
+        A: AsRef<str>,
+    {
+        Self {
+            source: Some(source.as_ref().to_owned()),
+            ..self
+        }
+    }
+
+    /// Set the destination deme
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_dest("A");
+    /// ```
+    pub fn set_dest<A>(self, dest: A) -> Self
+    where
+        A: AsRef<str>,
+    {
+        Self {
+            dest: Some(dest.as_ref().to_owned()),
+            ..self
+        }
+    }
+
+    /// Set the demes
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_demes(["A", "B"].as_slice());
+    /// ```
+    pub fn set_demes<D, A>(self, d: D) -> Self
+    where
+        D: std::ops::Deref<Target = [A]>,
+        A: AsRef<str>,
+    {
+        Self {
+            demes: Some(d.iter().map(|a| a.as_ref().to_owned()).collect::<Vec<_>>()),
+            ..self
+        }
+    }
+
+    /// Set the start time
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_start_time(1.0);
+    /// ```
+    pub fn set_start_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            start_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the end time
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_end_time(10.);
+    /// ```
+    pub fn set_end_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            end_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the symmetric migration rate among all `demes`.
+    ///
+    /// See ['GraphBuilder'].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let _ = demes::UnresolvedMigration::default().set_rate(0.3333);
+    /// ```
+    pub fn set_rate<R>(self, rate: R) -> Self
+    where
+        R: Into<InputMigrationRate>,
+    {
+        Self {
+            rate: Some(rate.into()),
+            ..self
+        }
+    }
 }
 
 /// An asymmetric migration epoch.

@@ -53,9 +53,7 @@ mod time;
 
 use std::io::Read;
 
-pub use builder::{
-    AsymmetricMigrationBuilder, BuilderError, GraphBuilder, SymmetricMigrationBuilder,
-};
+pub use builder::{BuilderError, GraphBuilder};
 pub use cloning_rate::{CloningRate, InputCloningRate};
 pub use deme_size::{DemeSize, InputDemeSize};
 pub use error::DemesError;

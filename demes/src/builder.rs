@@ -114,91 +114,6 @@ impl From<SymmetricMigrationBuilder> for UnresolvedMigration {
     }
 }
 
-/// Build an asymmetric migration epoch.
-#[derive(Clone, Default)]
-pub struct AsymmetricMigrationBuilder {
-    /// The source deme
-    pub source: Option<String>,
-    /// The destination deme
-    pub dest: Option<String>,
-    /// The start time
-    pub start_time: Option<InputTime>,
-    /// The end time
-    pub end_time: Option<InputTime>,
-    /// The migration rate from `source` to `dest`
-    pub rate: Option<InputMigrationRate>,
-}
-
-impl AsymmetricMigrationBuilder {
-    /// Set the source deme
-    pub fn set_source<A>(self, source: A) -> Self
-    where
-        A: AsRef<str>,
-    {
-        Self {
-            source: Some(source.as_ref().to_owned()),
-            ..self
-        }
-    }
-
-    /// Set the destination deme
-    pub fn set_dest<A>(self, dest: A) -> Self
-    where
-        A: AsRef<str>,
-    {
-        Self {
-            dest: Some(dest.as_ref().to_owned()),
-            ..self
-        }
-    }
-
-    /// Set the start time
-    pub fn set_start_time<T>(self, time: T) -> Self
-    where
-        T: Into<InputTime>,
-    {
-        Self {
-            start_time: Some(time.into()),
-            ..self
-        }
-    }
-
-    /// Set the end time
-    pub fn set_end_time<T>(self, time: T) -> Self
-    where
-        T: Into<InputTime>,
-    {
-        Self {
-            end_time: Some(time.into()),
-            ..self
-        }
-    }
-
-    /// Set the rate from `source` to `test`
-    pub fn set_rate<R>(self, rate: R) -> Self
-    where
-        R: Into<InputMigrationRate>,
-    {
-        Self {
-            rate: Some(rate.into()),
-            ..self
-        }
-    }
-}
-
-impl From<AsymmetricMigrationBuilder> for UnresolvedMigration {
-    fn from(value: AsymmetricMigrationBuilder) -> Self {
-        Self {
-            source: value.source,
-            dest: value.dest,
-            rate: value.rate,
-            start_time: value.start_time,
-            end_time: value.end_time,
-            ..Default::default()
-        }
-    }
-}
-
 impl GraphBuilder {
     /// Constructor
     ///
@@ -258,7 +173,7 @@ impl GraphBuilder {
     ///
     /// ## Adding an asymmetric migration
     ///
-    /// See [`AsymmetricMigrationBuilder`].
+    /// See [`UnresolvedMigration`].
     ///
     /// ```
     /// let start_size = demes::InputDemeSize::from(100.);
@@ -267,14 +182,14 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// let migration = demes::AsymmetricMigrationBuilder::default().set_source("A").set_dest("B").set_rate(1e-4);
+    /// let migration = demes::UnresolvedMigration::default().set_source("A").set_dest("B").set_rate(1e-4);
     /// b.add_migration(migration);
     /// b.resolve().unwrap();
     /// ```
     ///
     /// ## Adding a symmetric migration
     ///
-    /// See [`SymmetricMigrationBuilder`].
+    /// See [`UnresolvedMigration`].
     ///
     /// ```
     /// let start_size = demes::InputDemeSize::from(100.);
@@ -283,7 +198,7 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// let migration = demes::SymmetricMigrationBuilder::default().set_demes(["A","B"].as_slice()).set_rate(1e-4);
+    /// let migration = demes::UnresolvedMigration::default().set_demes(["A","B"].as_slice()).set_rate(1e-4);
     /// b.add_migration(migration);
     /// b.resolve().unwrap();
     /// ```
@@ -297,27 +212,11 @@ impl GraphBuilder {
     /// # let mut b = demes::GraphBuilder::new_generations(None);
     /// # b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// # b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// let migration = demes::SymmetricMigrationBuilder::default().set_demes(vec!["A","B"]).set_rate(1e-4);
+    /// let migration = demes::UnresolvedMigration::default().set_demes(vec!["A","B"]).set_rate(1e-4);
     /// b.add_migration(migration);
     /// # b.resolve().unwrap();
     /// ```
-    ///
-    /// # Using an unresolved migration
-    ///
-    /// This function also accepts [`UnresolvedMigration`] directly.
-    /// However, the ergonomics aren't as good because this type requires concrete types.
-    ///
-    /// ```
-    /// # let start_size = demes::InputDemeSize::from(100.);
-    /// # let epoch = demes::UnresolvedEpoch{start_size: Some(start_size), ..Default::default()};
-    /// # let history = demes::UnresolvedDemeHistory::default();
-    /// # let mut b = demes::GraphBuilder::new_generations(None);
-    /// # b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
-    /// # b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration(demes::UnresolvedMigration{demes: Some(vec!["A".to_string(), "B".to_string()]), rate: Some(1e-4.into()), ..Default::default()});
-    /// # b.resolve().unwrap();
-    /// ```
-    pub fn add_migration<I: Into<UnresolvedMigration>>(&mut self, migration: I) {
+    pub fn add_migration(&mut self, migration: UnresolvedMigration) {
         self.graph.add_migration(migration);
     }
 

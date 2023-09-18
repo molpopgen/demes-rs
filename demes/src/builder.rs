@@ -44,9 +44,9 @@ pub struct GraphBuilder {
 ///
 /// See [`GraphBuilder::add_migration`].
 #[derive(Clone, Default)]
-pub struct SymmetricMigrationBuilder<A: AsRef<str>, S: std::ops::Deref<Target = [A]>> {
+pub struct SymmetricMigrationBuilder {
     /// The demes that are involved
-    pub demes: Option<S>,
+    pub demes: Option<Vec<String>>,
     /// The start time
     pub start_time: Option<InputTime>,
     /// The end time
@@ -55,17 +55,57 @@ pub struct SymmetricMigrationBuilder<A: AsRef<str>, S: std::ops::Deref<Target = 
     pub rate: Option<InputMigrationRate>,
 }
 
-impl<A: AsRef<str>, D: std::ops::Deref<Target = [A]>> From<SymmetricMigrationBuilder<A, D>>
-    for UnresolvedMigration
-{
-    fn from(value: SymmetricMigrationBuilder<A, D>) -> Self {
-        let demes = value.demes.map(|v| {
-            v.iter()
-                .map(|a| a.as_ref().to_owned())
-                .collect::<Vec<String>>()
-        });
+impl SymmetricMigrationBuilder {
+    /// Set the demes
+    pub fn set_demes<D, A>(self, d: D) -> Self
+    where
+        D: std::ops::Deref<Target = [A]>,
+        A: AsRef<str>,
+    {
         Self {
-            demes,
+            demes: Some(d.iter().map(|a| a.as_ref().to_owned()).collect::<Vec<_>>()),
+            ..self
+        }
+    }
+
+    /// Set the start time
+    pub fn set_start_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            start_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the end time
+    pub fn set_end_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            end_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the symmetric migration rate among all `demes`.
+    pub fn set_rate<R>(self, rate: R) -> Self
+    where
+        R: Into<InputMigrationRate>,
+    {
+        Self {
+            rate: Some(rate.into()),
+            ..self
+        }
+    }
+}
+
+impl From<SymmetricMigrationBuilder> for UnresolvedMigration {
+    fn from(value: SymmetricMigrationBuilder) -> Self {
+        Self {
+            demes: value.demes,
             start_time: value.start_time,
             end_time: value.end_time,
             rate: value.rate,
@@ -76,11 +116,11 @@ impl<A: AsRef<str>, D: std::ops::Deref<Target = [A]>> From<SymmetricMigrationBui
 
 /// Build an asymmetric migration epoch.
 #[derive(Clone, Default)]
-pub struct AsymmetricMigrationBuilder<A: AsRef<str>> {
+pub struct AsymmetricMigrationBuilder {
     /// The source deme
-    pub source: Option<A>,
+    pub source: Option<String>,
     /// The destination deme
-    pub dest: Option<A>,
+    pub dest: Option<String>,
     /// The start time
     pub start_time: Option<InputTime>,
     /// The end time
@@ -89,13 +129,68 @@ pub struct AsymmetricMigrationBuilder<A: AsRef<str>> {
     pub rate: Option<InputMigrationRate>,
 }
 
-impl<A: AsRef<str>> From<AsymmetricMigrationBuilder<A>> for UnresolvedMigration {
-    fn from(value: AsymmetricMigrationBuilder<A>) -> Self {
-        let source = value.source.map(|s| s.as_ref().to_owned());
-        let dest = value.dest.map(|s| s.as_ref().to_owned());
+impl AsymmetricMigrationBuilder {
+    /// Set the source deme
+    pub fn set_source<A>(self, source: A) -> Self
+    where
+        A: AsRef<str>,
+    {
         Self {
-            source,
-            dest,
+            source: Some(source.as_ref().to_owned()),
+            ..self
+        }
+    }
+
+    /// Set the destination deme
+    pub fn set_dest<A>(self, dest: A) -> Self
+    where
+        A: AsRef<str>,
+    {
+        Self {
+            dest: Some(dest.as_ref().to_owned()),
+            ..self
+        }
+    }
+
+    /// Set the start time
+    pub fn set_start_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            start_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the end time
+    pub fn set_end_time<T>(self, time: T) -> Self
+    where
+        T: Into<InputTime>,
+    {
+        Self {
+            end_time: Some(time.into()),
+            ..self
+        }
+    }
+
+    /// Set the rate from `source` to `test`
+    pub fn set_rate<R>(self, rate: R) -> Self
+    where
+        R: Into<InputMigrationRate>,
+    {
+        Self {
+            rate: Some(rate.into()),
+            ..self
+        }
+    }
+}
+
+impl From<AsymmetricMigrationBuilder> for UnresolvedMigration {
+    fn from(value: AsymmetricMigrationBuilder) -> Self {
+        Self {
+            source: value.source,
+            dest: value.dest,
             rate: value.rate,
             start_time: value.start_time,
             end_time: value.end_time,
@@ -146,14 +241,14 @@ impl GraphBuilder {
     /// ```
     ///
     /// # Notes
-    pub fn add_deme(
+    pub fn add_deme<D: std::ops::Deref<Target = [UnresolvedEpoch]>>(
         &mut self,
         name: &str,
-        epochs: Vec<UnresolvedEpoch>,
+        epochs: D,
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) {
-        let ptr = UnresolvedDeme::new_via_builder(name, epochs, history, description);
+        let ptr = UnresolvedDeme::new_via_builder(name, epochs.to_owned(), history, description);
         self.graph.add_deme(ptr);
     }
 
@@ -172,7 +267,8 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration(demes::AsymmetricMigrationBuilder{source: Some("A"), dest: Some("B"), rate: Some(1e-4.into()), ..Default::default()});
+    /// let migration = demes::AsymmetricMigrationBuilder::default().set_source("A").set_dest("B").set_rate(1e-4);
+    /// b.add_migration(migration);
     /// b.resolve().unwrap();
     /// ```
     ///
@@ -187,7 +283,8 @@ impl GraphBuilder {
     /// let mut b = demes::GraphBuilder::new_generations(None);
     /// b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration(demes::SymmetricMigrationBuilder{demes: Some(["A", "B"].as_slice()), rate: Some(1e-4.into()), ..Default::default()});
+    /// let migration = demes::SymmetricMigrationBuilder::default().set_demes(["A","B"].as_slice()).set_rate(1e-4);
+    /// b.add_migration(migration);
     /// b.resolve().unwrap();
     /// ```
     ///
@@ -200,7 +297,8 @@ impl GraphBuilder {
     /// # let mut b = demes::GraphBuilder::new_generations(None);
     /// # b.add_deme("A", vec![epoch], history.clone(), Some("this is deme A"));
     /// # b.add_deme("B", vec![epoch], history, Some("this is deme B"));
-    /// b.add_migration(demes::SymmetricMigrationBuilder{demes: Some(vec!["A", "B"]), rate: Some(1e-4.into()), ..Default::default()});
+    /// let migration = demes::SymmetricMigrationBuilder::default().set_demes(vec!["A","B"]).set_rate(1e-4);
+    /// b.add_migration(migration);
     /// # b.resolve().unwrap();
     /// ```
     ///
@@ -236,19 +334,29 @@ impl GraphBuilder {
     /// b.add_deme("B", vec![epoch], history, Some("this is deme B"));
     /// b.add_pulse(Some(&["A"]),
     ///             Some("B"),
-    ///             Some(demes::InputTime::from(50.0)),
-    ///             Some(vec![demes::InputProportion::from(0.5)]));
+    ///             Some(50.0),
+    ///             Some([0.5].as_slice()));
     /// b.resolve().unwrap();
     /// ```
-    pub fn add_pulse(
+    pub fn add_pulse<
+        T: Into<InputTime>,
+        P: Into<InputProportion> + Copy,
+        D: std::ops::Deref<Target = [P]>,
+    >(
         &mut self,
         sources: Option<&[&str]>,
         dest: Option<&str>,
-        time: Option<InputTime>,
-        proportions: Option<Vec<InputProportion>>,
+        time: Option<T>,
+        proportions: Option<D>,
     ) {
         let sources = sources.map(|value| value.iter().map(|v| v.to_string()).collect::<Vec<_>>());
         let dest = dest.map(|value| value.to_string());
+        let time = time.map(|t| t.into());
+        let proportions = proportions.map(|s| {
+            s.iter()
+                .map(|p| (*p).into())
+                .collect::<Vec<InputProportion>>()
+        });
         self.graph.add_pulse(sources, dest, time, proportions);
     }
 

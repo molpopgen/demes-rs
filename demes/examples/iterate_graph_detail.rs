@@ -137,7 +137,9 @@ fn do_work(path: &str) -> Result<()> {
 }
 
 fn main() {
-    do_work("examples/jouganous.yaml").unwrap();
+    for input in std::env::args().skip(1) {
+        do_work(&input).unwrap();
+    }
 }
 
 #[test]

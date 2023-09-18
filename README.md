@@ -17,9 +17,15 @@ This repository contains the following rust crates:
 ### Cloning the repository and running the test suite
 
 ```sh
-git clone https://github.com/molpopgen/demes-rs
+git clone https://github.com/molpopgen/demes-rs --recurse-submodules
 cd demes-rs
 cargo test
+```
+
+To clone using [gh](https://cli.github.com/),
+
+```
+gh clone molpopgen/demes-rs -- --recurse-submodules
 ```
 
 ### Pull requests

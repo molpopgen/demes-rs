@@ -33,16 +33,23 @@ impl TryFrom<f64> for SelfingRate {
 }
 
 /// Input value for [`SelfingRate`], used when loading or building graphs.
+///
+/// # Examples
+///
+/// ```
+/// let t = demes::InputSelfingRate::from(1.0);
+/// assert_eq!(t, 1.0);
+/// let t = t - 1.0;
+/// assert_eq!(t, 0.0);
+/// let t = 1.0 + t;
+/// assert_eq!(t, 1.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[serde(from = "f64")]
 pub struct InputSelfingRate(f64);
 
-impl From<f64> for InputSelfingRate {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
+impl_input_newtype_traits!(InputSelfingRate);
 
 impl TryFrom<InputSelfingRate> for SelfingRate {
     type Error = DemesError;

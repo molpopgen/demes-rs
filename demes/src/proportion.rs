@@ -106,22 +106,23 @@ impl TryFrom<f64> for Proportion {
 impl_newtype_traits!(Proportion);
 
 /// Input value for [`Proportion`], used when loading or building graphs.
+///
+/// # Examples
+///
+/// ```
+/// let t = demes::InputProportion::from(1.0);
+/// assert_eq!(t, 1.0);
+/// let t = t - 1.0;
+/// assert_eq!(t, 0.0);
+/// let t = 1.0 + t;
+/// assert_eq!(t, 1.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[serde(from = "f64")]
 pub struct InputProportion(f64);
 
-impl From<f64> for InputProportion {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<InputProportion> for f64 {
-    fn from(value: InputProportion) -> Self {
-        value.0
-    }
-}
+impl_input_newtype_traits!(InputProportion);
 
 impl TryFrom<InputProportion> for Proportion {
     type Error = DemesError;

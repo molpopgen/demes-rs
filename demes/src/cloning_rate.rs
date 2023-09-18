@@ -33,16 +33,23 @@ impl TryFrom<f64> for CloningRate {
 impl_newtype_traits!(CloningRate);
 
 /// Input value for [`CloningRate`], used when loading or building graphs.
+///
+/// # Examples
+///
+/// ```
+/// let t = demes::InputCloningRate::from(1.0);
+/// assert_eq!(t, 1.0);
+/// let t = t - 1.0;
+/// assert_eq!(t, 0.0);
+/// let t = 1.0 + t;
+/// assert_eq!(t, 1.0);
+/// ```
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[repr(transparent)]
 #[serde(from = "f64")]
 pub struct InputCloningRate(f64);
 
-impl From<f64> for InputCloningRate {
-    fn from(value: f64) -> Self {
-        Self(value)
-    }
-}
+impl_input_newtype_traits!(InputCloningRate);
 
 impl TryFrom<InputCloningRate> for CloningRate {
     type Error = DemesError;

@@ -1,5 +1,30 @@
 #![macro_use]
 
+macro_rules! impl_newtype_arithmetic {
+    ($type: ty, $op: ident, $fn: ident) => {
+        impl std::ops::$op for $type {
+            type Output = Option<Self>;
+            fn $fn(self, value: Self) -> Self::Output {
+                Self::try_from(self.0.$fn(value.0)).ok()
+            }
+        }
+
+        impl std::ops::$op<f64> for $type {
+            type Output = Option<Self>;
+            fn $fn(self, value: f64) -> Self::Output {
+                Self::try_from(self.0.$fn(value)).ok()
+            }
+        }
+
+        impl std::ops::$op<$type> for f64 {
+            type Output = Option<$type>;
+            fn $fn(self, value: $type) -> Self::Output {
+                <$type>::try_from(self.$fn(value.0)).ok()
+            }
+        }
+    };
+}
+
 macro_rules! impl_newtype_traits {
     ($type: ty) => {
         impl From<$type> for f64 {
@@ -60,6 +85,11 @@ macro_rules! impl_newtype_traits {
                 write!(f, "{}", self.0)
             }
         }
+
+        impl_newtype_arithmetic!($type, Add, add);
+        impl_newtype_arithmetic!($type, Sub, sub);
+        impl_newtype_arithmetic!($type, Mul, mul);
+        impl_newtype_arithmetic!($type, Div, div);
     };
 }
 

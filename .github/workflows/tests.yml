@@ -42,6 +42,10 @@ jobs:
       - name: run doc tests (feature powerset)
         run: |
             cargo hack test --doc --feature-powerset
+      - name: run examples
+        run: |
+            cargo run --example iterate_graph -- demes/examples/jouganous.yaml
+            cargo run --example iterate_graph_detail -- demes/examples/jouganous.yaml
 
   fmt:
     name: rust fmt

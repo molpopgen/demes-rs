@@ -32,4 +32,7 @@ features = ["std", "unicode-perl"]
 anyhow = "~1"
 
 [[example]]
-name = "jouganous_model"
+name = "iterate_graph_detail"
+
+[[example]]
+name = "iterate_graph"

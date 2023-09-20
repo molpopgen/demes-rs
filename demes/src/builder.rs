@@ -8,7 +8,6 @@ use crate::specification::UnresolvedEpoch;
 use crate::specification::UnresolvedGraph;
 use crate::DemesError;
 use crate::InputGenerationTime;
-use crate::InputMigrationRate;
 use crate::InputProportion;
 use crate::InputTime;
 use crate::TimeUnits;
@@ -36,82 +35,6 @@ pub enum BuilderError {
 pub struct GraphBuilder {
     graph: UnresolvedGraph,
     metadata: Option<crate::Metadata>,
-}
-
-/// Build a symmetric migration epoch.
-///
-/// # Examples
-///
-/// See [`GraphBuilder::add_migration`].
-#[derive(Clone, Default)]
-pub struct SymmetricMigrationBuilder {
-    /// The demes that are involved
-    pub demes: Option<Vec<String>>,
-    /// The start time
-    pub start_time: Option<InputTime>,
-    /// The end time
-    pub end_time: Option<InputTime>,
-    /// The symmetric migration rate.
-    pub rate: Option<InputMigrationRate>,
-}
-
-impl SymmetricMigrationBuilder {
-    /// Set the demes
-    pub fn set_demes<D, A>(self, d: D) -> Self
-    where
-        D: std::ops::Deref<Target = [A]>,
-        A: AsRef<str>,
-    {
-        Self {
-            demes: Some(d.iter().map(|a| a.as_ref().to_owned()).collect::<Vec<_>>()),
-            ..self
-        }
-    }
-
-    /// Set the start time
-    pub fn set_start_time<T>(self, time: T) -> Self
-    where
-        T: Into<InputTime>,
-    {
-        Self {
-            start_time: Some(time.into()),
-            ..self
-        }
-    }
-
-    /// Set the end time
-    pub fn set_end_time<T>(self, time: T) -> Self
-    where
-        T: Into<InputTime>,
-    {
-        Self {
-            end_time: Some(time.into()),
-            ..self
-        }
-    }
-
-    /// Set the symmetric migration rate among all `demes`.
-    pub fn set_rate<R>(self, rate: R) -> Self
-    where
-        R: Into<InputMigrationRate>,
-    {
-        Self {
-            rate: Some(rate.into()),
-            ..self
-        }
-    }
-}
-
-impl From<SymmetricMigrationBuilder> for UnresolvedMigration {
-    fn from(value: SymmetricMigrationBuilder) -> Self {
-        Self {
-            demes: value.demes,
-            start_time: value.start_time,
-            end_time: value.end_time,
-            rate: value.rate,
-            ..Default::default()
-        }
-    }
 }
 
 impl GraphBuilder {

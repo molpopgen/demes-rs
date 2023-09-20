@@ -283,13 +283,17 @@ impl UnresolvedMigration {
     /// ```
     /// let _ = demes::UnresolvedMigration::default().set_demes(["A", "B"].as_slice());
     /// ```
-    pub fn set_demes<D, A>(self, d: D) -> Self
+    pub fn set_demes<I, A>(self, d: I) -> Self
     where
-        D: std::ops::Deref<Target = [A]>,
+        I: IntoIterator<Item = A>,
         A: AsRef<str>,
     {
         Self {
-            demes: Some(d.iter().map(|a| a.as_ref().to_owned()).collect::<Vec<_>>()),
+            demes: Some(
+                d.into_iter()
+                    .map(|a| a.as_ref().to_owned())
+                    .collect::<Vec<_>>(),
+            ),
             ..self
         }
     }

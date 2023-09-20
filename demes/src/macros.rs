@@ -96,6 +96,12 @@ macro_rules! impl_input_newtype_traits {
             }
         }
 
+        impl From<&f64> for $type {
+            fn from(value: &f64) -> Self {
+                Self(*value)
+            }
+        }
+
         impl From<$type> for f64 {
             fn from(value: $type) -> Self {
                 value.0

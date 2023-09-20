@@ -79,14 +79,15 @@ impl GraphBuilder {
     /// ```
     ///
     /// # Notes
-    pub fn add_deme<D: std::ops::Deref<Target = [UnresolvedEpoch]>>(
+    pub fn add_deme<I: IntoIterator<Item = UnresolvedEpoch>>(
         &mut self,
         name: &str,
-        epochs: D,
+        epochs: I,
         history: UnresolvedDemeHistory,
         description: Option<&str>,
     ) {
-        let ptr = UnresolvedDeme::new_via_builder(name, epochs.to_owned(), history, description);
+        let epochs = epochs.into_iter().collect::<Vec<_>>();
+        let ptr = UnresolvedDeme::new_via_builder(name, epochs, history, description);
         self.graph.add_deme(ptr);
     }
 
@@ -160,23 +161,19 @@ impl GraphBuilder {
     ///             Some([0.5].as_slice()));
     /// b.resolve().unwrap();
     /// ```
-    pub fn add_pulse<
-        T: Into<InputTime>,
-        P: Into<InputProportion> + Copy,
-        D: std::ops::Deref<Target = [P]>,
-    >(
+    pub fn add_pulse<T: Into<InputTime>, P: Into<InputProportion>, I: IntoIterator<Item = P>>(
         &mut self,
         sources: Option<&[&str]>,
         dest: Option<&str>,
         time: Option<T>,
-        proportions: Option<D>,
+        proportions: Option<I>,
     ) {
         let sources = sources.map(|value| value.iter().map(|v| v.to_string()).collect::<Vec<_>>());
         let dest = dest.map(|value| value.to_string());
         let time = time.map(|t| t.into());
         let proportions = proportions.map(|s| {
-            s.iter()
-                .map(|p| (*p).into())
+            s.into_iter()
+                .map(|p| p.into())
                 .collect::<Vec<InputProportion>>()
         });
         self.graph.add_pulse(sources, dest, time, proportions);

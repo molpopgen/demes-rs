@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2023-09-26
+
+### Documentation
+
+- Document Err for Epoch::size_at and Demes::size_at ([#282](https://github.com/molpopgen/demes-rs/pull/282))
+- Fix broken intra-doc links ([#313](https://github.com/molpopgen/demes-rs/pull/313))
+- Add example to README.md ([#316](https://github.com/molpopgen/demes-rs/pull/316))
+
+### Features
+
+- Add size_at methods for demes::Deme and demes::Epoch ([#256](https://github.com/molpopgen/demes-rs/pull/256))
+- Copy/Clone/Debug for DemeId ([#271](https://github.com/molpopgen/demes-rs/pull/271))
+- Impl Clone for demes::Graph and demes_forward::Graph ([#281](https://github.com/molpopgen/demes-rs/pull/281))
+- Add fn to return deme names from graph ([#294](https://github.com/molpopgen/demes-rs/pull/294))
+- Impl several traits for all "input" newtypes. ([#314](https://github.com/molpopgen/demes-rs/pull/314))
+- Impl Add, Sub, Mul, Div for all newtypes. ([#317](https://github.com/molpopgen/demes-rs/pull/317))
+
+### Miscellaneous Tasks
+
+- Bump MSRV to 1.60.0 ([#279](https://github.com/molpopgen/demes-rs/pull/279))
+- Bump serde_json from 1.0.96 to 1.0.105 ([#297](https://github.com/molpopgen/demes-rs/pull/297))
+
+### Refactor
+
+- [**breaking**] Mark SizeFunction non_exhaustive ([#258](https://github.com/molpopgen/demes-rs/pull/258))
+- Graph::get_deme takes Into<DemeId> as argument ([#266](https://github.com/molpopgen/demes-rs/pull/266))
+- Uncouple demes::Graph::get_deme input/output lifetimes ([#269](https://github.com/molpopgen/demes-rs/pull/269))
+- [**breaking**] Improve strictness of all newtypes ([#272](https://github.com/molpopgen/demes-rs/pull/272))
+- Remove code not covered by tests ([#274](https://github.com/molpopgen/demes-rs/pull/274))
+- Remove code duplication in Epoch::size_at ([#283](https://github.com/molpopgen/demes-rs/pull/283))
+- Demes::Error uses thiserror decorators instead of custom impl ([#308](https://github.com/molpopgen/demes-rs/pull/308))
+- [**breaking**] Streamling builder API for adding migrations. ([#310](https://github.com/molpopgen/demes-rs/pull/310))
+- Use generics to improve builder ergonomics ([#312](https://github.com/molpopgen/demes-rs/pull/312))
+- Reduce migration builder API to a single type. ([#315](https://github.com/molpopgen/demes-rs/pull/315))
+- Use IntoIterator instead of Deref for builder API. ([#319](https://github.com/molpopgen/demes-rs/pull/319))
+
+### Styling
+
+- Fix lints from clippy/nightly ([#291](https://github.com/molpopgen/demes-rs/pull/291))
+- Fix clippy lints from 1.72.0 ([#304](https://github.com/molpopgen/demes-rs/pull/304))
+
+### Testing
+
+- Update demes-spec submodule ([#259](https://github.com/molpopgen/demes-rs/pull/259))
+- Use build.rs to generate demes-spec tests ([#289](https://github.com/molpopgen/demes-rs/pull/289))
+
 ## [0.4.0] - 2023-03-30
 
 ### Features

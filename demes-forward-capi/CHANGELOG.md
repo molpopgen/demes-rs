@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2023-09-26
+
+### Styling
+
+- Fix clippy lints from 1.72.0 ([#304](https://github.com/molpopgen/demes-rs/pull/304))
+
+### Testing
+
+- Fix stacked borrow UB found by miri ([#292](https://github.com/molpopgen/demes-rs/pull/292))
+
 ## [0.4.0] - 2023-03-30
 
 ### Documentation

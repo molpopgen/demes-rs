@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2023-09-26
+
+### Documentation
+
+- Fix broken intra-doc links ([#313](https://github.com/molpopgen/demes-rs/pull/313))
+
+### Features
+
+- Add demes-forward::ForwardGraph::size_at ([#264](https://github.com/molpopgen/demes-rs/pull/264))
+- Impl Clone for demes::Graph and demes_forward::Graph ([#281](https://github.com/molpopgen/demes-rs/pull/281))
+- Add ForwardGraph::deme_size_history ([#270](https://github.com/molpopgen/demes-rs/pull/270))
+- Add utility fns for ForwardGraph ([#286](https://github.com/molpopgen/demes-rs/pull/286))
+- Add fn to return deme names from graph ([#294](https://github.com/molpopgen/demes-rs/pull/294))
+
+### Miscellaneous Tasks
+
+- Bump MSRV to 1.60.0 ([#279](https://github.com/molpopgen/demes-rs/pull/279))
+
+### Refactor
+
+- [**breaking**] Mark SizeFunction non_exhaustive ([#258](https://github.com/molpopgen/demes-rs/pull/258))
+- Graph::get_deme takes Into<DemeId> as argument ([#266](https://github.com/molpopgen/demes-rs/pull/266))
+- [**breaking**] Improve strictness of all newtypes ([#272](https://github.com/molpopgen/demes-rs/pull/272))
+- Use Vec instead of ndarray internally ([#275](https://github.com/molpopgen/demes-rs/pull/275))
+- Fix invalid demes::Time during deme updates ([#276](https://github.com/molpopgen/demes-rs/pull/276))
+- ForwardGraph::deme_size_history now works by explicit ([#288](https://github.com/molpopgen/demes-rs/pull/288))
+- Use enums to abstract over input time types ([#293](https://github.com/molpopgen/demes-rs/pull/293))
+- Demes_forward::Error uses thiserror decorators instead of custom impl ([#309](https://github.com/molpopgen/demes-rs/pull/309))
+
+### Testing
+
+- Test all size changes for test added in #253 ([#255](https://github.com/molpopgen/demes-rs/pull/255))
+
 ## [0.3.0] - 2023-03-30
 
 ### Refactor

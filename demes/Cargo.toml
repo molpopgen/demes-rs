@@ -20,7 +20,7 @@ json = ["serde_json"]
 thiserror = "~1"
 serde = { version = "~1", features = ["derive", "rc"] }
 serde_yaml = "~0.9"
-serde_json = {version = "1.0.105", optional = true, features=["float_roundtrip"]}
+serde_json = {version = "1.0.107", optional = true, features=["float_roundtrip"]}
 
 [dependencies.regex]
 version = "~1"

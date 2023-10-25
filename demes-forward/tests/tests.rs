@@ -667,3 +667,50 @@ demes:
     assert!(graph.time_to_forward(101.0).unwrap().is_none());
     assert_eq!(graph.backwards_burn_in_time(), 91.0);
 }
+
+#[test]
+fn test_state_iteration() {
+    let yaml = "
+time_units: generations
+demes:
+- name: a
+  epochs:
+  - {start_size: 10}
+  defaults:
+    epoch: {end_time: 0}
+- name: b
+  epochs:
+  - {start_size: 10, end_time: 90}
+  - {start_size: 20, end_time: 50}
+  - {start_size: 30, end_time: 10}
+";
+    let demes_graph = demes::loads(yaml).unwrap();
+    let burnin = 10;
+    let mut graph = demes_forward::ForwardGraph::new_discrete_time(demes_graph, burnin).unwrap();
+
+    let state_iterator = graph.clone().into_state_iterator(None).unwrap();
+
+    let ti = graph.time_iterator();
+
+    for (state, time) in state_iterator.zip(ti) {
+        graph.update_state(time).unwrap();
+        assert_eq!(state.forward_time(), time);
+        assert_eq!(state.parental_deme_sizes(), graph.parental_deme_sizes());
+        assert_eq!(state.offspring_deme_sizes(), graph.offspring_deme_sizes());
+        for deme in 0..graph.num_demes_in_model() {
+            assert_eq!(
+                graph.ancestry_proportions(deme),
+                state.ancestry_proportions(deme)
+            );
+        }
+    }
+
+    let state_iterator = graph
+        .clone()
+        .into_state_iterator(Some(demes_forward::StateIteratorDuration {
+            from: Some(20.0.try_into().unwrap()),
+            ..Default::default()
+        }))
+        .unwrap();
+    assert_eq!(state_iterator.count(), 21);
+}

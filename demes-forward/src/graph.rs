@@ -1,10 +1,12 @@
 use crate::iterators::DemeSizeHistory;
+use crate::iterators::StateIterator;
 use crate::square_matrix::SquareMatrix;
 use crate::time::ModelTime;
 use crate::CurrentSize;
 use crate::DemeSizeAt;
 use crate::DemesForwardError;
 use crate::ForwardTime;
+use crate::StateIteratorDuration;
 
 enum Generation {
     Parent,
@@ -971,6 +973,50 @@ impl ForwardGraph {
     /// Implemented by calling [`demes::Graph::deme_names`].
     pub fn deme_names(&self) -> Box<[&str]> {
         self.graph.deme_names()
+    }
+
+    pub fn into_state_iterator(
+        self,
+        duration: Option<StateIteratorDuration>,
+    ) -> Result<impl Iterator<Item = crate::iterators::ModelState>, DemesForwardError> {
+        let duration = duration.map_or_else(StateIteratorDuration::default, |d| d);
+        let model_start = 0.0;
+        let model_end = self.end_time().value();
+        let from: f64 = match duration.from {
+            None => model_start,
+            Some(time) if time < self.graph.most_recent_deme_end_time() => {
+                return Err(DemesForwardError::TimeError(format!(
+                    "from ({:?}) is more recent than the end of the model",
+                    duration.from
+                )));
+            }
+            Some(time) => match self.time_to_forward(time) {
+                Ok(Some(forward_time)) => forward_time.value(),
+                Ok(None) => model_start,
+                Err(e) => {
+                    return Err(e);
+                }
+            },
+        };
+        let until: f64 = match duration.until {
+            None => model_end,
+            Some(time) if time >= model_start => {
+                return Err(DemesForwardError::TimeError(format!(
+                    "until ({:?}) is more ancient than the start of the model",
+                    duration.until
+                )));
+            }
+            Some(time) => match self.time_to_forward(time) {
+                Ok(Some(forward_time)) => forward_time.value(),
+                Ok(None) => model_end,
+                Err(e) => {
+                    return Err(e);
+                }
+            },
+        };
+        println!("{from}, {until}");
+        todo!("the semantics are wrong -- the demes::Times are getting treated relative to the end_time of the graph and not to zero");
+        Ok(StateIterator::new(self, from, until))
     }
 }
 

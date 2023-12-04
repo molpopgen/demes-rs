@@ -13,7 +13,7 @@ fn main() {
 fn build_valid_spec_examples_tests() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let destination = Path::new(&out_dir).join("valid_specification_tests.rs");
-    let mut test_file = File::create(&destination).unwrap();
+    let mut test_file = File::create(destination).unwrap();
     let paths = read_dir("demes-spec/test-cases/valid").unwrap();
     for p in paths {
         let p = p.unwrap();
@@ -39,7 +39,7 @@ fn write_valid_example_test(test_file: &mut File, path: &DirEntry) {
 fn build_invalid_spec_examples_tests() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let destination = Path::new(&out_dir).join("invalid_specification_tests.rs");
-    let mut test_file = File::create(&destination).unwrap();
+    let mut test_file = File::create(destination).unwrap();
     let paths = read_dir("demes-spec/test-cases/invalid").unwrap();
     for p in paths {
         let p = p.unwrap();

@@ -192,9 +192,7 @@ impl ModelTime {
         };
         TimeIterator {
             current_time,
-            final_time: (self.burnin_generation() + self.model_duration())
-                .try_into()
-                .unwrap(),
+            final_time: (self.burnin_generation() + self.model_duration()).into(),
         }
     }
 }

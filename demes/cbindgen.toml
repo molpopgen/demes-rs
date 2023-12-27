@@ -1,0 +1,3 @@
+[defines]
+"feature = ffi" = "DEMES_FFI"
+"feature = json" = "DEMES_JSON"

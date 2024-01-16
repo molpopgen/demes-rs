@@ -965,32 +965,36 @@ impl Epoch {
 
     /// Size of Epoch at a given time
     ///
+    /// # Returns
+    ///
+    /// * `Some(size)` if `time` falls within the epoch's time interval.
+    /// * `None` if `time` is a valid time but outside of the epochs' time
+    ///    interval.
+    ///
     /// # Errors
     ///
-    /// * If `time` is not `end_time < time <= start_time`.
     /// * If `time` fails to convert into [`Time`].
-    /// * If conversion from [`f64`] to [`DemeSize`] failes.
-    pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<DemeSize, DemesError> {
+    /// * If conversion from [`f64`] to [`DemeSize`] fails
+    ///   during calculation of size change function.
+    pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<Option<DemeSize>, DemesError> {
         let time: f64 = time.into();
         Time::try_from(time)
             .map_err(|_| DemesError::EpochError(format!("invalid time value: {time:?}")))?;
 
         if time == f64::INFINITY && self.start_time == f64::INFINITY {
-            return Ok(self.start_size);
+            return Ok(Some(self.start_size));
         };
 
         let start_time = f64::from(self.start_time);
         let end_time = f64::from(self.end_time);
         if time < end_time || time >= start_time {
-            return Err(DemesError::EpochError(
-                "time is not contained in epoch time span".to_string(),
-            ));
+            return Ok(None);
         }
 
         let time_span = start_time - end_time;
         let dt = start_time - time;
         let size = match self.size_function() {
-            SizeFunction::Constant => return Ok(self.end_size),
+            SizeFunction::Constant => return Ok(Some(self.end_size)),
             SizeFunction::Linear => {
                 f64::from(self.start_size)
                     + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span
@@ -1003,7 +1007,7 @@ impl Epoch {
         let size = DemeSize::try_from(size).map_err(|_| {
             DemesError::EpochError(format!("size calculation led to invalid size: {size}"))
         })?;
-        Ok(size)
+        Ok(Some(size))
     }
 }
 
@@ -1352,7 +1356,7 @@ impl Deme {
 
         match epoch {
             None => Ok(None),
-            Some(e) => Ok(Some(e.size_at(time)?)),
+            Some(e) => Ok(e.size_at(time)?),
         }
     }
 }

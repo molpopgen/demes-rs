@@ -1001,24 +1001,29 @@ demes:
 
     assert_eq!(
         200_f64, // size at Infinity
-        f64::from(g.deme(0).epochs()[0].size_at(f64::INFINITY).unwrap())
+        f64::from(
+            g.deme(0).epochs()[0]
+                .size_at(f64::INFINITY)
+                .unwrap()
+                .unwrap()
+        )
     );
     assert_eq!(
         200_f64, // size at transition between two epochs, [end_time, start_time)
-        f64::from(g.deme(0).epochs()[0].size_at(300).unwrap())
+        f64::from(g.deme(0).epochs()[0].size_at(300).unwrap().unwrap())
     );
     assert_eq!(
         100_f64, // middle constant epoch
-        f64::from(g.deme(0).epochs()[1].size_at(250).unwrap())
+        f64::from(g.deme(0).epochs()[1].size_at(250).unwrap().unwrap())
     );
     assert_eq!(
         150_f64, // middle linear increase epoch
-        f64::from(g.deme(0).epochs()[2].size_at(150).unwrap())
+        f64::from(g.deme(0).epochs()[2].size_at(150).unwrap().unwrap())
     );
     assert_eq!(
         size_50, // middle exponential increase
-        f64::from(g.deme(0).epochs()[3].size_at(50).unwrap())
+        f64::from(g.deme(0).epochs()[3].size_at(50).unwrap().unwrap())
     );
     assert!(g.deme(0).epochs()[0].size_at(-10).is_err());
-    assert!(g.deme(0).epochs()[0].size_at(10).is_err()); // time outside of epoch
+    assert!(g.deme(0).epochs()[0].size_at(10).unwrap().is_none()); // time outside of epoch
 }

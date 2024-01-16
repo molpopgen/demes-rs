@@ -139,7 +139,7 @@ demes:
             assert_eq!(d.num_ancestors(), 1);
 
             // iterate over ancestor HashMap of {ancestor name => ancestor Deme index}
-            for (name, index) in d.ancestors().iter() {
+            for (name, index) in d.ancestor_names().iter().zip(d.ancestor_indexes().iter()) {
                 let deme = g.deme(*index);
                 assert_eq!(name, "A");
                 assert_eq!(*deme.name(), *name);
@@ -147,7 +147,7 @@ demes:
             }
 
             // Iterate over just the names
-            assert!(d.ancestors().keys().all(|ancestor| *ancestor == "A"));
+            assert!(d.ancestor_names().iter().all(|ancestor| *ancestor == "A"));
 
             // With only 1 ancestor, there is exactly 1 proportion
             // represeting 100% ancestry
@@ -761,12 +761,19 @@ demes:
     let g = demes::loads(yaml).unwrap();
 
     for deme in 0..3 {
-        assert!(g.deme(deme).ancestors().is_empty());
+        assert!(g.deme(deme).ancestor_names().is_empty());
+        assert!(g.deme(deme).ancestor_indexes().is_empty());
         assert!(g.deme(deme).proportions().is_empty());
     }
 
     for deme in 3..6 {
-        assert_eq!(g.deme(deme).ancestors().len(), 3);
+        assert_eq!(g.deme(deme).ancestor_names().len(), 3);
+        assert_eq!(
+            g.deme(deme).ancestor_indexes().len(),
+            3,
+            "{:?}",
+            g.deme(deme).ancestor_indexes()
+        );
         assert_eq!(g.deme(deme).proportions().len(), 3);
     }
 }

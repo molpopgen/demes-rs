@@ -1152,6 +1152,8 @@ pub(crate) struct UnresolvedDeme {
     description: String,
     #[serde(skip)]
     ancestor_map: DemeMap,
+    #[serde(skip)]
+    ancestor_indexes: Vec<usize>,
     #[serde(default = "Vec::<UnresolvedEpoch>::default")]
     epochs: Vec<UnresolvedEpoch>,
     #[serde(flatten)]
@@ -1165,6 +1167,8 @@ pub struct Deme {
     description: String,
     #[serde(skip)]
     ancestor_map: DemeMap,
+    #[serde(skip)]
+    ancestor_indexes: Vec<usize>,
     epochs: Vec<Epoch>,
     ancestors: Vec<String>,
     proportions: Vec<Proportion>,
@@ -1263,6 +1267,7 @@ impl Deme {
     }
 
     /// Hash map of ancestor name to ancestor deme
+    #[deprecated(note = "Use Deme::ancestor_names and/or Deme::ancestor_indexes instead")]
     pub fn ancestors(&self) -> &DemeMap {
         &self.ancestor_map
     }
@@ -1283,6 +1288,14 @@ impl Deme {
     /// Empty if no ancestors.
     pub fn ancestor_names(&self) -> &[String] {
         &self.ancestors
+    }
+
+    /// Indexes of ancestor demes.
+    ///
+    /// Empty if no ancestors.
+    pub fn ancestor_indexes(&self) -> &[usize] {
+        debug_assert_eq!(self.ancestor_indexes.len(), self.ancestors.len());
+        &self.ancestor_indexes
     }
 
     /// Description string
@@ -1371,6 +1384,7 @@ impl TryFrom<UnresolvedDeme> for Deme {
         Ok(Self {
             description: value.description,
             ancestor_map: value.ancestor_map,
+            ancestor_indexes: value.ancestor_indexes,
             epochs,
             ancestors: value.history.ancestors.ok_or_else(|| {
                 DemesError::DemeError(format!("deme {} ancestors are not resolved", value.name))
@@ -1845,6 +1859,7 @@ impl UnresolvedDeme {
                 DemesError::DemeError(format!("invalid ancestor of {}: {ancestor}", self.name))
             })?;
             ancestor_map.insert(ancestor.clone(), *deme);
+            self.ancestor_indexes.push(*deme);
         }
         self.ancestor_map = ancestor_map;
         Ok(())

@@ -38,12 +38,32 @@ jobs:
         with:
           crate: cbindgen
           version: "=0.24.3" 
-      - name: Run cmake
+      - name: Run cmake on demes-forward example
         run: |
             cmake -Sdemes-forward-capi/c_example -Bbuild
-      - name: Build
+      - name: Build demes-forward example
         run: |
             cmake --build build
-      - name: Run C example
+      - name: Run demes-forward C example
         run: |
            ./build/example demes-forward-capi/example_yaml/*.yaml
+      - name: cleanup
+        run: |
+            rm -rf build
+      - name: Run cmake on demes example
+        run: |
+            cmake -Sdemes/c_example -Bbuild
+      - name: Build demes example
+        run: |
+            cmake --build build
+      - name: Run demes C example
+        run: |
+           ./build/example demes/demes-spec/examples/browning_america.yaml
+      - run: sudo apt-get update -y
+        if: matrix.os == 'ubuntu-latest'
+      - run: sudo apt-get install -y valgrind
+        if: matrix.os == 'ubuntu-latest'
+      - name: Run demes C example through valgrind
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+           valgrind ./build/example demes/demes-spec/examples/browning_america.yaml

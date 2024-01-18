@@ -24,6 +24,7 @@ use thiserror::Error;
 /// ";
 /// assert!(matches!(demes::loads(yaml), Err(demes::DemesError::EpochError(_))));
 /// ```
+// cbindgen:no-export
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum DemesError {

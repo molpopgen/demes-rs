@@ -51,6 +51,9 @@ mod selfing_rate;
 mod specification;
 mod time;
 
+#[cfg(feature = "ffi")]
+pub mod ffi;
+
 use std::io::Read;
 
 pub use builder::{BuilderError, GraphBuilder};

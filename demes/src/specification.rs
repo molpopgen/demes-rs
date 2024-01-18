@@ -3801,3 +3801,24 @@ demes:
         let _ = graph.into_integer_generations().unwrap();
     }
 }
+
+#[test]
+#[should_panic]
+fn test_control_character_in_yaml() {
+    let yaml = "
+time_units: years
+generation_time: 25
+demes:
+ - name: ancestor\0
+   defaults:
+    epoch:
+     end_time: 103
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+    let _ = Graph::new_from_str(yaml).unwrap();
+}

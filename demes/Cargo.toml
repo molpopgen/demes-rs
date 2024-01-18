@@ -9,12 +9,16 @@ homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
 rust-version = "1.60.0"
 
+[lib]
+crate-type = ["lib", "staticlib"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "doc_cfg"]
 
 [features]
 json = ["serde_json"]
+ffi = []
 
 [dependencies]
 thiserror = "~1"

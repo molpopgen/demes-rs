@@ -117,25 +117,18 @@ pub extern "C" fn demes_error_clear(error: &mut FFIError) {
 ///
 /// # Returns
 ///
-/// * 0 if no error, non-zero otherwise
-///
-/// # Notes
-///
-/// * The error message is written to `output`.
+/// * The error message, if one exists .
 ///   The allocated memory **must** be freed via the [`demes_c_char_deallocate`] function,
 ///   else a memory leak will occur.
-/// * If `output` is not NULL, then rebinding the value may lead to memory leaks.
+/// * A NULL pointer if there is no error.
 #[no_mangle]
 pub extern "C" fn demes_error_message(error: &FFIError) -> *mut c_char {
     match &error.error {
         None => std::ptr::null_mut(),
-        Some(e) => match e {
-            ErrorDetails::UnexpectedNullPointer => str_to_owned_c_char("unexpected null pointer"),
-            ErrorDetails::BoxedError(b) => {
-                let msg = format!("{:?}", b);
-                str_to_owned_c_char(&msg)
-            }
-        },
+        Some(e) => {
+            let msg = format!("{:?}", e);
+            str_to_owned_c_char(&msg)
+        }
     }
 }
 

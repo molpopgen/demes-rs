@@ -57,16 +57,19 @@ The configuration file for cliff is present in the workspace root.
 
 ### Tagging a release
 
-Any new release of any tool should have the following name:
+The workspace layout of this repository makes version tagging a bit fiddly.
+We also need the tags to play with with `git-cliff` (see above).
+
+When we tag a version, we use the following date-based pattern:
 
 ```
-tool-version
+vDD_Month_YYY
 ```
 
 For example:
 
 ```
-demes-forward-0.6.0
+v29_Sep_2023
 ```
 
 ### Viewing the documentation locally

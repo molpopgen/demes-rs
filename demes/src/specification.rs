@@ -1321,13 +1321,13 @@ impl Deme {
         &self.epochs
     }
 
-    /// Returns a copy of the [`Epoch`](crate::Epoch) at index `epoch`.
+    /// Returns a refernce to an epoch [`Epoch`](crate::Epoch) at index `epoch`.
     ///
     /// # Examples
     ///
     /// See [`here`](crate::SizeFunction) for examples.
-    pub fn get_epoch(&self, epoch: usize) -> Option<Epoch> {
-        self.epochs.get(epoch).copied()
+    pub fn get_epoch(&self, epoch: usize) -> Option<&Epoch> {
+        self.epochs.get(epoch)
     }
 
     /// Resolved proportions

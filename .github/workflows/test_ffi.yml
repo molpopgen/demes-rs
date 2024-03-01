@@ -34,7 +34,7 @@ jobs:
           cmake-version: '3.16.x'
       - uses: Swatinem/rust-cache@v2
       - name: Install cbindgen
-        uses: baptiste0928/cargo-install@v2
+        uses: baptiste0928/cargo-install@v3
         with:
           crate: cbindgen
           version: "=0.24.3" 

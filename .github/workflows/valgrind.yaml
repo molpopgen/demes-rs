@@ -37,4 +37,7 @@ jobs:
       - name: run cargo valgrind on demes::ffi
         run: |
             cargo valgrind test --manifest-path demes/Cargo.toml --all-features ffi
+      - name: run cargo valgrind on demes_forward_capi
+        run: |
+            cargo valgrind test --manifest-path demes-forward-capi/Cargo.toml --all-features
 

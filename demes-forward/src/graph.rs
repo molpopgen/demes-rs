@@ -972,6 +972,11 @@ impl ForwardGraph {
     pub fn deme_names(&self) -> Box<[&str]> {
         self.graph.deme_names()
     }
+
+    /// Access to the underlying [`demes::Graph`]
+    pub fn demes_graph(&self) -> &demes::Graph {
+        &self.graph
+    }
 }
 
 #[cfg(test)]

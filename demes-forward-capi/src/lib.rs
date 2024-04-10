@@ -739,6 +739,7 @@ demes:
                 unsafe { forward_graph_initialize_from_yaml(cstr.as_ptr(), 100., graph) };
                 let num_demes = unsafe { forward_graph_number_of_demes(graph) };
                 assert_eq!(num_demes, 1);
+                unsafe { forward_graph_deallocate(graph) };
             }
         }
     }

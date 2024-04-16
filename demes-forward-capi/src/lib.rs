@@ -619,6 +619,55 @@ pub unsafe extern "C" fn forward_graph_model_end_time(
     }
 }
 
+/// Get the underlying [`demes::Graph`].
+///
+/// # Returns
+///
+/// * A new `libc::c_char` representation of the graph upon success.
+/// * `std::ptr::null` upon error.
+///
+/// # Side effects
+///
+/// * An error will set `status` to -1.
+/// * Success will set `status` to 0.
+///
+/// # Safety
+///
+/// `graph` must be a valid pointer to an [`OpaqueForwardGraph`].
+/// `status` must be a valid pointer to an `i32`.
+///
+/// # Note
+///
+/// If not NULL, the return value must be freed in order to avoid
+/// leaking memory.
+#[no_mangle]
+pub unsafe extern "C" fn forward_graph_get_demes_graph(
+    graph: *const OpaqueForwardGraph,
+    status: *mut i32,
+) -> *const c_char {
+    match &(*graph).graph {
+        None => std::ptr::null(),
+        Some(g) => {
+            let demes_graph = match g.demes_graph().as_string() {
+                Ok(g) => g,
+                Err(_) => {
+                    *status = -1;
+                    return std::ptr::null();
+                }
+            };
+            let c_str = match CString::new(demes_graph) {
+                Ok(c) => c,
+                Err(_) => {
+                    *status = -1;
+                    return std::ptr::null();
+                }
+            };
+            *status = 0;
+            libc::strdup(c_str.as_ptr()) as *const c_char
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -926,6 +975,41 @@ demes:
         );
 
         std::fs::remove_file("simple_model.yaml").unwrap();
+    }
+
+    #[test]
+    fn test_recover_demes_graph() {
+        let yaml = "
+time_units: generations
+demes:
+ - name: A
+   epochs:
+   - start_size: 100
+     end_time: 50
+   - start_size: 200
+";
+        let mut graph = GraphHolder::new();
+        assert_eq!(graph.init_with_yaml(0.0, yaml), 0);
+        let mut status = 0;
+        let demes_graph =
+            unsafe { forward_graph_get_demes_graph(graph.as_ptr(), &mut status) } as *const c_char;
+        assert!(!demes_graph.is_null());
+        let mut new_graph = GraphHolder::new();
+        let temp = unsafe { yaml_to_owned(demes_graph) }.unwrap();
+        assert_eq!(new_graph.init_with_yaml(0.0, &temp), 0);
+        unsafe { libc::free(demes_graph as *mut libc::c_void) };
+        assert_eq!(
+            unsafe { &(*graph.graph) }
+                .graph
+                .as_ref()
+                .unwrap()
+                .demes_graph(),
+            unsafe { &(*new_graph.graph) }
+                .graph
+                .as_ref()
+                .unwrap()
+                .demes_graph()
+        )
     }
 
     #[test]

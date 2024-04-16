@@ -6,12 +6,12 @@
 //! This crate provides:
 //!
 //! * Support for reading `YAML` descriptions of `demes` models.
-//!   See [`loads`](crate::loads) and [`load`](crate::load).
+//!   See [`loads`] and [`load`].
 //! * Support for building a demes model using `rust` code.
-//!   See [`GraphBuilder`](crate::GraphBuilder).
+//!   See [`GraphBuilder`].
 //!
 //! The output of any of these operations is a fully-resolved
-//! [`Graph`](crate::Graph).
+//! [`Graph`].
 //!
 //! ## More information
 //!
@@ -20,7 +20,7 @@
 //!
 //! ## Technical details
 //!
-//! * `YAML` and [`GraphBuilder`](crate::GraphBuilder) inputs
+//! * `YAML` and [`GraphBuilder`] inputs
 //!   support the Human Data Model (HDM) described in the
 //!   demes
 //!   [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html)
@@ -68,11 +68,11 @@ pub use time::*;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Build a [`Graph`](crate::Graph) from an in-memory [`str`](std::primitive::str).
+/// Build a [`Graph`] from an in-memory [`str`].
 ///
 /// # Errors
 ///
-/// Returns [`DemesError`](crate::DemesError) in the event of invalid input.
+/// Returns [`DemesError`] in the event of invalid input.
 ///
 /// # Examples
 ///
@@ -103,12 +103,12 @@ pub fn loads_json(json: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_json_str(json)
 }
 
-/// Build a [`Graph`](crate::Graph) from a type implementing
-/// [`Read`](std::io::Read).
+/// Build a [`Graph`] from a type implementing
+/// [`std::io::Read`].
 ///
 /// # Errors
 ///
-/// Returns [`DemesError`](crate::DemesError) in the event of invalid input.
+/// Returns [`DemesError`] in the event of invalid input.
 ///
 /// # Examples
 ///

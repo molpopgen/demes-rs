@@ -94,3 +94,8 @@ cargo tarpaulin --tests --ignore-tests -o html
 
 Finally, open `tarpaulin-report.html` with your favorite browser.
 
+### Dependency updates
+
+We have disabled `dependabot` updates to `cargo` dependencies for this repository.
+We found that it was usually doing minor version updates and cluttering the commit history.
+We will periodically do updates manually instead.

@@ -45,7 +45,7 @@ process_model(const char* file)
         }
     assert(!forward_graph_is_error_state(graph));
 
-    end_time = forward_graph_model_end_time(&status, graph);
+    end_time = forward_graph_model_end_time(graph, &status);
 
     num_demes = forward_graph_number_of_demes(graph);
 

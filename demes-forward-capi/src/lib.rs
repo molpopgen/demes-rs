@@ -601,8 +601,8 @@ pub unsafe extern "C" fn forward_graph_ancestry_proportions(
 /// `status` must be a valid pointer to an `i32`.
 #[no_mangle]
 pub unsafe extern "C" fn forward_graph_model_end_time(
-    status: *mut i32,
     graph: *const OpaqueForwardGraph,
+    status: *mut i32,
 ) -> f64 {
     *status = 0;
     if (*graph).error.is_some() || (*graph).graph.is_none() {
@@ -845,7 +845,7 @@ demes:
             let pstatus: *mut i32 = &mut status;
             ptime = unsafe { forward_graph_iterate_time(graph.as_mut_ptr(), pstatus) };
             assert_eq!(
-                unsafe { forward_graph_model_end_time(pstatus, graph.as_ptr()) },
+                unsafe { forward_graph_model_end_time(graph.as_ptr(), pstatus) },
                 151.0
             );
             assert_eq!(status, 0);
@@ -970,7 +970,7 @@ demes:
         let pstatus: *mut i32 = &mut status;
 
         assert_eq!(
-            unsafe { forward_graph_model_end_time(pstatus, graph.as_mut_ptr()) },
+            unsafe { forward_graph_model_end_time(graph.as_mut_ptr(), pstatus) },
             151.0
         );
 
@@ -1097,7 +1097,7 @@ demes:
                 0,
             );
             assert_eq!(
-                unsafe { forward_graph_model_end_time(&mut status, graph.as_ptr()) },
+                unsafe { forward_graph_model_end_time(graph.as_ptr(), &mut status) },
                 11.0
             );
             // Iterator time starts at "next time - 1", so we need to advance

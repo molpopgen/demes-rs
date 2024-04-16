@@ -53,7 +53,7 @@ fn test_errors_const_api_with_uninitialized_graph() {
 
     status = 0;
     let _ =
-        unsafe { forward_graph_model_end_time(&mut status, graph as *const OpaqueForwardGraph) };
+        unsafe { forward_graph_model_end_time(graph as *const OpaqueForwardGraph, &mut status) };
     assert!(status < 0);
 
     unsafe {

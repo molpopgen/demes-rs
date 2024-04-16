@@ -310,6 +310,7 @@ fn update_demes(
 /// Forward-time representation of a [`demes::Graph`].
 #[derive(Debug, Clone)]
 pub struct ForwardGraph {
+    input_graph: demes::Graph,
     graph: demes::Graph,
     model_times: ModelTime,
     parent_demes: Vec<Deme>,
@@ -337,6 +338,7 @@ impl ForwardGraph {
         graph: demes::Graph,
         burnin_time: F,
     ) -> Result<Self, crate::DemesForwardError> {
+        let input_graph = graph.clone();
         if let Some((name, index)) = graph.has_non_integer_sizes() {
             let deme = graph.get_deme(name).unwrap();
             let epoch = deme.epochs()[index];
@@ -367,6 +369,7 @@ impl ForwardGraph {
         let ancestry_proportions = SquareMatrix::zeros(deme_to_index.len());
         let migration_matrix = SquareMatrix::zeros(deme_to_index.len());
         Ok(Self {
+            input_graph,
             graph,
             model_times,
             parent_demes,
@@ -976,6 +979,15 @@ impl ForwardGraph {
     /// Access to the underlying [`demes::Graph`]
     pub fn demes_graph(&self) -> &demes::Graph {
         &self.graph
+    }
+
+    /// Access to the input [`demes::Graph`]
+    ///
+    /// This differs from [ForwardGraph::demes_graph], which
+    /// returns a graph that has potentially been modified
+    /// to integer generations, etc..
+    pub fn input_demes_graph(&self) -> &demes::Graph {
+        &self.input_graph
     }
 }
 

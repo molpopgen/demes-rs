@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-04-16
+
+### Features
+
+- Add forward_graph_get_demes_graph ([#377](https://github.com/molpopgen/demes-rs/pull/377))
+
+### Miscellaneous Tasks
+
+- Bump version number of all crates ([#354](https://github.com/molpopgen/demes-rs/pull/354))
+
+### Testing
+
+- Run demes-forward-capi tests through valgrind ([#379](https://github.com/molpopgen/demes-rs/pull/379))
+
 ## [0.4.1] - 2023-09-26
 
 ### Styling

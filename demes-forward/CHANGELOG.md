@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-04-16
+
+### Features
+
+- Add ForwardGraph::demes_graph ([#376](https://github.com/molpopgen/demes-rs/pull/376))
+
+### Miscellaneous Tasks
+
+- Bump version number of all crates ([#354](https://github.com/molpopgen/demes-rs/pull/354))
+
+### Styling
+
+- Fix unnecessary use of fallible conversion ([#337](https://github.com/molpopgen/demes-rs/pull/337))
+- Fix clippy lints for rust 1.75 ([#346](https://github.com/molpopgen/demes-rs/pull/346))
+
 ## [0.4.0] - 2023-09-26
 
 ### Documentation

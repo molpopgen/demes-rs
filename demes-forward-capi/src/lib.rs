@@ -644,26 +644,26 @@ pub unsafe extern "C" fn forward_graph_model_end_time(
 pub unsafe extern "C" fn forward_graph_get_demes_graph(
     graph: *const OpaqueForwardGraph,
     status: *mut i32,
-) -> *const c_char {
+) -> *mut c_char {
     match &(*graph).graph {
-        None => std::ptr::null(),
+        None => std::ptr::null_mut(),
         Some(g) => {
             let demes_graph = match g.demes_graph().as_string() {
                 Ok(g) => g,
                 Err(_) => {
                     *status = -1;
-                    return std::ptr::null();
+                    return std::ptr::null_mut();
                 }
             };
             let c_str = match CString::new(demes_graph) {
                 Ok(c) => c,
                 Err(_) => {
                     *status = -1;
-                    return std::ptr::null();
+                    return std::ptr::null_mut();
                 }
             };
             *status = 0;
-            libc::strdup(c_str.as_ptr()) as *const c_char
+            libc::strdup(c_str.as_ptr())
         }
     }
 }

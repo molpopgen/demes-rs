@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2024-04-16
+
+### Documentation
+
+- Cleanup internal references ([#380](https://github.com/molpopgen/demes-rs/pull/380))
+
+### Features
+
+- Add fn Deme::ancestor_indexes ([#352](https://github.com/molpopgen/demes-rs/pull/352))
+- Add demes::ffi module ([#339](https://github.com/molpopgen/demes-rs/pull/339))
+
+### Miscellaneous Tasks
+
+- Bump serde_json from 1.0.105 to 1.0.107 ([#324](https://github.com/molpopgen/demes-rs/pull/324))
+- Bump serde_json from 1.0.107 to 1.0.108 ([#330](https://github.com/molpopgen/demes-rs/pull/330))
+- Bump serde_json from 1.0.108 to 1.0.110 ([#349](https://github.com/molpopgen/demes-rs/pull/349))
+- Bump version number of all crates ([#354](https://github.com/molpopgen/demes-rs/pull/354))
+- Bump serde_json from 1.0.110 to 1.0.113 ([#360](https://github.com/molpopgen/demes-rs/pull/360))
+- Bump serde_json from 1.0.113 to 1.0.114 ([#366](https://github.com/molpopgen/demes-rs/pull/366))
+
+### Refactor
+
+- [**breaking**] Epoch::size_at returns Option upon success. ([#353](https://github.com/molpopgen/demes-rs/pull/353))
+- [**breaking**] Deme::get_epoch now returns Option<&Epoch> ([#358](https://github.com/molpopgen/demes-rs/pull/358))
+
+### Styling
+
+- Fix clippy lints for rust 1.74 ([#336](https://github.com/molpopgen/demes-rs/pull/336))
+
 ## [0.5.0] - 2023-09-26
 
 ### Documentation

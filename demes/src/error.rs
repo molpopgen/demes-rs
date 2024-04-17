@@ -54,4 +54,7 @@ pub enum DemesError {
     /// Errors related to low-level types
     #[error("{0:?}")]
     ValueError(String),
+    /// IO errors from the rust standard library
+    #[error(transparent)]
+    IOerror(#[from] std::io::Error),
 }

@@ -97,6 +97,33 @@ pub enum SizeFunction {
     Linear,
 }
 
+#[derive(Clone, Debug)]
+enum InputFormatInternal {
+    Yaml(String),
+    #[allow(dead_code)]
+    Json(String),
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+/// The string input format for a graph
+pub enum InputFormat<'graph> {
+    /// Input is YAML
+    Yaml(&'graph str),
+    /// Input is JSON
+    Json(&'graph str),
+}
+
+impl<'graph> InputFormat<'graph> {
+    /// Get the input data as [str]
+    pub fn to_str(&self) -> &str {
+        match self {
+            Self::Yaml(s) => s,
+            Self::Json(s) => s,
+        }
+    }
+}
+
 impl Display for SizeFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
@@ -2256,6 +2283,10 @@ impl Metadata {
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UnresolvedGraph {
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    #[serde(default = "Option::default")]
+    input_string: Option<InputFormatInternal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2299,6 +2330,7 @@ impl UnresolvedGraph {
             None => GraphDefaultInput::default(),
         };
         Self {
+            input_string: None,
             time_units,
             input_defaults,
             generation_time,
@@ -2763,6 +2795,10 @@ impl UnresolvedGraph {
 #[derive(Serialize, Debug, Clone)]
 #[serde(deny_unknown_fields, try_from = "UnresolvedGraph")]
 pub struct Graph {
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    #[serde(default = "Option::default")]
+    input_string: Option<InputFormatInternal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2822,6 +2858,7 @@ impl TryFrom<UnresolvedGraph> for Graph {
             demes.push(deme);
         }
         Ok(Self {
+            input_string: value.input_string,
             description: value.description,
             doi: value.doi,
             metadata: value.metadata,
@@ -2838,11 +2875,19 @@ impl TryFrom<UnresolvedGraph> for Graph {
     }
 }
 
+fn string_from_reader<T: Read>(reader: T) -> Result<String, DemesError> {
+    let mut reader = reader;
+    let mut buf = String::default();
+    let _ = reader.read_to_string(&mut buf)?;
+    Ok(buf)
+}
+
 impl Graph {
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let mut g: UnresolvedGraph = serde_yaml::from_str(yaml)?;
         g.resolve()?;
         g.validate()?;
+        g.input_string = Some(InputFormatInternal::Yaml(yaml.to_owned()));
         g.try_into()
     }
 
@@ -2852,32 +2897,31 @@ impl Graph {
         let mut g: UnresolvedGraph = serde_json::from_str(json)?;
         g.resolve()?;
         g.validate()?;
+        g.input_string = Some(InputFormatInternal::Json(json.to_owned()));
         g.try_into()
     }
 
     pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
-        let mut g: UnresolvedGraph = serde_yaml::from_reader(reader)?;
-        g.resolve()?;
-        g.validate()?;
-        g.try_into()
+        let yaml = string_from_reader(reader)?;
+        Self::new_from_str(&yaml)
     }
 
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
-        let mut g: UnresolvedGraph = serde_json::from_reader(reader)?;
-        g.resolve()?;
-        g.validate()?;
-        g.try_into()
+        let json = string_from_reader(reader)?;
+        Self::new_resolved_from_json_str(&json)
     }
 
     pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
         let graph = Self::new_from_str(yaml)?;
+        assert!(graph.input_string.is_some());
         Ok(graph)
     }
 
     pub(crate) fn new_resolved_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let graph = Self::new_from_reader(reader)?;
+        assert!(graph.input_string.is_some());
         Ok(graph)
     }
 
@@ -2885,6 +2929,7 @@ impl Graph {
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let graph = Self::new_from_json_reader(reader)?;
+        assert!(graph.input_string.is_some());
         Ok(graph)
     }
 
@@ -3184,6 +3229,44 @@ impl Graph {
             .map(|deme| deme.name())
             .collect::<Vec<&str>>()
             .into_boxed_slice()
+    }
+
+    /// Get a reference to the input string, if any.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let yaml = "
+    /// time_units: years
+    /// generation_time: 25
+    /// description:
+    ///   A deme of 50 individuals that grew to 100 individuals
+    ///   in the last 100 years.
+    ///   Default behavior is that size changes are exponential.
+    /// demes:
+    ///  - name: deme
+    ///    epochs:
+    ///     - start_size: 50
+    ///       end_time: 100
+    ///     - start_size: 50
+    ///       end_size: 100
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// assert_eq!(graph.input_string().unwrap().to_str(), yaml);
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// The string is in the same format (YAML or JSON)
+    /// that was used to generate the graph.
+    pub fn input_string(&self) -> Option<InputFormat> {
+        match &self.input_string {
+            None => None,
+            Some(format) => match format {
+                InputFormatInternal::Yaml(string) => Some(InputFormat::Yaml(string.as_str())),
+                InputFormatInternal::Json(string) => Some(InputFormat::Json(string.as_str())),
+            },
+        }
     }
 }
 

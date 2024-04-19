@@ -504,6 +504,19 @@ impl From<Migration> for UnresolvedMigration {
     }
 }
 
+impl From<AsymmetricMigration> for UnresolvedMigration {
+    fn from(value: AsymmetricMigration) -> Self {
+        Self {
+            demes: None,
+            source: Some(value.source().to_owned()),
+            dest: Some(value.dest.to_owned()),
+            start_time: Some(value.start_time().into()),
+            end_time: Some(value.end_time().into()),
+            rate: Some(f64::from(value.rate()).into()),
+        }
+    }
+}
+
 /// A resolved Pulse event
 #[derive(Clone, Debug, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -551,6 +564,23 @@ impl TryFrom<UnresolvedPulse> for Pulse {
                 .try_into()?,
             proportions,
         })
+    }
+}
+
+impl From<Pulse> for UnresolvedPulse {
+    fn from(value: Pulse) -> Self {
+        Self {
+            sources: Some(value.sources),
+            dest: Some(value.dest),
+            time: Some(f64::from(value.time).into()),
+            proportions: Some(
+                value
+                    .proportions
+                    .into_iter()
+                    .map(|p| f64::from(p).into())
+                    .collect::<Vec<_>>(),
+            ),
+        }
     }
 }
 
@@ -823,6 +853,19 @@ pub struct UnresolvedEpoch {
     #[allow(missing_docs)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selfing_rate: Option<InputSelfingRate>,
+}
+
+impl From<Epoch> for UnresolvedEpoch {
+    fn from(value: Epoch) -> Self {
+        Self {
+            end_time: Some(value.end_time.into()),
+            start_size: Some(f64::from(value.start_size).into()),
+            end_size: Some(f64::from(value.end_size).into()),
+            size_function: Some(value.size_function),
+            cloning_rate: Some(f64::from(value.cloning_rate).into()),
+            selfing_rate: Some(f64::from(value.selfing_rate).into()),
+        }
+    }
 }
 
 impl UnresolvedEpoch {
@@ -1189,6 +1232,35 @@ pub(crate) struct UnresolvedDeme {
     epochs: Vec<UnresolvedEpoch>,
     #[serde(flatten)]
     history: UnresolvedDemeHistory,
+}
+
+impl From<Deme> for UnresolvedDeme {
+    fn from(value: Deme) -> Self {
+        let epochs: Vec<UnresolvedEpoch> = value
+            .epochs
+            .into_iter()
+            .map(UnresolvedEpoch::from)
+            .collect::<Vec<_>>();
+        Self {
+            name: value.name,
+            description: value.description,
+            ancestor_map: DemeMap::default(),
+            ancestor_indexes: value.ancestor_indexes,
+            epochs,
+            history: UnresolvedDemeHistory {
+                ancestors: Some(value.ancestors),
+                proportions: Some(
+                    value
+                        .proportions
+                        .into_iter()
+                        .map(|p| f64::from(p).into())
+                        .collect::<Vec<_>>(),
+                ),
+                start_time: Some(f64::from(value.start_time).into()),
+                defaults: DemeDefaults::default(),
+            },
+        }
+    }
 }
 
 /// A resolved deme.
@@ -2782,6 +2854,42 @@ impl UnresolvedGraph {
     }
 }
 
+impl From<Graph> for UnresolvedGraph {
+    fn from(value: Graph) -> Self {
+        let input_migrations: Vec<UnresolvedMigration> = value
+            .resolved_migrations
+            .into_iter()
+            .map(UnresolvedMigration::from)
+            .collect::<Vec<_>>();
+        let pulses: Vec<UnresolvedPulse> = value
+            .pulses
+            .into_iter()
+            .map(UnresolvedPulse::from)
+            .collect::<Vec<_>>();
+        let demes: Vec<UnresolvedDeme> = value
+            .demes
+            .into_iter()
+            .map(UnresolvedDeme::from)
+            .collect::<Vec<_>>();
+
+        Self {
+            input_string: value.input_string,
+            description: value.description,
+            doi: value.doi,
+            input_defaults: GraphDefaultInput::default(),
+            defaults: GraphDefaults::default(),
+            metadata: value.metadata,
+            time_units: value.time_units,
+            generation_time: Some(f64::from(value.generation_time).into()),
+            demes,
+            input_migrations,
+            resolved_migrations: vec![],
+            pulses,
+            deme_map: value.deme_map,
+        }
+    }
+}
+
 /// A resolved demes Graph.
 ///
 /// Instances of this type will be fully-resolved according to
@@ -3904,4 +4012,73 @@ demes:
     - start_size: 100
 ";
     let _ = Graph::new_from_str(yaml).unwrap();
+}
+
+#[cfg(test)]
+mod test_graph_to_unresolved_graph {
+    use super::*;
+
+    static YAML0: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+
+    static YAML1: &str = "
+time_units: years
+generation_time: 25
+defaults:
+  pulse: {sources: [A], dest: B, proportions: [0.25], time: 100}
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 250 
+";
+
+    static YAML2: &str = "
+time_units: years
+description: same tests as above, but demes in different order in migration defaults
+generation_time: 25
+defaults:
+  migration:
+    rate: 0.25
+    demes: [B, A]
+demes:
+  - name: A
+    epochs: 
+     - start_size: 100
+  - name: B
+    epochs:
+     - start_size: 42
+";
+
+    macro_rules! make_graph_to_unresolved_graph_test {
+        ($name: ident, $yaml: ident) => {
+            #[test]
+            fn $name() {
+                let yaml = $yaml;
+                let graph = crate::loads(yaml).unwrap();
+                let mut u = UnresolvedGraph::from(graph.clone());
+                u.resolve().unwrap();
+                let graph_roundtrip = Graph::try_from(u).unwrap();
+                assert_eq!(graph, graph_roundtrip);
+            }
+        };
+    }
+
+    make_graph_to_unresolved_graph_test!(test_yaml0, YAML0);
+    make_graph_to_unresolved_graph_test!(test_yaml1, YAML1);
+    make_graph_to_unresolved_graph_test!(test_yaml2, YAML2);
 }

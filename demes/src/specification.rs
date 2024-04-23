@@ -29,6 +29,39 @@ macro_rules! get_deme {
     };
 }
 
+fn size_at_details<F: Into<f64>>(
+    time: F,
+    epoch_start_time: f64,
+    epoch_end_time: f64,
+    epoch_start_size: f64,
+    epoch_end_size: f64,
+    size_function: SizeFunction,
+) -> Result<Option<f64>, DemesError> {
+    let time: f64 = time.into();
+    Time::try_from(time)
+        .map_err(|_| DemesError::EpochError(format!("invalid time value: {time:?}")))?;
+
+    if time == f64::INFINITY && epoch_start_time == f64::INFINITY {
+        return Ok(Some(epoch_start_size));
+    };
+    if time < epoch_end_time || time >= epoch_start_time {
+        return Ok(None);
+    }
+    let time_span = epoch_start_time - epoch_end_time;
+    let dt = epoch_start_time - time;
+    let size = match size_function {
+        SizeFunction::Constant => return Ok(Some(epoch_end_size)),
+        SizeFunction::Linear => {
+            epoch_start_size + dt * (epoch_end_size - epoch_start_size) / time_span
+        }
+        SizeFunction::Exponential => {
+            let r = (epoch_end_size / epoch_start_size).ln() / time_span;
+            epoch_start_size * (r * dt).exp()
+        }
+    };
+    Ok(Some(size))
+}
+
 /// Specify how deme sizes change during an [`Epoch`](crate::Epoch).
 ///
 /// # Examples
@@ -1047,37 +1080,22 @@ impl Epoch {
     /// * If conversion from [`f64`] to [`DemeSize`] fails
     ///   during calculation of size change function.
     pub fn size_at<F: Into<f64>>(&self, time: F) -> Result<Option<DemeSize>, DemesError> {
-        let time: f64 = time.into();
-        Time::try_from(time)
-            .map_err(|_| DemesError::EpochError(format!("invalid time value: {time:?}")))?;
-
-        if time == f64::INFINITY && self.start_time == f64::INFINITY {
-            return Ok(Some(self.start_size));
-        };
-
-        let start_time = f64::from(self.start_time);
-        let end_time = f64::from(self.end_time);
-        if time < end_time || time >= start_time {
-            return Ok(None);
+        match size_at_details(
+            time,
+            self.start_time.into(),
+            self.end_time.into(),
+            self.start_size.into(),
+            self.end_size().into(),
+            self.size_function,
+        )? {
+            None => Ok(None),
+            Some(size) => match DemeSize::try_from(size) {
+                Ok(size) => Ok(Some(size)),
+                Err(_) => Err(DemesError::EpochError(format!(
+                    "size calculation led to invalid size: {size}"
+                ))),
+            },
         }
-
-        let time_span = start_time - end_time;
-        let dt = start_time - time;
-        let size = match self.size_function() {
-            SizeFunction::Constant => return Ok(Some(self.end_size)),
-            SizeFunction::Linear => {
-                f64::from(self.start_size)
-                    + dt * (f64::from(self.end_size) - f64::from(self.start_size)) / time_span
-            }
-            SizeFunction::Exponential => {
-                let r = (f64::from(self.end_size) / f64::from(self.start_size)).ln() / time_span;
-                f64::from(self.start_size) * (r * dt).exp()
-            }
-        };
-        let size = DemeSize::try_from(size).map_err(|_| {
-            DemesError::EpochError(format!("size calculation led to invalid size: {size}"))
-        })?;
-        Ok(Some(size))
     }
 }
 

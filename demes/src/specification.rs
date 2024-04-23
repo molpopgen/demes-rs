@@ -3471,6 +3471,18 @@ impl Graph {
         unresolved.validate()?;
         unresolved.try_into()
     }
+
+    #[allow(dead_code)]
+    fn remove_ancient_past<T: TryInto<Time, Error = DemesError>>(
+        self,
+        time: T,
+    ) -> Result<Self, DemesError> {
+        // TODO: document why we allow unwrap here OR get rid of them by mapping None to Err.
+        let time = time.try_into()?;
+        let time = InputTime::from(f64::from(time));
+        let mut unresolved = UnresolvedGraph::from(self);
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -4468,5 +4480,34 @@ migrations:
         assert_eq!(trimmed.migrations()[0].end_time(), 10.);
         assert_eq!(trimmed.migrations()[1].start_time(), 10.);
         assert_eq!(trimmed.migrations()[1].end_time(), 1.);
+    }
+}
+
+#[cfg(test)]
+mod test_remove_ancient_past {
+
+    static YAML0: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+
+    #[test]
+    fn test_yaml0() {
+        let graph = crate::loads(YAML0).unwrap();
+        let trimmed = graph.remove_ancient_past(5.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 1);
+        assert_eq!(trimmed.deme_names()[0], "derived");
+        assert_eq!(trimmed.demes()[0].start_time(), f64::INFINITY);
+        assert_eq!(trimmed.demes()[0].end_time(), 0.0);
     }
 }

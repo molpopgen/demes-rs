@@ -3481,6 +3481,7 @@ impl Graph {
         let time = time.try_into()?;
         let time = InputTime::from(f64::from(time));
         let mut unresolved = UnresolvedGraph::from(self);
+
         // Remove all demes that just don't overlap
         unresolved.demes.retain(|d| {
             let start_time = d.history.start_time.unwrap();
@@ -3488,8 +3489,18 @@ impl Graph {
             time >= end_time && time < start_time
         });
 
-        for demes in &mut unresolved.demes {
-            if let Some(start_time) = demes.history.start_time {
+        // truncate epochs
+        for deme in &mut unresolved.demes {
+            if let Some(index) = deme.epochs.iter().position(|e| {
+                let end_time = e.end_time.unwrap();
+                time >= end_time
+            }) {
+                deme.epochs.truncate(index + 1);
+            } else {
+                deme.epochs.clear();
+            }
+            println!("{:?}",deme.epochs);
+            if let Some(start_time) = deme.history.start_time {
                 todo!()
             }
         }

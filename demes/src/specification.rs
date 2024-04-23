@@ -3488,9 +3488,12 @@ impl Graph {
             time >= end_time && time < start_time
         });
 
-        unresolved.demes.iter_mut().for_each(|deme| todo!());
+        for demes in &mut unresolved.demes {
+            if let Some(start_time) = demes.history.start_time {
+                todo!()
+            }
+        }
 
-        unresolved.demes.iter_mut().for_each(|deme| todo!());
         unresolved.resolve()?;
         unresolved.validate()?;
         unresolved.try_into()

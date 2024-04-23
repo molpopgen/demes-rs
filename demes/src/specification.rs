@@ -3499,9 +3499,33 @@ impl Graph {
             } else {
                 deme.epochs.clear();
             }
-            println!("{:?}",deme.epochs);
-            if let Some(start_time) = deme.history.start_time {
-                todo!()
+        }
+
+        unresolved.demes.retain(|d| !d.epochs.is_empty());
+
+        let names = unresolved
+            .demes
+            .iter()
+            .map(|d| d.name.clone())
+            .collect::<Vec<_>>();
+
+        for deme in &mut unresolved.demes {
+            if let Some(ancestors) = deme.history.ancestors.as_mut() {
+                // FIXME: this is broken for cases of multiple ancestors
+                // but only SOME are clipped
+                ancestors.retain(|a| names.contains(a));
+                if ancestors.is_empty() {
+                    deme.history.ancestors = None;
+                    deme.history.proportions = None;
+                }
+            }
+            if deme.history.ancestors.is_none() {
+                if let Some(start_time) = deme.history.start_time {
+                    if f64::from(start_time).is_finite() {
+                        // then this deme had ancestors and they've all been lost
+                        deme.history.start_time = Some(f64::INFINITY.into())
+                    }
+                }
             }
         }
 

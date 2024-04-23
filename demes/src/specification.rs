@@ -3510,11 +3510,25 @@ impl Graph {
             .collect::<Vec<_>>();
 
         for deme in &mut unresolved.demes {
-            if let Some(ancestors) = deme.history.ancestors.as_mut() {
-                // FIXME: this is broken for cases of multiple ancestors
-                // but only SOME are clipped
-                ancestors.retain(|a| names.contains(a));
-                if ancestors.is_empty() {
+            if let Some(ancestors) = deme.history.ancestors.as_ref() {
+                let proportions = deme.history.proportions.as_ref().unwrap();
+                let mut new_ancestors = vec![];
+                let mut new_proportions = vec![];
+                for (i, ancestor) in ancestors.iter().enumerate() {
+                    if names.contains(ancestor) {
+                        new_ancestors.push(ancestor.clone());
+                        new_proportions.push(f64::from(proportions[i]))
+                    }
+                }
+                if !new_ancestors.is_empty() {
+                    let sum_proportions = new_proportions.iter().sum::<f64>();
+                    let new_proportions = new_proportions
+                        .into_iter()
+                        .map(|np| InputProportion::from(np / sum_proportions))
+                        .collect::<Vec<_>>();
+                    deme.history.ancestors = Some(new_ancestors);
+                    deme.history.proportions = Some(new_proportions);
+                } else {
                     deme.history.ancestors = None;
                     deme.history.proportions = None;
                 }

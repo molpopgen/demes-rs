@@ -4565,6 +4565,34 @@ demes:
     - start_size: 100
 ";
 
+    static YAML1: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: ancestor2
+   defaults:
+    epoch:
+     end_time: 12
+   epochs:
+    - start_size: 100
+ - name: temporary
+   ancestors: [ancestor2]
+   epochs:
+    - end_time: 10.6
+      start_size: 55
+ - name: derived
+   ancestors: [ancestor, temporary]
+   proportions: [0.5, 0.5]
+   start_time: 10.6
+   epochs:
+    - start_size: 100
+";
+
     #[test]
     fn test_yaml0() {
         let graph = crate::loads(YAML0).unwrap();
@@ -4573,5 +4601,23 @@ demes:
         assert_eq!(trimmed.deme_names()[0], "derived");
         assert_eq!(trimmed.demes()[0].start_time(), f64::INFINITY);
         assert_eq!(trimmed.demes()[0].end_time(), 0.0);
+    }
+
+    #[test]
+    fn test_yaml1() {
+        let graph = crate::loads(YAML1).unwrap();
+        let trimmed = graph.remove_ancient_past(11.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 3);
+        assert_eq!(trimmed.deme_names()[0], "ancestor");
+        assert_eq!(trimmed.deme_names()[1], "temporary");
+        assert_eq!(trimmed.deme_names()[2], "derived");
+        for deme in trimmed.demes().iter().take(2) {
+            assert_eq!(deme.start_time(), f64::INFINITY);
+            assert_eq!(deme.end_time(), 10.6)
+        }
+        for deme in trimmed.demes().iter().skip(2) {
+            assert_eq!(deme.start_time(), 10.6);
+            assert_eq!(deme.end_time(), 0.)
+        }
     }
 }

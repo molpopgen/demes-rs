@@ -4663,8 +4663,12 @@ demes:
     #[test]
     fn test_yaml2() {
         let graph = crate::loads(YAML2).unwrap();
-        // This is an error b/c we leave a growing deme
-        // as the only deme, which is invalid.
-        assert!(graph.remove_ancient_past(100.).is_err());
+        // TODO: decide what to do here
+        // this slice clips off the ancestor.
+        // Without additional steps, we Err b/c our oldest epoch
+        // is growing.
+        // What Aaron does is to add an earlier epoch that is
+        // constant size with the "size_at" for the slice time.
+        graph.remove_ancient_past(100.).unwrap();
     }
 }

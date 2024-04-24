@@ -3544,6 +3544,8 @@ impl Graph {
             }
         }
 
+        todo!("migrations and pulses");
+
         unresolved.resolve()?;
         unresolved.validate()?;
         unresolved.try_into()

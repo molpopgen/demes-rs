@@ -3538,7 +3538,16 @@ impl Graph {
                 if let Some(start_time) = deme.history.start_time {
                     if f64::from(start_time).is_finite() {
                         // then this deme had ancestors and they've all been lost
-                        deme.history.start_time = Some(f64::INFINITY.into())
+                        deme.epochs[0].start_size = size_at_details(
+                            time,
+                            deme.history.start_time.unwrap().into(),
+                            deme.epochs[0].end_time.unwrap().into(),
+                            deme.epochs[0].start_size.unwrap().into(),
+                            deme.epochs[0].end_size.unwrap().into(),
+                            deme.epochs[0].size_function.unwrap(),
+                        )?
+                        .map(InputDemeSize::from);
+                        deme.history.start_time = Some(f64::INFINITY.into());
                     }
                 }
             }
@@ -4596,6 +4605,20 @@ demes:
     - start_size: 100
 ";
 
+    static YAML2: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 200
+ - name: descendant
+   ancestors: [ancestor]
+   epochs:
+    - end_size: 500
+      start_size: 100
+";
+
     #[test]
     fn test_yaml0() {
         let graph = crate::loads(YAML0).unwrap();
@@ -4635,5 +4658,13 @@ demes:
     fn test_yaml1_c() {
         let graph = crate::loads(YAML1).unwrap();
         assert!(graph.remove_ancient_past(0.0).is_err());
+    }
+
+    #[test]
+    fn test_yaml2() {
+        let graph = crate::loads(YAML2).unwrap();
+        // This is an error b/c we leave a growing deme
+        // as the only deme, which is invalid.
+        assert!(graph.remove_ancient_past(100.).is_err());
     }
 }

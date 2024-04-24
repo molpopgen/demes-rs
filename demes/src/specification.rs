@@ -3401,7 +3401,8 @@ impl Graph {
         self,
         time: T,
     ) -> Result<Self, DemesError> {
-        // TODO: document why we allow unwrap here OR get rid of them by mapping None to Err.
+        let cloned = self.clone(); // LAZY
+                                   // TODO: document why we allow unwrap here OR get rid of them by mapping None to Err.
         let time = time.try_into()?;
         let time = InputTime::from(f64::from(time));
         let mut unresolved = UnresolvedGraph::from(self);
@@ -3424,14 +3425,24 @@ impl Graph {
             }
         });
 
-        unresolved.demes.iter_mut().for_each(|deme| {
-            deme.epochs.iter_mut().for_each(|e| {
-                let end_time = e.end_time.unwrap();
-                if time > end_time {
-                    e.end_time = Some(time);
-                }
+        unresolved
+            .demes
+            .iter_mut()
+            .enumerate()
+            .for_each(|(di, deme)| {
+                deme.epochs.iter_mut().for_each(|e| {
+                    let end_time = e.end_time.unwrap();
+                    if time > end_time {
+                        e.end_size = cloned
+                            .deme(di)
+                            .size_at(time)
+                            .unwrap()
+                            .map(f64::from)
+                            .map(InputDemeSize::from);
+                        e.end_time = Some(time);
+                    }
+                });
             });
-        });
 
         unresolved.pulses.retain(|p| {
             let pulse_time = p.time.unwrap();
@@ -4295,6 +4306,19 @@ migrations:
    end_time: 0
 ";
 
+    static YAML6: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 200
+ - name: descendant
+   ancestors: [ancestor]
+   epochs:
+    - end_size: 500
+      start_size: 100
+";
     #[test]
     fn test_yaml0() {
         let graph = crate::loads(YAML0).unwrap();
@@ -4468,5 +4492,13 @@ migrations:
         assert_eq!(trimmed.migrations()[0].end_time(), 10.);
         assert_eq!(trimmed.migrations()[1].start_time(), 10.);
         assert_eq!(trimmed.migrations()[1].end_time(), 1.);
+    }
+
+    #[test]
+    fn test_yaml6() {
+        let graph = crate::loads(YAML6).unwrap();
+        let size_at_50 = graph.deme(1).size_at(50.).unwrap().unwrap();
+        let trimmed = graph.remove_recent_past(50.).unwrap();
+        assert_ne!(trimmed.deme(1).end_size(), size_at_50);
     }
 }

@@ -3484,9 +3484,10 @@ impl Graph {
 
         // Remove all demes that just don't overlap
         unresolved.demes.retain(|d| {
-            let start_time = d.history.start_time.unwrap();
+            //let start_time = d.history.start_time.unwrap();
             let end_time = d.epochs.last().unwrap().end_time.unwrap();
-            time >= end_time && time < start_time
+            end_time < time
+            //time >= end_time && time < start_time
         });
 
         // truncate epochs

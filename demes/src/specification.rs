@@ -4621,4 +4621,17 @@ demes:
             assert_eq!(deme.end_time(), 0.)
         }
     }
+
+    #[test]
+    fn test_yaml1_b() {
+        let graph = crate::loads(YAML1).unwrap();
+        let trimmed = graph.remove_ancient_past(100.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 4);
+    }
+
+    #[test]
+    fn test_yaml1_c() {
+        let graph = crate::loads(YAML1).unwrap();
+        assert!(graph.remove_ancient_past(0.0).is_err());
+    }
 }

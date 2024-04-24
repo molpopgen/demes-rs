@@ -3482,6 +3482,94 @@ impl Graph {
         unresolved.validate()?;
         unresolved.try_into()
     }
+
+    #[allow(dead_code)]
+    fn remove_ancient_past<T: TryInto<Time, Error = DemesError>>(
+        self,
+        time: T,
+    ) -> Result<Self, DemesError> {
+        // TODO: document why we allow unwrap here OR get rid of them by mapping None to Err.
+        let time = time.try_into()?;
+        let time = InputTime::from(f64::from(time));
+        let mut unresolved = UnresolvedGraph::from(self);
+
+        // Remove all demes that just don't overlap
+        unresolved.demes.retain(|d| {
+            //let start_time = d.history.start_time.unwrap();
+            let end_time = d.epochs.last().unwrap().end_time.unwrap();
+            end_time < time
+            //time >= end_time && time < start_time
+        });
+
+        // truncate epochs
+        for deme in &mut unresolved.demes {
+            if let Some(index) = deme.epochs.iter().position(|e| {
+                let end_time = e.end_time.unwrap();
+                time >= end_time
+            }) {
+                deme.epochs.truncate(index + 1);
+            } else {
+                deme.epochs.clear();
+            }
+        }
+
+        unresolved.demes.retain(|d| !d.epochs.is_empty());
+
+        let names = unresolved
+            .demes
+            .iter()
+            .map(|d| d.name.clone())
+            .collect::<Vec<_>>();
+
+        for deme in &mut unresolved.demes {
+            if let Some(ancestors) = deme.history.ancestors.as_ref() {
+                let proportions = deme.history.proportions.as_ref().unwrap();
+                let mut new_ancestors = vec![];
+                let mut new_proportions = vec![];
+                for (i, ancestor) in ancestors.iter().enumerate() {
+                    if names.contains(ancestor) {
+                        new_ancestors.push(ancestor.clone());
+                        new_proportions.push(f64::from(proportions[i]))
+                    }
+                }
+                if !new_ancestors.is_empty() {
+                    let sum_proportions = new_proportions.iter().sum::<f64>();
+                    let new_proportions = new_proportions
+                        .into_iter()
+                        .map(|np| InputProportion::from(np / sum_proportions))
+                        .collect::<Vec<_>>();
+                    deme.history.ancestors = Some(new_ancestors);
+                    deme.history.proportions = Some(new_proportions);
+                } else {
+                    deme.history.ancestors = None;
+                    deme.history.proportions = None;
+                }
+            }
+            if deme.history.ancestors.is_none() {
+                if let Some(start_time) = deme.history.start_time {
+                    if f64::from(start_time).is_finite() {
+                        // then this deme had ancestors and they've all been lost
+                        deme.epochs[0].start_size = size_at_details(
+                            time,
+                            deme.history.start_time.unwrap().into(),
+                            deme.epochs[0].end_time.unwrap().into(),
+                            deme.epochs[0].start_size.unwrap().into(),
+                            deme.epochs[0].end_size.unwrap().into(),
+                            deme.epochs[0].size_function.unwrap(),
+                        )?
+                        .map(InputDemeSize::from);
+                        deme.history.start_time = Some(f64::INFINITY.into());
+                    }
+                }
+            }
+        }
+
+        todo!("migrations and pulses");
+
+        unresolved.resolve()?;
+        unresolved.validate()?;
+        unresolved.try_into()
+    }
 }
 
 #[cfg(test)]
@@ -4500,5 +4588,119 @@ demes:
         let size_at_50 = graph.deme(1).size_at(50.).unwrap().unwrap();
         let trimmed = graph.remove_recent_past(50.).unwrap();
         assert_ne!(trimmed.deme(1).end_size(), size_at_50);
+    }
+}
+
+#[cfg(test)]
+mod test_remove_ancient_past {
+
+    static YAML0: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   epochs:
+    - start_size: 100
+";
+
+    static YAML1: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   defaults:
+    epoch:
+     end_time: 10.6
+   epochs:
+    - start_size: 100
+ - name: ancestor2
+   defaults:
+    epoch:
+     end_time: 12
+   epochs:
+    - start_size: 100
+ - name: temporary
+   ancestors: [ancestor2]
+   epochs:
+    - end_time: 10.6
+      start_size: 55
+ - name: derived
+   ancestors: [ancestor, temporary]
+   proportions: [0.5, 0.5]
+   start_time: 10.6
+   epochs:
+    - start_size: 100
+";
+
+    static YAML2: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+    - start_size: 100
+      end_time: 200
+ - name: descendant
+   ancestors: [ancestor]
+   epochs:
+    - end_size: 500
+      start_size: 100
+";
+
+    #[test]
+    fn test_yaml0() {
+        let graph = crate::loads(YAML0).unwrap();
+        let trimmed = graph.remove_ancient_past(5.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 1);
+        assert_eq!(trimmed.deme_names()[0], "derived");
+        assert_eq!(trimmed.demes()[0].start_time(), f64::INFINITY);
+        assert_eq!(trimmed.demes()[0].end_time(), 0.0);
+    }
+
+    #[test]
+    fn test_yaml1() {
+        let graph = crate::loads(YAML1).unwrap();
+        let trimmed = graph.remove_ancient_past(11.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 3);
+        assert_eq!(trimmed.deme_names()[0], "ancestor");
+        assert_eq!(trimmed.deme_names()[1], "temporary");
+        assert_eq!(trimmed.deme_names()[2], "derived");
+        for deme in trimmed.demes().iter().take(2) {
+            assert_eq!(deme.start_time(), f64::INFINITY);
+            assert_eq!(deme.end_time(), 10.6)
+        }
+        for deme in trimmed.demes().iter().skip(2) {
+            assert_eq!(deme.start_time(), 10.6);
+            assert_eq!(deme.end_time(), 0.)
+        }
+    }
+
+    #[test]
+    fn test_yaml1_b() {
+        let graph = crate::loads(YAML1).unwrap();
+        let trimmed = graph.remove_ancient_past(100.0).unwrap();
+        assert_eq!(trimmed.num_demes(), 4);
+    }
+
+    #[test]
+    fn test_yaml1_c() {
+        let graph = crate::loads(YAML1).unwrap();
+        assert!(graph.remove_ancient_past(0.0).is_err());
+    }
+
+    #[test]
+    fn test_yaml2() {
+        let graph = crate::loads(YAML2).unwrap();
+        // TODO: decide what to do here
+        // this slice clips off the ancestor.
+        // Without additional steps, we Err b/c our oldest epoch
+        // is growing.
+        // What Aaron does is to add an earlier epoch that is
+        // constant size with the "size_at" for the slice time.
+        graph.remove_ancient_past(100.).unwrap();
     }
 }

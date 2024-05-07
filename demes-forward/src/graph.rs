@@ -876,7 +876,7 @@ impl ForwardGraph {
     {
         let deme_index = match deme.into() {
             demes::DemeId::Index(index) => index,
-            demes::DemeId::Name(name) => match self.deme_to_index.get(&name.to_owned()) {
+            demes::DemeId::Name(name) => match self.deme_to_index.get(name) {
                 Some(&index) => index,
                 None => {
                     return Err(

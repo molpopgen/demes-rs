@@ -188,10 +188,6 @@ impl std::fmt::Display for TimeInterval {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[repr(transparent)]
-struct CustomTimeUnits(String);
-
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum TimeTrampoline {

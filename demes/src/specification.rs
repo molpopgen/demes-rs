@@ -2226,13 +2226,13 @@ impl GraphDefaults {
             other.end_time = self.migration.end_time;
         }
         if other.source.is_none() {
-            other.source = self.migration.source.clone();
+            other.source.clone_from(&self.migration.source);
         }
         if other.dest.is_none() {
-            other.dest = self.migration.dest.clone();
+            other.dest.clone_from(&self.migration.dest);
         }
         if other.demes.is_none() {
-            other.demes = self.migration.demes.clone();
+            other.demes.clone_from(&self.migration.demes);
         }
     }
 
@@ -2241,13 +2241,13 @@ impl GraphDefaults {
             other.time = self.pulse.time;
         }
         if other.sources.is_none() {
-            other.sources = self.pulse.sources.clone();
+            other.sources.clone_from(&self.pulse.sources);
         }
         if other.dest.is_none() {
-            other.dest = self.pulse.dest.clone();
+            other.dest.clone_from(&self.pulse.dest);
         }
         if other.proportions.is_none() {
-            other.proportions = self.pulse.proportions.clone();
+            other.proportions.clone_from(&self.pulse.proportions);
         }
     }
 }

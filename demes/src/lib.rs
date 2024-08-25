@@ -106,6 +106,13 @@ pub fn loads_json(json: &str) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_json_str(json)
 }
 
+/// Generate a [`Graph`] from a TOML string.
+#[cfg(feature = "toml")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+pub fn loads_toml(toml: &str) -> Result<specification::Graph, DemesError> {
+    specification::Graph::new_resolved_from_toml_str(toml)
+}
+
 /// Build a [`Graph`] from a type implementing
 /// [`std::io::Read`].
 ///
@@ -158,6 +165,13 @@ pub fn load<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
 /// Load a [`Graph`] from a JSON reader.
 pub fn load_json<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
     specification::Graph::new_resolved_from_json_reader(reader)
+}
+
+#[cfg(feature = "toml")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+/// Load a [`Graph`] from a TOML reader.
+pub fn load_toml<T: Read>(reader: T) -> Result<specification::Graph, DemesError> {
+    specification::Graph::new_resolved_from_toml_reader(reader)
 }
 
 /// Return the package version given in the

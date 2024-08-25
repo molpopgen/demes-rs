@@ -51,6 +51,11 @@ pub enum DemesError {
     #[error(transparent)]
     /// Errors coming from `serde_json`.
     JsonError(#[from] serde_json::Error),
+    #[cfg(feature = "toml")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+    #[error(transparent)]
+    /// Errors coming from `toml` during deserialization.
+    TomlDeError(#[from] toml::de::Error),
     /// Errors related to low-level types
     #[error("{0:?}")]
     ValueError(String),

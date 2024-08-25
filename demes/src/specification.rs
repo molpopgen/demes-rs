@@ -135,6 +135,8 @@ enum InputFormatInternal {
     Yaml(String),
     #[allow(dead_code)]
     Json(String),
+    #[allow(dead_code)]
+    Toml(String),
 }
 
 #[derive(Debug)]
@@ -145,6 +147,8 @@ pub enum InputFormat<'graph> {
     Yaml(&'graph str),
     /// Input is JSON
     Json(&'graph str),
+    /// Input is TOML
+    Toml(&'graph str),
 }
 
 impl<'graph> InputFormat<'graph> {
@@ -153,6 +157,7 @@ impl<'graph> InputFormat<'graph> {
         match self {
             Self::Yaml(s) => s,
             Self::Json(s) => s,
+            Self::Toml(s) => s,
         }
     }
 }
@@ -3031,6 +3036,16 @@ impl Graph {
         g.try_into()
     }
 
+    #[cfg(feature = "toml")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+    pub(crate) fn new_resolved_from_toml_str(toml: &'_ str) -> Result<Self, DemesError> {
+        let mut g: UnresolvedGraph = toml::from_str(toml)?;
+        g.resolve()?;
+        g.validate()?;
+        g.input_string = Some(InputFormatInternal::Toml(toml.to_owned()));
+        g.try_into()
+    }
+
     pub(crate) fn new_from_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let yaml = string_from_reader(reader)?;
         Self::new_from_str(&yaml)
@@ -3041,6 +3056,13 @@ impl Graph {
     pub(crate) fn new_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let json = string_from_reader(reader)?;
         Self::new_resolved_from_json_str(&json)
+    }
+
+    #[cfg(feature = "toml")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+    pub(crate) fn new_from_toml_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let toml = string_from_reader(reader)?;
+        Self::new_resolved_from_toml_str(&toml)
     }
 
     pub(crate) fn new_resolved_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
@@ -3059,6 +3081,14 @@ impl Graph {
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
         let graph = Self::new_from_json_reader(reader)?;
+        assert!(graph.input_string.is_some());
+        Ok(graph)
+    }
+
+    #[cfg(feature = "toml")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
+    pub(crate) fn new_resolved_from_toml_reader<T: Read>(reader: T) -> Result<Self, DemesError> {
+        let graph = Self::new_from_toml_reader(reader)?;
         assert!(graph.input_string.is_some());
         Ok(graph)
     }
@@ -3395,6 +3425,7 @@ impl Graph {
             Some(format) => match format {
                 InputFormatInternal::Yaml(string) => Some(InputFormat::Yaml(string.as_str())),
                 InputFormatInternal::Json(string) => Some(InputFormat::Json(string.as_str())),
+                InputFormatInternal::Toml(string) => Some(InputFormat::Toml(string.as_str())),
             },
         }
     }
@@ -4103,4 +4134,56 @@ demes:
     make_graph_to_unresolved_graph_test!(test_yaml0, YAML0);
     make_graph_to_unresolved_graph_test!(test_yaml1, YAML1);
     make_graph_to_unresolved_graph_test!(test_yaml2, YAML2);
+}
+
+#[test]
+#[cfg(feature = "toml")]
+fn test_toml() {
+    let toml: &str = "
+        time_units = \"years\"
+        description = \"a description\"
+        generation_time = 25
+
+        [defaults]
+        [defaults.migration]
+        rate = 0.25
+        demes = [\"A\", \"B\"]
+
+        [[demes]]
+        name = \"A\"
+        [[demes.epochs]]
+        start_size = 100
+
+        [[demes]]
+        name = \"B\"
+        [[demes.epochs]]
+        start_size = 42
+";
+    let mut m: UnresolvedGraph = toml::from_str(toml).unwrap();
+    assert_eq!(m.demes.len(), 2);
+    assert_eq!(m.demes[0].epochs.len(), 1);
+    assert_eq!(m.demes[1].epochs.len(), 1);
+    m.resolve().unwrap();
+    let _: Graph = m.try_into().unwrap();
+}
+
+#[test]
+#[cfg(feature = "toml")]
+fn test_roundtrip() {
+    let mut f = std::fs::File::open("examples/jouganous.yaml").unwrap();
+    let mut buf = String::default();
+    let _ = f.read_to_string(&mut buf).unwrap();
+
+    // Load graph from yaml
+    let graph = crate::loads(&buf).unwrap();
+
+    // use serde to convert yaml into toml
+    let toml_from_yaml = serde_yaml::from_str::<toml::Value>(&buf).unwrap();
+
+    let toml_string = toml::to_string(&toml_from_yaml).unwrap();
+
+    let mut u: UnresolvedGraph = toml::from_str(&toml_string).unwrap();
+    u.resolve().unwrap();
+    let graph_from_toml = Graph::try_from(u).unwrap();
+    assert_eq!(graph, graph_from_toml);
 }

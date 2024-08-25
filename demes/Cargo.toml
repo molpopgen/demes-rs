@@ -7,7 +7,7 @@ license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
-rust-version = "1.60.0"
+rust-version = "1.66.1"
 
 [lib]
 crate-type = ["lib", "staticlib"]
@@ -29,6 +29,7 @@ thiserror = "~1"
 serde = { version = "~1", features = ["derive", "rc"] }
 serde_yaml = "~0.9"
 serde_json = {version = "1.0.114", optional = true, features=["float_roundtrip"]}
+toml = {version = "0.7.3", optional = true}
 
 [dependencies.regex]
 version = "~1"

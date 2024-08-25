@@ -8,5 +8,7 @@ fn {name}() {{
     validate_names_in_graph(&graph);
     round_trip_equality(&graph);
     #[cfg(feature = "json")]
-    json_roundtrip(graph, "{path}");
+    json_roundtrip(&graph, "{path}");
+    #[cfg(feature = "toml")]
+    toml_roundtrip(&graph, "{path}");
 }}

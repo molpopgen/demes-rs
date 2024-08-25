@@ -9,13 +9,13 @@ use std::io::Read;
 /// This type is meant to be used in an FFI context.
 /// We therefore deny Send/Sync:
 ///
-/// ```{compile_fail}
+/// ```compile_fail
 /// fn is_send<T: Send>()  {}
 ///
 /// is_send::<demes_forward_capi::OpaqueForwardGraph>();
 /// ```
 ///
-/// ```{compile_fail}
+/// ```compile_fail
 /// fn is_sync<T: Sync>()  {}
 ///
 /// is_send::<demes_forward_capi::OpaqueForwardGraph>();

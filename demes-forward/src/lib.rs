@@ -7,7 +7,7 @@
 //! as a cargo dependency, guaranteeing that
 //! a compatible version is available.
 //!
-//! ```{rust}
+//! ```rust
 //! use demes_forward::demes;
 //!
 //! let yaml = "

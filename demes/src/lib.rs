@@ -16,7 +16,7 @@
 //! ## More information
 //!
 //! * See [here](https://popsim-consortium.github.io/demes-spec-docs/main/introduction.html#) for
-//! an overview of `demes`.
+//!   an overview of `demes`.
 //!
 //! ## Technical details
 //!

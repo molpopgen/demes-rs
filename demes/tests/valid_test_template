@@ -7,5 +7,6 @@ fn {name}() {{
     let graph = result.unwrap();
     validate_names_in_graph(&graph);
     round_trip_equality(&graph);
+    #[cfg(feature = "json")]
     json_roundtrip(graph, "{path}");
 }}

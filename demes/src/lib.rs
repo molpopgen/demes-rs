@@ -51,6 +51,9 @@ mod selfing_rate;
 mod specification;
 mod time;
 
+#[cfg(feature = "json")]
+mod process_json;
+
 #[cfg(feature = "ffi")]
 pub mod ffi;
 

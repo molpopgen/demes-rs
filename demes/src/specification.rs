@@ -3020,7 +3020,11 @@ impl Graph {
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_str(json: &'_ str) -> Result<Self, DemesError> {
-        let mut g: UnresolvedGraph = serde_json::from_str(json)?;
+        let json: std::collections::HashMap<String, serde_json::Value> =
+            serde_json::from_str(json)?;
+        let json = crate::process_json::fix_json_input(json)?;
+        let json = serde_json::to_string(&json)?;
+        let mut g: UnresolvedGraph = serde_json::from_str(&json)?;
         g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Json(json.to_owned()));

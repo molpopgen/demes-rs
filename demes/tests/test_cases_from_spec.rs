@@ -23,12 +23,15 @@ fn round_trip_equality(graph: &Graph) {
     assert_eq!(graph, &round_trip);
 }
 
-#[cfg(not(feature = "json"))]
-fn json_roundtrip(_: Graph, _: &str) {}
-
 #[cfg(feature = "json")]
 fn json_roundtrip(graph: Graph, filename: &str) {
-    let json = graph.as_json_string().unwrap();
+    use std::io::Read;
+
+    let mut f = std::fs::File::open(filename).unwrap();
+    let mut buf = String::new();
+    let _ = f.read_to_string(&mut buf).unwrap();
+    let json = serde_yaml::from_str::<serde_json::Value>(&buf).unwrap();
+    let json = json.to_string();
     let graph_from_json = demes::loads_json(&json).unwrap();
     assert_eq!(graph, graph_from_json, "{filename:?}");
 

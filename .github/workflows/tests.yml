@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         rust:
           - stable
-          - "1.60.0"
+          - "1.66.1"
 
     steps:
       - name: Cancel Previous Runs

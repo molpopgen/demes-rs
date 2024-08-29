@@ -28,5 +28,5 @@ jobs:
           crate: cargo-semver-checks
           version: "~0.34.0"
       - name: run check-release
-        run: cargo semver-checks check-release
+        run: cargo semver-checks check-release --all-features
 

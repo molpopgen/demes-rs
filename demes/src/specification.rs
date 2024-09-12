@@ -1570,36 +1570,6 @@ build_epoch_data_iterator!(DemeEpochEndTimesIterator, Time, end_time);
 build_epoch_data_iterator!(DemeEpochStartSizesIterator, DemeSize, start_size);
 build_epoch_data_iterator!(DemeEpochEndSizesIterator, DemeSize, end_size);
 
-struct DOIIterator<'graph> {
-    graph: &'graph Graph,
-    index: usize,
-}
-
-impl<'graph> DOIIterator<'graph> {
-    fn new(graph: &'graph Graph) -> Self {
-        Self { graph, index: 0 }
-    }
-}
-
-impl<'graph> Iterator for DOIIterator<'graph> {
-    type Item = &'graph str;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match &self.graph.doi {
-            Some(doi) => {
-                let temp = self.index;
-                self.index += 1;
-                //doi.get(temp)
-                match doi.get(temp) {
-                    Some(v) => Some(v.as_str()),
-                    None => None,
-                }
-            }
-            None => None,
-        }
-    }
-}
-
 /// HDM data for a [`Deme`](crate::Deme)
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -2895,10 +2865,16 @@ impl From<Graph> for UnresolvedGraph {
             .map(UnresolvedDeme::from)
             .collect::<Vec<_>>();
 
+        let doi = if value.doi.is_empty() {
+            None
+        } else {
+            Some(value.doi)
+        };
+
         Self {
             input_string: value.input_string,
             description: value.description,
-            doi: value.doi,
+            doi,
             input_defaults: GraphDefaultInput::default(),
             defaults: GraphDefaults::default(),
             metadata: value.metadata,
@@ -2932,8 +2908,8 @@ pub struct Graph {
     input_string: Option<InputFormatInternal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    doi: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    doi: Vec<String>,
     #[serde(default = "Metadata::default")]
     #[serde(skip_serializing_if = "Metadata::is_empty")]
     metadata: Metadata,
@@ -2991,7 +2967,7 @@ impl TryFrom<UnresolvedGraph> for Graph {
         Ok(Self {
             input_string: value.input_string,
             description: value.description,
-            doi: value.doi,
+            doi: value.doi.unwrap_or_default(),
             metadata: value.metadata,
             time_units: value.time_units,
             generation_time: value
@@ -3297,7 +3273,7 @@ impl Graph {
 
     /// Return an iterator over DOI information.
     pub fn doi(&self) -> impl Iterator<Item = &str> {
-        DOIIterator::new(self)
+        self.doi.iter().map(|s| s.as_str())
     }
 
     /// Check if any epochs have non-integer

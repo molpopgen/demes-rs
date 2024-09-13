@@ -11,3 +11,30 @@ fn test_doi() {
         assert_eq!(i, j)
     }
 }
+
+#[test]
+fn test_graph_with_description() {
+    let yaml = "
+description: A great demes graph
+time_units: generations
+demes:
+ - name: demeA
+   epochs:
+    - start_size: 100
+";
+    let graph = demes::loads(yaml).unwrap();
+    assert_eq!(graph.description(), Some("A great demes graph"));
+}
+
+#[test]
+fn test_graph_without_description() {
+    let yaml = "
+time_units: generations
+demes:
+ - name: demeA
+   epochs:
+    - start_size: 100
+";
+    let graph = demes::loads(yaml).unwrap();
+    assert!(graph.description().is_none());
+}

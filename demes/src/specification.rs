@@ -2285,20 +2285,20 @@ impl DemeDefaults {
 /// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
-    #[serde(flatten, deserialize_with = "require_non_empty_metadata")]
+    #[serde(flatten)]
     metadata: std::collections::BTreeMap<String, serde_yaml::Value>,
 }
 
 fn require_non_empty_metadata<'de, D>(
     deserializer: D,
-) -> Result<std::collections::BTreeMap<String, serde_yaml::Value>, D::Error>
+) -> Result<Option<std::collections::BTreeMap<String, serde_yaml::Value>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let buf = std::collections::BTreeMap::<String, serde_yaml::Value>::deserialize(deserializer)?;
 
     if !buf.is_empty() {
-        Ok(buf)
+        Ok(Some(buf))
     } else {
         Err(serde::de::Error::custom(
             "metadata: cannot be an empty mapping".to_string(),
@@ -2335,9 +2335,10 @@ pub(crate) struct UnresolvedGraph {
     input_defaults: GraphDefaultInput,
     #[serde(skip)]
     defaults: GraphDefaults,
-    #[serde(default = "Metadata::default")]
-    #[serde(skip_serializing_if = "Metadata::is_empty")]
-    metadata: Metadata,
+    #[serde(deserialize_with = "require_non_empty_metadata")]
+    #[serde(default = "Option::default")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<std::collections::BTreeMap<String, serde_yaml::Value>>,
     time_units: TimeUnits,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_time: Option<InputGenerationTime>,
@@ -2377,7 +2378,7 @@ impl UnresolvedGraph {
             description: Option::<String>::default(),
             doi: Option::<Vec<String>>::default(),
             defaults: GraphDefaults::default(),
-            metadata: Metadata::default(),
+            metadata: Option::default(),
             demes: Vec::<UnresolvedDeme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
             resolved_migrations: Vec::<AsymmetricMigration>::default(),
@@ -2816,7 +2817,8 @@ impl UnresolvedGraph {
     }
 
     pub(crate) fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata
+        assert!(!metadata.is_empty());
+        self.metadata = Some(metadata.metadata.clone())
     }
 }
 
@@ -2883,9 +2885,9 @@ pub struct Graph {
     description: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     doi: Vec<String>,
-    #[serde(default = "Metadata::default")]
-    #[serde(skip_serializing_if = "Metadata::is_empty")]
-    metadata: Metadata,
+    #[serde(default = "Option::default")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<std::collections::BTreeMap<String, serde_yaml::Value>>,
     time_units: TimeUnits,
     generation_time: GenerationTime,
     pub(crate) demes: Vec<Deme>,
@@ -3123,11 +3125,9 @@ impl Graph {
 
     /// Get a copy of the top-level [`Metadata`](crate::Metadata).
     pub fn metadata(&self) -> Option<Metadata> {
-        if self.metadata.metadata.is_empty() {
-            None
-        } else {
-            Some(self.metadata.clone())
-        }
+        self.metadata.as_ref().map(|md| Metadata {
+            metadata: md.clone(),
+        })
     }
 
     fn convert_to_generations_details(

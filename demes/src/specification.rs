@@ -1160,11 +1160,12 @@ impl UnresolvedEpoch {
     }
 
     fn validate_end_time(&self, index: usize, deme_name: &str) -> Result<(), DemesError> {
-        match self.end_time {
-            Some(time) => time.err_if_not_valid_epoch_end_time(),
-            None => Err(DemesError::EpochError(format!(
+        if self.end_time.is_none() {
+            Err(DemesError::EpochError(format!(
                 "deme {deme_name}, epoch {index}: end time is None",
-            ))),
+            )))
+        } else {
+            Ok(())
         }
     }
 
@@ -1704,6 +1705,12 @@ impl UnresolvedDeme {
                     self.name
                 ))
             })?);
+
+            if !end_time.is_finite() {
+                return Err(DemesError::EpochError(format!(
+                    "invalid end_time: {end_time:?}"
+                )));
+            }
 
             if end_time >= last_time {
                 return Err(DemesError::EpochError(
@@ -4128,4 +4135,36 @@ fn test_roundtrip() {
     u.resolve().unwrap();
     let graph_from_toml = Graph::try_from(u).unwrap();
     assert_eq!(graph, graph_from_toml);
+}
+
+#[test]
+#[should_panic]
+fn test_negative_epoch_end_time() {
+    let yaml = "
+ time_units: years
+ generation_time: 25
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: -1
+ ";
+    let _ = crate::loads(yaml).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_infinite_epoch_end_time() {
+    let yaml = "
+ time_units: years
+ generation_time: 25
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: .inf
+ ";
+    let _ = crate::loads(yaml).unwrap();
 }

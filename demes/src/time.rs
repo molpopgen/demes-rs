@@ -97,18 +97,6 @@ impl TryFrom<f64> for Time {
 pub struct InputTime(f64);
 
 impl InputTime {
-    pub(crate) fn is_valid_epoch_end_time(&self) -> bool {
-        self.0.is_finite()
-    }
-
-    pub(crate) fn err_if_not_valid_epoch_end_time(&self) -> Result<(), DemesError> {
-        if self.is_valid_epoch_end_time() {
-            Ok(())
-        } else {
-            let msg = format!("end_time must be <= t < Infinity, got: {}", self.0);
-            Err(DemesError::EpochError(msg))
-        }
-    }
     pub(crate) fn default_deme_start_time() -> Self {
         Self(f64::INFINITY)
     }

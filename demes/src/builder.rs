@@ -20,6 +20,10 @@ pub enum BuilderError {
     /// Error type when defaults fail to serialize
     #[error(transparent)]
     SerdeYamlError(#[from] serde_yaml::Error),
+    /// Error propagated from the main
+    /// graph resolution logic.
+    #[error(transparent)]
+    DemesError(#[from] crate::DemesError),
 }
 
 /// This type allows building a [`Graph`](crate::Graph) using code
@@ -225,7 +229,9 @@ impl GraphBuilder {
         metadata: &T,
     ) -> Result<(), BuilderError> {
         let yaml = serde_yaml::to_string(metadata)?;
-        let metadata: crate::Metadata = serde_yaml::from_str(&yaml)?;
+        let md: std::collections::BTreeMap<String, serde_yaml::Value> =
+            serde_yaml::from_str(&yaml)?;
+        let metadata = crate::Metadata::try_from(md)?;
         self.metadata = Some(metadata);
         Ok(())
     }

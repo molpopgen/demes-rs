@@ -545,7 +545,7 @@ pub unsafe extern "C" fn demes_graph_toplevel_metadata_yaml(
             *output = std::ptr::null_mut();
             0
         }
-        Some(metadata) => match serde_yaml::to_string(&metadata) {
+        Some(metadata) => match metadata.as_yaml_string() {
             Err(e) => {
                 error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 1
@@ -638,7 +638,7 @@ pub unsafe extern "C" fn demes_graph_toplevel_metadata_json(
             *output = std::ptr::null_mut();
             0
         }
-        Some(metadata) => match serde_json::to_string(&metadata) {
+        Some(metadata) => match serde_json::to_string(metadata.as_raw_ref()) {
             Err(e) => {
                 error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 1

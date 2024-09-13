@@ -4168,3 +4168,174 @@ fn test_infinite_epoch_end_time() {
  ";
     let _ = crate::loads(yaml).unwrap();
 }
+
+#[cfg(test)]
+mod deme_equality {
+    #[test]
+    fn test_different_names() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+  - name: demeB
+    epochs:
+     - start_size: 50
+       ";
+        let graph = crate::loads(yaml).unwrap();
+        assert_eq!(graph.demes()[0], graph.demes()[0]);
+        assert_eq!(graph.demes()[1], graph.demes()[1]);
+        assert_ne!(graph.demes()[0], graph.demes()[1]);
+    }
+
+    // Some of the tests below are semi-contrived.
+    // Because a Graph cannot have two demes with the
+    // same name, we must compare deme objects between
+    // different graphs to ensure that differences in other
+    // fields correctly give a not equals result.
+
+    #[test]
+    fn test_different_epochs_start_size() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       ";
+        let yaml2 = "
+ time_units: generations
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 10
+       ";
+        let graph = crate::loads(yaml).unwrap();
+        let graph2 = crate::loads(yaml2).unwrap();
+        assert_ne!(graph.demes()[0], graph2.demes()[0]);
+    }
+
+    #[test]
+    fn test_different_epochs_end_size() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: 20
+     - end_size: 100
+       ";
+        let yaml2 = "
+ time_units: generations
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: 20
+     - end_size: 500
+       ";
+        let graph = crate::loads(yaml).unwrap();
+        let graph2 = crate::loads(yaml2).unwrap();
+        assert_ne!(graph.demes()[0], graph2.demes()[0]);
+    }
+
+    #[test]
+    fn test_different_epochs_growth_function() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: 20
+     - end_size: 100
+       ";
+        let yaml2 = "
+ time_units: generations
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       end_time: 20
+     - end_size: 100
+       size_function: linear
+       ";
+        let graph = crate::loads(yaml).unwrap();
+        let graph2 = crate::loads(yaml2).unwrap();
+        assert_ne!(graph.demes()[0], graph2.demes()[0]);
+    }
+
+    #[test]
+    fn test_different_descriptions() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    description: yes
+    epochs:
+     - start_size: 50
+       ";
+        let yaml2 = "
+ time_units: generations
+ description: A deme that existed until 20 years ago.
+ demes:
+  - name: deme
+    description: no
+    epochs:
+     - start_size: 50
+       ";
+        let graph = crate::loads(yaml).unwrap();
+        let graph2 = crate::loads(yaml2).unwrap();
+        assert_ne!(graph.demes()[0], graph2.demes()[0]);
+    }
+
+    #[test]
+    fn test_different_ancestor_proportions() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+        let yaml2 = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.5, 0.5]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+        let graph = crate::loads(yaml).unwrap();
+        let graph2 = crate::loads(yaml2).unwrap();
+        assert_eq!(graph.demes()[0], graph2.demes()[0]);
+        assert_eq!(graph.demes()[1], graph2.demes()[1]);
+        assert_ne!(graph.demes()[2], graph2.demes()[2]);
+    }
+}

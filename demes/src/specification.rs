@@ -4339,3 +4339,78 @@ mod deme_equality {
         assert_ne!(graph.demes()[2], graph2.demes()[2]);
     }
 }
+
+#[cfg(test)]
+mod unknown_fields {
+    // Some of our structs use a combo
+    // of serde::deny_unknown_fields and
+    // sedfe::flatten.
+    // However, the serde docs say not to do
+    // this.
+    // (We didn't realize this at the time.)
+    // Serde issue 2384 suggests that
+    // "simple uses" combinging these do work,
+    // but that things are fragile.
+    // These tests ensure that we are getting
+    // expected behavior.
+
+    #[test]
+    fn unknown_deme_fields() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    epochs:
+     - start_size: 50
+       ";
+        assert!(crate::loads(yaml).is_ok());
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    zodiac_sign: taurus
+    epochs:
+     - start_size: 50
+       ";
+        assert!(crate::loads(yaml).is_err());
+    }
+
+    #[test]
+    fn unknown_deme_default_fields() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    defaults:
+     epoch: {start_size: 50}
+       ";
+        assert!(crate::loads(yaml).is_ok());
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    defaults:
+     epoch:
+      start_size: 50
+       ";
+        assert!(crate::loads(yaml).is_ok());
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    defaults:
+     epoch: {start_size: 50, weekday: Monday}
+       ";
+        assert!(crate::loads(yaml).is_err());
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: deme
+    defaults:
+     epoch:
+      start_size: 50
+      weekday: Monday
+       ";
+        assert!(crate::loads(yaml).is_err());
+    }
+}

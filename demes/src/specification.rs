@@ -2285,8 +2285,23 @@ impl DemeDefaults {
 /// ```
 #[derive(Clone, Default, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
-    #[serde(flatten)]
     metadata: std::collections::BTreeMap<String, serde_yaml::Value>,
+}
+
+impl TryFrom<std::collections::BTreeMap<String, serde_yaml::Value>> for Metadata {
+    type Error = DemesError;
+
+    fn try_from(
+        value: std::collections::BTreeMap<String, serde_yaml::Value>,
+    ) -> Result<Self, Self::Error> {
+        if value.is_empty() {
+            Err(DemesError::GraphError(
+                "toplevel metadata must mot be empty".to_string(),
+            ))
+        } else {
+            Ok(Metadata { metadata: value })
+        }
+    }
 }
 
 fn require_non_empty_metadata<'de, D>(
@@ -2314,7 +2329,11 @@ impl Metadata {
 
     /// Return the metadata as YAML
     pub fn as_yaml_string(&self) -> Result<String, serde_yaml::Error> {
-        serde_yaml::to_string(&self.metadata)
+        serde_yaml::to_string(self.as_raw_ref())
+    }
+
+    pub(crate) fn as_raw_ref(&self) -> &std::collections::BTreeMap<String, serde_yaml::Value> {
+        &self.metadata
     }
 }
 

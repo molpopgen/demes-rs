@@ -2081,13 +2081,6 @@ fn deme_name_exists<F: FnOnce(String) -> DemesError>(
     }
 }
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GraphDefaultInput {
-    #[serde(flatten)]
-    defaults: GraphDefaults,
-}
-
 /// Top-level defaults
 #[derive(Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -2348,11 +2341,7 @@ pub(crate) struct UnresolvedGraph {
     description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     doi: Option<Vec<String>>,
-    #[serde(skip_serializing)]
-    #[serde(default = "GraphDefaultInput::default")]
-    #[serde(rename = "defaults")]
-    input_defaults: GraphDefaultInput,
-    #[serde(skip)]
+    #[serde(default = "GraphDefaults::default")]
     defaults: GraphDefaults,
     #[serde(deserialize_with = "require_non_empty_metadata")]
     #[serde(default = "Option::default")]
@@ -2383,20 +2372,15 @@ impl UnresolvedGraph {
         generation_time: Option<InputGenerationTime>,
         defaults: Option<GraphDefaults>,
     ) -> Self {
-        let input_defaults = match defaults {
-            Some(defaults) => GraphDefaultInput { defaults },
-            None => GraphDefaultInput::default(),
-        };
         Self {
             input_string: None,
             time_units,
-            input_defaults,
             generation_time,
 
             // remaining fields have defaults
             description: Option::<String>::default(),
             doi: Option::<Vec<String>>::default(),
-            defaults: GraphDefaults::default(),
+            defaults: defaults.unwrap_or_default(),
             metadata: Option::default(),
             demes: Vec::<UnresolvedDeme>::default(),
             input_migrations: Vec::<UnresolvedMigration>::default(),
@@ -2782,7 +2766,6 @@ impl UnresolvedGraph {
                 "no demes have been specified".to_string(),
             ));
         }
-        std::mem::swap(&mut self.defaults, &mut self.input_defaults.defaults);
         self.defaults.validate()?;
         self.deme_map = self.build_deme_map()?;
 
@@ -2869,7 +2852,6 @@ impl From<Graph> for UnresolvedGraph {
             input_string: value.input_string,
             description: value.description,
             doi,
-            input_defaults: GraphDefaultInput::default(),
             defaults: GraphDefaults::default(),
             metadata: value.metadata,
             time_units: value.time_units,

@@ -38,9 +38,8 @@ fn iterate_all_generations(graph: &mut demes_forward::ForwardGraph) -> ModelFirs
     let mut first_time_visited = None;
     let mut last_time_visited = None;
     for time in graph.time_iterator() {
-        match first_time_visited {
-            None => first_time_visited = Some(time),
-            Some(_) => (),
+        if first_time_visited.is_none() {
+            first_time_visited = Some(time)
         }
         if time == demes_forward::ForwardTime::from(0.0) {
             assert!(graph.last_time_updated().is_none());

@@ -629,18 +629,15 @@ impl UnresolvedPulse {
                 .map_err(|_| DemesError::PulseError(format!("invalid time: {value:?}")))?;
         }
 
-        match &self.proportions {
-            Some(value) => {
-                for v in value {
-                    if Proportion::try_from(*v).is_err() {
-                        return Err(DemesError::PulseError(format!(
-                            "invalid proportion: {:?}",
-                            *v
-                        )));
-                    }
+        if let Some(proportions) = &self.proportions {
+            for v in proportions {
+                if Proportion::try_from(*v).is_err() {
+                    return Err(DemesError::PulseError(format!(
+                        "invalid proportion: {:?}",
+                        *v
+                    )));
                 }
             }
-            None => (),
         }
 
         Ok(())
@@ -2229,17 +2226,14 @@ impl TopLevelDemeDefaults {
                 .map_err(|_| DemesError::DemeError(format!("invalid start_time: {value:?}")))?;
         }
 
-        match &self.proportions {
-            Some(value) => {
-                for v in value {
-                    if Proportion::try_from(*v).is_err() {
-                        return Err(DemesError::GraphError(format!(
-                            "invalid default proportion: {v:?}"
-                        )));
-                    }
+        if let Some(proportions) = &self.proportions {
+            for v in proportions {
+                if Proportion::try_from(*v).is_err() {
+                    return Err(DemesError::GraphError(format!(
+                        "invalid default proportion: {v:?}"
+                    )));
                 }
             }
-            None => (),
         }
 
         Ok(())

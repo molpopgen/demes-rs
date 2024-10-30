@@ -586,7 +586,7 @@ impl ForwardGraph {
         s.iter().filter(|deme| deme.is_extant()).count()
     }
 
-    fn get_slice_if<'a, T: Sized>(&'a self, generation: Generation, s: &'a [T]) -> Option<&[T]> {
+    fn get_slice_if<'a, T: Sized>(&self, generation: Generation, s: &'a [T]) -> Option<&'a [T]> {
         let is_empty = match generation {
             Generation::Parent => self.parent_demes.is_empty(),
             Generation::Child => self.child_demes.is_empty(),

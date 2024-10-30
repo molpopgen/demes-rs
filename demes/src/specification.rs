@@ -2766,35 +2766,36 @@ impl UnresolvedGraph {
 
     // NOTE: this function could output a resoled Graph
     // type and maybe save some extra work/moves.
-    pub(crate) fn resolve(&mut self) -> Result<(), DemesError> {
-        if self.demes.is_empty() {
+    pub(crate) fn resolve(self) -> Result<Self, DemesError> {
+        let mut g = self;
+        if g.demes.is_empty() {
             return Err(DemesError::DemeError(
                 "no demes have been specified".to_string(),
             ));
         }
-        self.defaults.validate()?;
-        self.deme_map = self.build_deme_map()?;
+        g.defaults.validate()?;
+        g.deme_map = g.build_deme_map()?;
 
         let mut resolved_demes = vec![];
-        for deme in self.demes.iter_mut() {
-            deme.resolve(&self.deme_map, &resolved_demes, &self.defaults)?;
+        for deme in g.demes.iter_mut() {
+            deme.resolve(&g.deme_map, &resolved_demes, &g.defaults)?;
             resolved_demes.push(deme.clone());
         }
-        self.demes = resolved_demes;
-        self.demes.iter().try_for_each(|deme| deme.validate())?;
-        self.resolve_migrations()?;
-        self.resolve_pulses()?;
-        self.validate_migrations()?;
+        g.demes = resolved_demes;
+        g.demes.iter().try_for_each(|deme| deme.validate())?;
+        g.resolve_migrations()?;
+        g.resolve_pulses()?;
+        g.validate_migrations()?;
 
-        match self.generation_time {
+        match g.generation_time {
             Some(_) => (), //value.validate(DemesError::GraphError)?,
             None => {
-                if matches!(self.time_units, TimeUnits::Generations) {
-                    self.generation_time = Some(InputGenerationTime::from(1.));
+                if matches!(g.time_units, TimeUnits::Generations) {
+                    g.generation_time = Some(InputGenerationTime::from(1.));
                 }
             }
         }
-        Ok(())
+        Ok(g)
     }
 
     pub(crate) fn validate(&self) -> Result<(), DemesError> {
@@ -2973,8 +2974,8 @@ fn string_from_reader<T: Read>(reader: T) -> Result<String, DemesError> {
 
 impl Graph {
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
-        let mut g: UnresolvedGraph = serde_yaml::from_str(yaml)?;
-        g.resolve()?;
+        let g: UnresolvedGraph = serde_yaml::from_str(yaml)?;
+        let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Yaml(yaml.to_owned()));
         g.try_into()
@@ -2987,8 +2988,8 @@ impl Graph {
             serde_json::from_str(json)?;
         let json = crate::process_json::fix_json_input(json)?;
         let json = serde_json::to_string(&json)?;
-        let mut g: UnresolvedGraph = serde_json::from_str(&json)?;
-        g.resolve()?;
+        let g: UnresolvedGraph = serde_json::from_str(&json)?;
+        let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Json(json.to_owned()));
         g.try_into()
@@ -2997,8 +2998,8 @@ impl Graph {
     #[cfg(feature = "toml")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
     pub(crate) fn new_resolved_from_toml_str(toml: &'_ str) -> Result<Self, DemesError> {
-        let mut g: UnresolvedGraph = toml::from_str(toml)?;
-        g.resolve()?;
+        let g: UnresolvedGraph = toml::from_str(toml)?;
+        let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Toml(toml.to_owned()));
         g.try_into()
@@ -4079,9 +4080,8 @@ demes:
             fn $name() {
                 let yaml = $yaml;
                 let graph = crate::loads(yaml).unwrap();
-                let mut u = UnresolvedGraph::from(graph.clone());
-                u.resolve().unwrap();
-                let graph_roundtrip = Graph::try_from(u).unwrap();
+                let u = UnresolvedGraph::from(graph.clone());
+                let graph_roundtrip = Graph::try_from(u.resolve().unwrap()).unwrap();
                 assert_eq!(graph, graph_roundtrip);
             }
         };
@@ -4115,12 +4115,11 @@ fn test_toml() {
         [[demes.epochs]]
         start_size = 42
 ";
-    let mut m: UnresolvedGraph = toml::from_str(toml).unwrap();
+    let m: UnresolvedGraph = toml::from_str(toml).unwrap();
     assert_eq!(m.demes.len(), 2);
     assert_eq!(m.demes[0].epochs.len(), 1);
     assert_eq!(m.demes[1].epochs.len(), 1);
-    m.resolve().unwrap();
-    let _: Graph = m.try_into().unwrap();
+    let _: Graph = m.resolve().unwrap().try_into().unwrap();
 }
 
 #[test]
@@ -4138,9 +4137,8 @@ fn test_roundtrip() {
 
     let toml_string = toml::to_string(&toml_from_yaml).unwrap();
 
-    let mut u: UnresolvedGraph = toml::from_str(&toml_string).unwrap();
-    u.resolve().unwrap();
-    let graph_from_toml = Graph::try_from(u).unwrap();
+    let u: UnresolvedGraph = toml::from_str(&toml_string).unwrap();
+    let graph_from_toml = Graph::try_from(u.resolve().unwrap()).unwrap();
     assert_eq!(graph, graph_from_toml);
 }
 

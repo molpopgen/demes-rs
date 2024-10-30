@@ -195,8 +195,7 @@ impl GraphBuilder {
             None => (),
             Some(m) => builder.graph.set_metadata(m),
         }
-        builder.graph.resolve()?;
-        builder.graph.try_into()
+        builder.graph.resolve()?.try_into()
     }
 
     /// Set top-level metadata

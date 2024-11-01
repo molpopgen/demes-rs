@@ -471,6 +471,28 @@ pub extern "C" fn demes_graph_deme(graph: &Graph, at: usize) -> *const Deme {
     }
 }
 
+/// Get a pointer to a [`Deme`] from a [`Graph`] using a deme name
+///
+/// # Returns
+///
+/// A non-null pointer to a [`Deme`] if `name` is a valid name in the graph.
+/// If `name` is not the name of a deme in the graph, a NULL pointer is returned.
+///
+/// # Safety
+///
+/// * `name` must be non-NULL, nul-terminated string
+#[no_mangle]
+pub unsafe extern "C" fn demes_graph_deme_from_name(
+    graph: &Graph,
+    name: *const c_char,
+) -> *const Deme {
+    let n = unsafe { CStr::from_ptr(name) }.to_str().unwrap();
+    match graph.get_deme(n) {
+        Some(deme) => deme,
+        None => std::ptr::null(),
+    }
+}
+
 /// Return a string representation of the [`Graph`]
 ///
 /// # Returns
@@ -913,6 +935,28 @@ pub extern "C" fn demes_pulse_source(pulse: &Pulse, at: usize) -> *mut c_char {
         Some(source) => str_to_owned_c_char(source),
         None => std::ptr::null_mut(),
     }
+}
+
+/// Get the destination deme of a [`Pulse`].
+///
+/// # Parameters
+///
+/// * `at` the index of the pulse.
+///  
+/// # Returns
+///
+/// * The name of a destination deme if `at` is in range.
+/// * A NULL pointer otherwise.
+///
+/// # Notes
+///
+/// * A non-NULL return value is a new allocation that must be freed by
+///   [`demes_c_char_deallocate`].
+/// * [`demes_pulse_num_sources`] can be used to get the range of valid
+///   values for `at`.
+#[no_mangle]
+pub extern "C" fn demes_pulse_dest(pulse: &Pulse) -> *mut c_char {
+    str_to_owned_c_char(pulse.dest())
 }
 
 /// Get the time of a [`Pulse`].
@@ -1361,6 +1405,10 @@ fn test_pulses() {
             let source_ref = unsafe { CStr::from_ptr(source) }.to_str().unwrap();
             assert_eq!(graph.pulses()[i].sources()[j], source_ref);
             unsafe { demes_c_char_deallocate(source) };
+            let dest = demes_pulse_dest(pref);
+            let dest_ref = unsafe { CStr::from_ptr(dest) }.to_str().unwrap();
+            assert_eq!(graph.pulses()[i].dest(), dest_ref);
+            unsafe { demes_c_char_deallocate(dest) };
         }
     }
 }
@@ -1391,5 +1439,21 @@ fn test_migrations() {
             gmig.dest(),
         );
         unsafe { demes_c_char_deallocate(dest) };
+    }
+}
+
+#[test]
+fn test_deme_from_name() {
+    let graph = basic_valid_graph();
+    for deme in graph.demes().iter() {
+        let name = demes_deme_name(deme);
+        let deme_ptr = unsafe { demes_graph_deme_from_name(&graph, name) };
+        assert!(!deme_ptr.is_null());
+        let name_from_ptr = demes_deme_name(unsafe { &*deme_ptr });
+        let str_from_name = unsafe { CStr::from_ptr(name) }.to_str().unwrap();
+        let str_from_name_from_ptr = unsafe { CStr::from_ptr(name_from_ptr) }.to_str().unwrap();
+        assert_eq!(str_from_name, str_from_name_from_ptr);
+        unsafe { demes_c_char_deallocate(name) };
+        unsafe { demes_c_char_deallocate(name_from_ptr) };
     }
 }

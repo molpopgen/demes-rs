@@ -4477,6 +4477,28 @@ mod test_remove_since {
      - start_size: 50
 ";
 
+    static SIMPLE_TWO_DEME_GRAPH_WITH_METADATA: &str = "
+ time_units: generations
+ metadata:
+  x: 1
+  y: 2
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+
     static SIMPLE_TWO_DEME_GRAPH_WITH_MIGRATION_0: &str = "
  time_units: generations
  demes:
@@ -4607,5 +4629,14 @@ mod test_remove_since {
         // that has no ancestors, no proportions, and start time of infinity
         let clipped = remove_since(graph, 20.0.try_into().unwrap()).unwrap();
         assert_eq!(expected_result, clipped);
+    }
+
+    #[test]
+    fn test_simple_two_deme_graph_with_metadata() {
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_WITH_METADATA).unwrap();
+
+        // Leaves graph unchanged
+        let clipped = remove_since(graph.clone(), 30.0.try_into().unwrap()).unwrap();
+        assert_eq!(graph, clipped);
     }
 }

@@ -48,6 +48,36 @@ use crate::Graph;
 use crate::Pulse;
 use std::os::raw::{c_char, c_int};
 
+/// Provides iteration over [`Deme`] instances
+///
+/// Created by [`demes_graph_deme_iterator`].
+/// The iterator is advanced via [`demes_deme_iterator_next`].
+/// The termination condition is the return of a NULL pointer.
+///
+/// # Notes
+///
+/// Pointers returned from [`demes_graph_deme_iterator`] must
+/// be deallocated using [`demes_deme_iterator_deallocate`].
+pub struct DemeIterator {
+    graph: std::ptr::NonNull<Graph>,
+    deme: usize,
+}
+
+impl DemeIterator {
+    fn new(graph: &Graph) -> Self {
+        let ptr = graph as *const Graph;
+        Self {
+            graph: std::ptr::NonNull::new(ptr.cast_mut()).unwrap(),
+            deme: 0,
+        }
+    }
+    fn next_deme(&mut self) -> Option<&Deme> {
+        self.deme += 1;
+        // SAFETY: the pointer is non-null
+        unsafe { self.graph.as_ref() }.get_deme(self.deme - 1)
+    }
+}
+
 enum ErrorDetails {
     UnexpectedNullPointer,
     BoxedError(Box<dyn std::error::Error>),
@@ -466,6 +496,42 @@ pub extern "C" fn demes_graph_num_demes(graph: &Graph) -> usize {
 #[no_mangle]
 pub extern "C" fn demes_graph_deme(graph: &Graph, at: usize) -> *const Deme {
     match graph.demes().get(at) {
+        Some(deme) => deme,
+        None => std::ptr::null(),
+    }
+}
+
+/// Allocate a [`DemeIterator`].
+///
+/// # Notes
+///
+/// * You must call [`demes_deme_iterator_deallocate`] to return resources
+///   to the system and avoid a resource leak.
+#[no_mangle]
+pub extern "C" fn demes_graph_deme_iterator(graph: &Graph) -> *mut DemeIterator {
+    Box::leak(Box::new(DemeIterator::new(graph)))
+}
+
+/// Dellocate a [`DemeIterator`].
+///
+/// # Safety
+///
+/// * `ptr` must point to a non-NULL instance of [`DemeIterator`]
+/// * It is undefined behavior to all this function more than once on the same instance.
+#[no_mangle]
+pub unsafe extern "C" fn demes_deme_iterator_deallocate(ptr: *mut DemeIterator) {
+    let _ = unsafe { Box::from_raw(ptr) };
+}
+
+/// Advance a [`DemeIterator`]
+///
+/// # Return
+///
+/// * A non-mutable pointer to a [`Deme`] if the iterator is still valid.
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_deme_iterator_next(deme_iterator: &mut DemeIterator) -> *const Deme {
+    match deme_iterator.next_deme() {
         Some(deme) => deme,
         None => std::ptr::null(),
     }
@@ -1456,4 +1522,23 @@ fn test_deme_from_name() {
         unsafe { demes_c_char_deallocate(name) };
         unsafe { demes_c_char_deallocate(name_from_ptr) };
     }
+}
+
+#[test]
+fn test_deme_iterator() {
+    let graph = basic_valid_graph();
+    let deme_iterator = demes_graph_deme_iterator(&graph);
+    assert!(!deme_iterator.is_null());
+    let mut deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+    let mut ndemes = 0;
+    while !deme.is_null() {
+        assert_eq!(
+            unsafe { deme.as_ref() }.unwrap(),
+            graph.get_deme(ndemes).unwrap()
+        );
+        ndemes += 1;
+        deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+    }
+    unsafe { demes_deme_iterator_deallocate(deme_iterator) };
+    assert_eq!(ndemes, graph.num_demes())
 }

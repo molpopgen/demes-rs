@@ -59,6 +59,12 @@ jobs:
       - name: Run demes C example
         run: |
            ./build/example demes/demes-spec/examples/browning_america.yaml
+      - name: Run cmake on demes example in release mode
+        run: |
+            cmake -Sdemes/c_example -Bbuild_release -DCMAKE_BUILD_TYPE=Release
+      - name: Build demes example in release mode
+        run: |
+            cmake --build build_release
       - run: sudo apt-get update -y
         if: matrix.os == 'ubuntu-latest'
       - run: sudo apt-get install -y valgrind

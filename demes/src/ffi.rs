@@ -41,6 +41,12 @@
 
 use std::ffi::{CStr, CString};
 
+pub use crate::ffi_iterators::AsymmetricMigrationIterator;
+pub use crate::ffi_iterators::DemeAncestor;
+pub use crate::ffi_iterators::DemeAncestorIterator;
+pub use crate::ffi_iterators::DemeIterator;
+pub use crate::ffi_iterators::EpochIterator;
+pub use crate::ffi_iterators::PulseIterator;
 use crate::AsymmetricMigration;
 use crate::Deme;
 use crate::Epoch;
@@ -979,6 +985,198 @@ pub extern "C" fn demes_pulse_proportions(pulse: &Pulse) -> *const f64 {
     pulse.proportions().as_ptr().cast::<f64>()
 }
 
+/// Allocate a [`DemeIterator`].
+///
+/// # Notes
+///
+/// * You must call [`demes_deme_iterator_deallocate`] to return resources
+///   to the system and avoid a resource leak.
+#[no_mangle]
+pub extern "C" fn demes_graph_deme_iterator(graph: &Graph) -> *mut DemeIterator {
+    Box::leak(Box::new(DemeIterator::new(graph)))
+}
+
+/// Dellocate a [`DemeIterator`].
+///
+/// # Safety
+///
+/// * `ptr` must point to a non-NULL instance of [`DemeIterator`]
+/// * It is undefined behavior to all this function more than once on the same instance.
+#[no_mangle]
+pub unsafe extern "C" fn demes_deme_iterator_deallocate(ptr: *mut DemeIterator) {
+    let _ = unsafe { Box::from_raw(ptr) };
+}
+
+/// Advance a [`DemeIterator`]
+///
+/// # Return
+///
+/// * A const pointer to a [`Deme`] if the iterator is still valid.
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_deme_iterator_next(deme_iterator: &mut DemeIterator) -> *const Deme {
+    deme_iterator.next().unwrap_or(std::ptr::null())
+}
+
+/// Allocate and initialize an [`EpochIterator`].
+///
+/// # Note
+///
+/// The return value must be freed using [`demes_epoch_iterator_deallocate`]
+#[no_mangle]
+pub extern "C" fn demes_deme_epoch_iterator(deme: &Deme) -> *mut EpochIterator {
+    Box::leak(Box::new(EpochIterator::new(deme)))
+}
+
+/// Advance an [`EpochIterator`].
+///
+/// # Return
+///
+/// * A const pointer to an [`Epoch`] if the iterator is still valid
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_epoch_iterator_next(epoch_iterator: &mut EpochIterator) -> *const Epoch {
+    epoch_iterator.next().unwrap_or(std::ptr::null())
+}
+
+/// Deallocate an [`EpochIterator`]
+///
+/// # Safety
+///
+/// * `ptr` must be non-NULL
+/// * This function must be called at most once on a given input pointer.
+#[no_mangle]
+pub unsafe extern "C" fn demes_epoch_iterator_deallocate(ptr: *mut EpochIterator) {
+    let _ = unsafe { Box::from_raw(ptr) };
+}
+
+/// Allocate and initialize a [`PulseIterator`].
+///
+/// # Notes
+///
+/// * You must call [`demes_pulse_iterator_deallocate`] to return resources
+///   to the system and avoid a resource leak.
+#[no_mangle]
+pub extern "C" fn demes_graph_pulse_iterator(graph: &Graph) -> *mut PulseIterator {
+    Box::leak(Box::new(PulseIterator::new(graph)))
+}
+
+/// Advance a [`PulseIterator`].
+///
+/// # Return
+///
+/// * A const pointer to a [`Pulse`] if the iterator is still valid
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_pulse_iterator_next(pulse_iterator: &mut PulseIterator) -> *const Pulse {
+    pulse_iterator.next().unwrap_or(std::ptr::null())
+}
+
+/// Deallocate an [`PulseIterator`]
+///
+/// # Safety
+///
+/// * `ptr` must be non-NULL
+/// * This function must be called at most once on a given input pointer.
+#[no_mangle]
+pub unsafe extern "C" fn demes_pulse_iterator_deallocate(ptr: *mut PulseIterator) {
+    let _ = unsafe { Box::from_raw(ptr) };
+}
+
+/// Allocate and initialize an [`AsymmetricMigrationIterator`].
+///
+/// # Notes
+///
+/// * You must call [`demes_asymmetric_migration_iterator_deallocate`] to return resources
+///   to the system and avoid a resource leak.
+#[no_mangle]
+pub extern "C" fn demes_graph_asymmetric_migration_iterator(
+    graph: &Graph,
+) -> *mut AsymmetricMigrationIterator {
+    Box::leak(Box::new(AsymmetricMigrationIterator::new(graph)))
+}
+
+/// Advance an [`AsymmetricMigrationIterator`].
+///
+/// # Return
+///
+/// * A const pointer to an [`AsymmetricMigration`] if the iterator is still valid
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_asymmetric_migration_iterator_next(
+    asymmetric_migration_iterator: &mut AsymmetricMigrationIterator,
+) -> *const AsymmetricMigration {
+    asymmetric_migration_iterator
+        .next()
+        .unwrap_or(std::ptr::null())
+}
+
+/// Deallocate an [`AsymmetricMigrationIterator`]
+///
+/// # Safety
+///
+/// * `ptr` must be non-NULL
+/// * This function must be called at most once on a given input pointer.
+#[no_mangle]
+pub unsafe extern "C" fn demes_asymmetric_migration_iterator_deallocate(
+    ptr: *mut AsymmetricMigrationIterator,
+) {
+    let _ = unsafe { Box::from_raw(ptr) };
+}
+
+/// Allocate and initialize a [`DemeAncestorIterator`].
+///
+/// This function is `unsafe` because we cannot use liftimes and references
+/// to express the required parent/child object relationships and remain
+/// FFI compatible.
+///
+/// # Parameters
+///
+/// * `deme` - the [`Deme`] whose ancestors we want to iterate over
+/// * `graph` - the parent [`Graph`] of `deme`
+///
+/// # Safety
+///
+/// * `deme` must not be NULL
+/// * `graph` must not be NULL
+/// * `graph` must point to the parent object of `deme`
+///
+/// # Notes
+///
+/// * You must call [`demes_deme_ancestor_iterator_deallocate`] to return resources
+///   to the system and avoid a resource leak.
+#[no_mangle]
+pub unsafe extern "C" fn demes_deme_ancestor_iterator(
+    deme: *const Deme,
+    graph: *const Graph,
+) -> *mut DemeAncestorIterator {
+    Box::leak(Box::new(DemeAncestorIterator::new(graph, deme)))
+}
+
+/// Advance a [`DemeAncestorIterator`].
+///
+/// # Return
+///
+/// * A const pointer to a [`DemeAncestor`] if the iterator is still valid
+/// * A NULL pointer when iteration has ended.
+#[no_mangle]
+pub extern "C" fn demes_deme_ancestor_iterator_next(
+    iterator: &mut DemeAncestorIterator,
+) -> *const DemeAncestor {
+    iterator.next().unwrap_or(std::ptr::null())
+}
+
+/// Deallocate a [`DemeAncestorIterator`]
+///
+/// # Safety
+///
+/// * `ptr` must be non-NULL
+/// * This function must be called at most once on a given input pointer.
+#[no_mangle]
+pub unsafe extern "C" fn demes_deme_ancestor_iterator_deallocate(ptr: *mut DemeAncestorIterator) {
+    let _ = Box::from_raw(ptr);
+}
+
 #[cfg(test)]
 fn basic_valid_graph_yaml() -> &'static str {
     "
@@ -1455,5 +1653,122 @@ fn test_deme_from_name() {
         assert_eq!(str_from_name, str_from_name_from_ptr);
         unsafe { demes_c_char_deallocate(name) };
         unsafe { demes_c_char_deallocate(name_from_ptr) };
+    }
+}
+
+#[test]
+fn test_deme_iterator() {
+    let graph = basic_valid_graph();
+    let deme_iterator = demes_graph_deme_iterator(&graph);
+    assert!(!deme_iterator.is_null());
+    let mut deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+    let mut ndemes = 0;
+    while !deme.is_null() {
+        assert_eq!(
+            unsafe { deme.as_ref() }.unwrap(),
+            graph.get_deme(ndemes).unwrap()
+        );
+        ndemes += 1;
+        deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+    }
+    unsafe { demes_deme_iterator_deallocate(deme_iterator) };
+    assert_eq!(ndemes, graph.num_demes())
+}
+
+#[test]
+fn test_epoch_iterator() {
+    let graph = basic_valid_graph();
+    let deme = &graph.demes()[0];
+    let epochs = deme.epochs().to_vec();
+    let mut epochs_from_iterator = vec![];
+    let epoch_iterator = demes_deme_epoch_iterator(deme);
+    assert!(!epoch_iterator.is_null());
+    // SAFETY: iterator is not NULL
+    let mut epoch = demes_epoch_iterator_next(unsafe { epoch_iterator.as_mut() }.unwrap());
+    while !epoch.is_null() {
+        // SAFETY: epoch is not NULL
+        epochs_from_iterator.push(*unsafe { epoch.as_ref() }.unwrap());
+        epoch = demes_epoch_iterator_next(unsafe { epoch_iterator.as_mut() }.unwrap());
+    }
+    unsafe { demes_epoch_iterator_deallocate(epoch_iterator) };
+    assert_eq!(epochs, epochs_from_iterator);
+}
+
+#[test]
+fn test_pulse_iterator() {
+    let graph = basic_valid_graph();
+    let pulses = graph.pulses().to_vec();
+    assert!(!pulses.is_empty());
+    let mut pulses_from_iterator = vec![];
+    let p = demes_graph_pulse_iterator(&graph);
+    assert!(!p.is_null());
+    // SAFETY: iterator is not NULL
+    let mut pulse = demes_pulse_iterator_next(unsafe { p.as_mut() }.unwrap());
+    while !pulse.is_null() {
+        // SAFETY: pulse is not NULL
+        pulses_from_iterator.push(unsafe { pulse.as_ref().unwrap().clone() });
+        pulse = demes_pulse_iterator_next(unsafe { p.as_mut() }.unwrap());
+    }
+    assert_eq!(pulses, pulses_from_iterator);
+    unsafe { demes_pulse_iterator_deallocate(p) };
+}
+
+#[test]
+fn test_asymmetric_migration_iterator() {
+    let graph = basic_valid_graph();
+    let migrations = graph.migrations().to_vec();
+    assert!(!migrations.is_empty());
+    let mut migrations_from_iter = vec![];
+    let iterator = demes_graph_asymmetric_migration_iterator(&graph);
+    assert!(!iterator.is_null());
+    // SAFETY: iterator is not NULL
+    let mut migration =
+        demes_asymmetric_migration_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+    while !migration.is_null() {
+        // SAFETY: migration is not NULL
+        migrations_from_iter.push(unsafe { migration.as_ref().unwrap().clone() });
+        migration = demes_asymmetric_migration_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+    }
+    assert_eq!(migrations, migrations_from_iter);
+    // SAFETY: only deallocating one, ptr is not NULL
+    unsafe { demes_asymmetric_migration_iterator_deallocate(iterator) };
+}
+
+#[test]
+fn test_deme_ancestry_iterator() {
+    let graph = basic_valid_graph();
+    for deme in graph.demes() {
+        // SAFETY: deme and graph have the same implicit lifetimes and are not NULL
+        let iterator = unsafe { demes_deme_ancestor_iterator(deme, &graph) };
+        // SAFETY: iterator is not NULL
+        let mut deme_ancestors =
+            demes_deme_ancestor_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+        let mut ancestors = vec![];
+        let mut proportions = vec![];
+        while !deme_ancestors.is_null() {
+            // SAFETY: we know it is not NULL
+            assert!(!unsafe { deme_ancestors.as_ref() }.unwrap().deme.is_null());
+            // SAFETY: we know it is not NULL
+            ancestors.push(
+                unsafe { deme_ancestors.as_ref().unwrap().deme.as_ref() }
+                    .unwrap()
+                    .clone(),
+            );
+            proportions.push(unsafe { deme_ancestors.as_ref() }.unwrap().proportion);
+            // SAFETY: iterator is not NULL
+            deme_ancestors =
+                demes_deme_ancestor_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+        }
+        // SAFETY: iterator is not NULL and we only deallocate it once
+        unsafe { demes_deme_ancestor_iterator_deallocate(iterator) };
+        assert_eq!(deme.proportions(), &proportions);
+        let ancestors_from_deme = deme
+            .ancestor_indexes()
+            .iter()
+            .cloned()
+            .map(|index| graph.get_deme(index).unwrap())
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(&ancestors, &ancestors_from_deme);
     }
 }

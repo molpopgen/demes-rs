@@ -3494,6 +3494,14 @@ fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
         )
     }
 
+    if let Some(metadata) = graph.metadata() {
+        if let Err(e) = new_graph.set_toplevel_metadata(&metadata) {
+            return Err(DemesError::GraphError(format!(
+                "failed to set toplevel metadata: {e:?}"
+            )));
+        }
+    }
+
     new_graph.resolve()
 }
 

@@ -27,6 +27,12 @@ handle_error(int rv, FFIError *error, Graph *graph)
 }
 
 void
+iterate_epochs(const Deme *)
+{
+    abort();
+}
+
+void
 iterate_demes(Graph *graph)
 {
     Deme const *deme;
@@ -42,6 +48,7 @@ iterate_demes(Graph *graph)
             fprintf(stdout, "\tstart size: %lf\n", demes_deme_start_size(deme));
             fprintf(stdout, "\tend size: %lf\n", demes_deme_end_size(deme));
             demes_c_char_deallocate(name);
+            iterate_epochs(deme);
         }
 
     demes_deme_iterator_deallocate(iterator);

@@ -285,4 +285,48 @@ mod tests {
         b.add_deme("YRB", vec![], history, None);
         b.resolve().unwrap();
     }
+
+    #[test]
+    fn builder_toplevel_metadata() {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct MyMetaData {
+            foo: i32,
+            bar: String,
+        }
+
+        let yaml = "
+ time_units: generations
+ metadata:
+  foo: 1
+  bar: \"bananas\"
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+    ";
+        let mut b = GraphBuilder::new(TimeUnits::Generations, None, None);
+        b.add_deme(
+            "ancestor1",
+            vec![UnresolvedEpoch {
+                start_size: Some(50.0.into()),
+                end_time: Some(20.0.into()),
+                ..Default::default()
+            }],
+            UnresolvedDemeHistory::default(),
+            None,
+        );
+        b.set_toplevel_metadata(&MyMetaData {
+            foo: 1,
+            bar: "bananas".to_string(),
+        })
+        .unwrap();
+        let graph_from_builder = b.resolve().unwrap();
+        let graph_from_yaml = crate::loads(yaml).unwrap();
+        assert_eq!(graph_from_builder, graph_from_yaml);
+        assert_eq!(
+            graph_from_builder.as_string().unwrap(),
+            graph_from_yaml.as_string().unwrap()
+        );
+    }
 }

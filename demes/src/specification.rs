@@ -419,6 +419,19 @@ impl UnresolvedMigration {
             ..self
         }
     }
+
+    fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
+        if let Some(start_time) = self.start_time {
+            self.start_time = Some(InputTime::from(scaling_factor * f64::from(start_time)))
+        }
+        if let Some(end_time) = self.end_time {
+            self.end_time = Some(InputTime::from(scaling_factor * f64::from(end_time)))
+        }
+        if let Some(rate) = self.rate {
+            self.rate = Some(rate / scaling_factor)
+        }
+        Ok(())
+    }
 }
 
 /// An asymmetric migration epoch.
@@ -804,6 +817,13 @@ impl UnresolvedPulse {
         self.sources_are_unique(sources)?;
         self.validate_pulse_time(deme_map, demes, time, dest, sources)
     }
+
+    fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
+        if let Some(time) = self.time {
+            self.time = Some(InputTime::from(scaling_factor * f64::from(time)))
+        }
+        Ok(())
+    }
 }
 
 impl Pulse {
@@ -925,6 +945,40 @@ impl UnresolvedEpoch {
             SelfingRate::try_from(value)
                 .map_err(|_| DemesError::EpochError(format!("invalid selfing_rate: {value:?}")))?;
         }
+        Ok(())
+    }
+
+    fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
+        if let Some(end_time) = self.end_time {
+            self.end_time = Some(InputTime::from(scaling_factor * f64::from(end_time)))
+        }
+        if let Some(start_size) = self.start_size {
+            self.start_size = Some(InputDemeSize::from(scaling_factor * f64::from(start_size)))
+        }
+        if let Some(end_size) = self.end_size {
+            self.end_size = Some(InputDemeSize::from(scaling_factor * f64::from(end_size)))
+        }
+
+        self.cloning_rate = self.cloning_rate.map_or_else(
+            || None,
+            |c| {
+                if f64::from(c) > 0.0 {
+                    Some(c)
+                } else {
+                    None
+                }
+            },
+        );
+        self.selfing_rate = self.selfing_rate.map_or_else(
+            || None,
+            |s| {
+                if f64::from(s) > 0.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            },
+        );
         Ok(())
     }
 }
@@ -1281,7 +1335,7 @@ impl From<Deme> for UnresolvedDeme {
             name: value.name,
             description: value.description,
             ancestor_map: DemeMap::default(),
-            ancestor_indexes: value.ancestor_indexes,
+            ancestor_indexes: vec![],
             epochs,
             start_time: Some(f64::from(value.start_time).into()),
             proportions: Some(
@@ -1921,7 +1975,16 @@ impl UnresolvedDeme {
         self.apply_toplevel_defaults(defaults);
         self.validate_ancestor_uniqueness(deme_map)?;
         self.check_empty_epochs();
-        assert!(self.ancestor_map.is_empty());
+        assert!(
+            self.ancestor_indexes.is_empty(),
+            "{:?} has non-empty ancestor index",
+            self.name
+        );
+        assert!(
+            self.ancestor_map.is_empty(),
+            "{:?} has non-empty ancestor map",
+            self.name
+        );
         self.resolve_times(deme_map, demes, defaults)?;
         self.resolve_sizes(defaults)?;
         let self_defaults = self.defaults.clone();
@@ -2073,6 +2136,15 @@ impl UnresolvedDeme {
                 DemesError::DemeError(format!("deme {} ancestors are unresolved", self.name))
             })?
             .len())
+    }
+
+    fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
+        if let Some(time) = self.start_time {
+            self.start_time = Some(InputTime::from(scaling_factor * f64::from(time)))
+        }
+        self.epochs
+            .iter_mut()
+            .try_for_each(|e| e.rescale(scaling_factor))
     }
 }
 
@@ -2829,6 +2901,31 @@ impl UnresolvedGraph {
         assert!(!metadata.is_empty());
         self.metadata = Some(metadata.metadata.clone())
     }
+
+    // Take our definition from
+    // https://momentsld.github.io/moments/api/api_demes.html#moments.Demes.DemesUtil.rescale
+    fn rescale(self, scaling_factor: f64) -> Result<Self, DemesError> {
+        if !scaling_factor.is_finite() || scaling_factor <= 0.0 {
+            return Err(DemesError::ValueError(format!(
+                "invalid scaling_factor: {scaling_factor}"
+            )));
+        }
+        let mut g = self;
+
+        g.demes
+            .iter_mut()
+            .try_for_each(|d| d.rescale(scaling_factor))?;
+
+        g.pulses
+            .iter_mut()
+            .try_for_each(|p| p.rescale(scaling_factor))?;
+
+        g.input_migrations
+            .iter_mut()
+            .try_for_each(|m| m.rescale(scaling_factor))?;
+
+        g.resolve()
+    }
 }
 
 impl From<Graph> for UnresolvedGraph {
@@ -3385,6 +3482,37 @@ impl Graph {
                 InputFormatInternal::Toml(string) => Some(InputFormat::Toml(string.as_str())),
             },
         }
+    }
+
+    /// Rescale a model by a constant scaling factor.
+    ///
+    /// For a given scaling factor, `Q`:
+    /// 1. All input population sizes will be multiplied by `Q`.
+    /// 2. All times will be divided by `Q`.
+    /// 3. All rates (migration, etc.) will be divided by `Q.`
+    /// 4. Pulse proportions, selfing rates, and cloning rates all
+    ///    remaing unchanged.
+    ///
+    /// The result is a new [`Graph`] where the products of populations sizes
+    /// times rates and the timings of events divided by population sizes are the
+    /// same as in the input.
+    ///
+    /// # Parameters
+    ///
+    /// * `scaling_factor`: the value of `Q`. This must be > 0.0 and finite.
+    ///
+    /// # Returns
+    ///
+    /// * The rescaled [`Graph`]
+    ///
+    /// # Errors
+    ///
+    /// * [`DemesError`] if `scaling_factor` is invalid or if rescaling results
+    ///   in an invalid graph.  For example, rescaling with `scaling_factor << 1`
+    ///   could result in migration rates `> 1`, which is invalid.
+    pub fn rescale(self, scaling_factor: f64) -> Result<Self, DemesError> {
+        let g = UnresolvedGraph::from(self);
+        g.rescale(scaling_factor)?.try_into()
     }
 }
 
@@ -4646,5 +4774,288 @@ mod test_remove_since {
         // Leaves graph unchanged
         let clipped = remove_since(graph.clone(), 30.0.try_into().unwrap()).unwrap();
         assert_eq!(graph, clipped);
+    }
+}
+
+#[cfg(test)]
+mod test_rescaling {
+    static SIMPLE_TEST_GRAPH_0: &str = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.5, 0.5]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+
+    static SIMPLE_TEST_GRAPH_1: &str = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived1
+    ancestors: [ancestor1]
+    proportions: [1.0]
+    start_time: 20
+    epochs:
+     - start_size: 50
+  - name: derived2
+    ancestors: [ancestor2]
+    proportions: [1.0]
+    start_time: 20
+    epochs:
+     - start_size: 50
+ migrations:
+  - demes: [derived1, derived2]
+    start_time: 20
+    rate: 0.25
+";
+
+    static SIMPLE_TEST_GRAPH_2: &str = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived1
+    ancestors: [ancestor1]
+    proportions: [1.0]
+    start_time: 20
+    epochs:
+     - start_size: 50
+  - name: derived2
+    ancestors: [ancestor2]
+    proportions: [1.0]
+    start_time: 20
+    epochs:
+     - start_size: 50
+ pulses:
+  - sources: [derived1]
+    dest: derived2
+    time: 19
+    proportions: [0.25]
+";
+
+    fn run_test(yaml: &str, scaling_factor: f64) -> Result<(), String> {
+        let graph = crate::loads(yaml).unwrap();
+        let rescale = match graph.clone().rescale(scaling_factor) {
+            Ok(r) => r,
+            Err(e) => return Err(format!("{e:?}")),
+        };
+        compare_graphs(&graph, &rescale, scaling_factor)
+    }
+
+    fn compare_time(
+        a: crate::Time,
+        b: crate::Time,
+        scaling_factor: f64,
+        prefix: &str,
+    ) -> Result<(), String> {
+        if !matches!(
+            a.partial_cmp(&(b / scaling_factor).unwrap()).unwrap(),
+            std::cmp::Ordering::Equal
+        ) {
+            return Err(format!(
+                "{prefix} {:?}*{scaling_factor} should equal {:?}",
+                a, b
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn compare_epochs(
+        epochs_i: &[crate::Epoch],
+        epochs_j: &[crate::Epoch],
+        scaling_factor: f64,
+    ) -> Result<(), String> {
+        for (epoch_i, epoch_j) in epochs_i.iter().zip(epochs_j.iter()) {
+            compare_time(
+                epoch_i.start_time(),
+                epoch_j.start_time(),
+                scaling_factor,
+                "epoch start time",
+            )?;
+            compare_time(
+                epoch_i.end_time(),
+                epoch_j.end_time(),
+                scaling_factor,
+                "epoch end time",
+            )?;
+        }
+        Ok(())
+    }
+
+    fn compare_demes(
+        demes_i: &[crate::Deme],
+        demes_j: &[crate::Deme],
+        scaling_factor: f64,
+    ) -> Result<(), String> {
+        for (deme_i, deme_j) in demes_i.iter().zip(demes_j.iter()) {
+            compare_time(
+                deme_i.start_time(),
+                deme_j.start_time(),
+                scaling_factor,
+                "deme start time",
+            )?;
+
+            compare_epochs(deme_i.epochs(), deme_j.epochs(), scaling_factor)?;
+        }
+        Ok(())
+    }
+
+    fn compare_pulses(
+        pulses_i: &[crate::Pulse],
+        pulses_j: &[crate::Pulse],
+        scaling_factor: f64,
+    ) -> Result<(), String> {
+        for (pulse_i, pulse_j) in pulses_i.iter().zip(pulses_j.iter()) {
+            compare_time(pulse_i.time(), pulse_j.time(), scaling_factor, "pulse time")?;
+        }
+        Ok(())
+    }
+
+    fn compare_migrations(
+        migrations_i: &[crate::AsymmetricMigration],
+        migrations_j: &[crate::AsymmetricMigration],
+        scaling_factor: f64,
+    ) -> Result<(), String> {
+        for (mig_i, mig_j) in migrations_i.iter().zip(migrations_j.iter()) {
+            compare_time(
+                mig_i.start_time(),
+                mig_j.start_time(),
+                scaling_factor,
+                "migration start time",
+            )?;
+            compare_time(
+                mig_i.end_time(),
+                mig_j.end_time(),
+                scaling_factor,
+                "migration end time",
+            )?;
+            if !matches!(
+                mig_i
+                    .rate()
+                    .partial_cmp(&(mig_j.rate() * scaling_factor).unwrap())
+                    .unwrap(),
+                std::cmp::Ordering::Equal,
+            ) {
+                return Err(format!(
+                    "migration rate {:?}/{scaling_factor} should equal {:?}",
+                    mig_i.rate(),
+                    mig_j.rate()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn compare_graphs(
+        input: &crate::Graph,
+        rescaled: &crate::Graph,
+        scaling_factor: f64,
+    ) -> Result<(), String> {
+        compare_demes(input.demes(), rescaled.demes(), scaling_factor)?;
+        compare_pulses(input.pulses(), rescaled.pulses(), scaling_factor)?;
+        compare_migrations(input.migrations(), rescaled.migrations(), scaling_factor)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_rescaling() {
+        assert!(run_test(SIMPLE_TEST_GRAPH_0, 10.).is_ok())
+    }
+
+    #[test]
+    fn test_rescaling1() {
+        assert!(run_test(SIMPLE_TEST_GRAPH_1, 10.).is_ok())
+    }
+
+    #[test]
+    fn test_rescaling2() {
+        assert!(run_test(SIMPLE_TEST_GRAPH_2, 10.).is_ok())
+    }
+
+    #[test]
+    fn test_rescaling1_bad_scale_factor() {
+        // Will result in migration rates > 1, which is an error at resolution time
+        assert!(run_test(SIMPLE_TEST_GRAPH_1, 1e-3).is_err())
+    }
+
+    #[test]
+    fn test_rescaling_bad_scaling_factors() {
+        for bad in [-1.0, f64::INFINITY, 0.0, f64::NAN] {
+            let graph = crate::loads(SIMPLE_TEST_GRAPH_0).unwrap();
+            if let Err(e) = graph.rescale(bad) {
+                assert!(matches!(e, crate::DemesError::ValueError(_)))
+            } else {
+                panic!()
+            }
+        }
+    }
+
+    #[test]
+    fn test_rescaling_cloning_rates() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+       cloning_rate: 0.5
+";
+        let graph = crate::loads(yaml).unwrap();
+        let rescaled = graph.clone().rescale(10.);
+        assert!(rescaled.is_ok());
+        let rescaled = rescaled.unwrap();
+        for (di, dj) in graph.demes().iter().zip(rescaled.demes.iter()) {
+            for (ei, ej) in di.epochs().iter().zip(dj.epochs().iter()) {
+                assert_eq!(ei.cloning_rate(), ej.cloning_rate)
+            }
+        }
+    }
+
+    #[test]
+    fn test_rescaling_selfing_rates() {
+        let yaml = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+       selfing_rate: 0.5
+";
+        let graph = crate::loads(yaml).unwrap();
+        let rescaled = graph.clone().rescale(10.);
+        assert!(rescaled.is_ok());
+        let rescaled = rescaled.unwrap();
+        for (di, dj) in graph.demes().iter().zip(rescaled.demes.iter()) {
+            for (ei, ej) in di.epochs().iter().zip(dj.epochs().iter()) {
+                assert_eq!(ei.selfing_rate(), ej.selfing_rate)
+            }
+        }
     }
 }

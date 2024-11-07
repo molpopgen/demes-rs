@@ -1,32 +1,60 @@
+use crate::AsymmetricMigration;
+use crate::Deme;
 use crate::DemesError;
+use crate::Epoch;
 use crate::Graph;
 use crate::GraphBuilder;
 use crate::InputGenerationTime;
 use crate::InputProportion;
 use crate::InputTime;
+use crate::Pulse;
 use crate::Time;
 use crate::UnresolvedDemeHistory;
 use crate::UnresolvedEpoch;
 use crate::UnresolvedMigration;
 
-// Remove all history from [when, infinity)
-// NOTE: this function could take &Graph b/c it doesn't modify the input
-// This function is a prototype for a future API to "slice" demographic models.
-#[allow(dead_code)]
-pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
-    let generation_time = InputGenerationTime::from(f64::from(graph.generation_time()));
-
-    let mut new_graph = GraphBuilder::new(graph.time_units(), Some(generation_time), None);
-
-    let retained_deme_indexes = graph
+fn retained_deme_indexes<C>(graph: &Graph, criterion: C) -> Vec<usize>
+where
+    C: Fn(&Deme) -> bool,
+{
+    graph
         .demes
         .iter()
         .enumerate()
-        .filter(|(_, deme)| deme.end_time() < when)
+        .filter(|(_, deme)| criterion(deme))
         .map(|(index, _)| index)
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
 
-    let mut retained_deme_names = vec![];
+struct Callbacks<
+    D: Fn(&Deme) -> bool,
+    E: Fn(&Epoch) -> bool,
+    M: Fn(&AsymmetricMigration) -> bool,
+    P: Fn(&Pulse) -> bool,
+    EE: Fn(Time) -> Option<InputTime>,
+    MS: Fn(Time) -> Option<InputTime>,
+    ME: Fn(Time) -> Option<InputTime>,
+> {
+    keep_deme: D,
+    keep_epoch: E,
+    keep_migration: M,
+    keep_pulse: P,
+    epoch_end_time: EE,
+    migration_start_time: MS,
+    migration_end_time: ME,
+}
+
+fn liftover_demes<K, E>(
+    graph: &Graph,
+    retained_deme_indexes: Vec<usize>,
+    retained_deme_names: &[String],
+    keep_epoch: K,
+    epoch_end_time: E,
+    new_graph: &mut GraphBuilder,
+) where
+    K: Fn(&Epoch) -> bool,
+    E: Fn(Time) -> Option<InputTime>,
+{
     for i in retained_deme_indexes {
         let deme = graph.deme(i);
         let mut ancestors = vec![];
@@ -50,11 +78,10 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
             history.ancestors = Some(ancestors);
             history.proportions = Some(proportions);
         }
-        retained_deme_names.push(deme.name().to_string());
         let mut epochs: Vec<UnresolvedEpoch> = vec![];
-        for e in deme.epochs().iter().filter(|e| e.end_time() < when) {
+        for e in deme.epochs().iter().filter(|e| keep_epoch(e)) {
             let ue = UnresolvedEpoch {
-                end_time: Some(e.end_time().into()),
+                end_time: epoch_end_time(e.end_time()),
                 start_size: Some(f64::from(e.start_size()).into()),
                 end_size: Some(f64::from(e.end_size()).into()),
                 size_function: Some(e.size_function()),
@@ -74,29 +101,47 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
             },
         )
     }
+}
 
-    for m in graph.migrations().iter().filter(|m| {
+fn liftover_migrations<K, S, E>(
+    graph: &Graph,
+    retained_deme_names: &[String],
+    keep_migration: K,
+    make_start_time: S,
+    make_end_time: E,
+    new_graph: &mut GraphBuilder,
+) where
+    K: Fn(&AsymmetricMigration) -> bool,
+    S: Fn(Time) -> Option<InputTime>,
+    E: Fn(Time) -> Option<InputTime>,
+{
+    for m in graph.migrations().iter().filter(|&m| {
         retained_deme_names.iter().any(|n| n == m.source())
             && retained_deme_names.iter().any(|n| n == m.dest())
-            && m.end_time() < when
+            && keep_migration(m)
     }) {
         let mig = UnresolvedMigration {
             source: Some(m.source().to_string()),
             dest: Some(m.dest().to_string()),
-            start_time: if m.start_time() > when {
-                Some(when.into())
-            } else {
-                Some(m.start_time().into())
-            },
-            end_time: Some(m.end_time().into()),
+            start_time: make_start_time(m.start_time()),
+            end_time: make_end_time(m.end_time()),
             rate: Some(f64::from(m.rate()).into()),
             ..Default::default()
         };
         new_graph.add_migration(mig);
     }
+}
 
-    for pulse in graph.pulses().iter().filter(|p| {
-        p.time() < when
+fn liftover_pulses<F>(
+    graph: &Graph,
+    retained_deme_names: &[String],
+    callback: F,
+    new_graph: &mut GraphBuilder,
+) where
+    F: Fn(&Pulse) -> bool,
+{
+    for pulse in graph.pulses().iter().filter(|&p| {
+        callback(p)
             && retained_deme_names.iter().any(|n| n == p.dest())
             && p.sources()
                 .iter()
@@ -114,7 +159,9 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
             Some(pulse.proportions().iter().cloned().map(f64::from)),
         )
     }
+}
 
+fn liftover_metadata(graph: &Graph, new_graph: &mut GraphBuilder) -> Result<(), DemesError> {
     if let Some(metadata) = graph.metadata() {
         if let Err(e) = new_graph.set_toplevel_metadata(metadata.as_raw_ref()) {
             return Err(DemesError::GraphError(format!(
@@ -122,8 +169,77 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
             )));
         }
     }
+    Ok(())
+}
 
+fn remove_history<
+    D: Fn(&Deme) -> bool,
+    E: Fn(&Epoch) -> bool,
+    M: Fn(&AsymmetricMigration) -> bool,
+    P: Fn(&Pulse) -> bool,
+    EE: Fn(Time) -> Option<InputTime>,
+    MS: Fn(Time) -> Option<InputTime>,
+    ME: Fn(Time) -> Option<InputTime>,
+>(
+    graph: Graph,
+    callbacks: Callbacks<D, E, M, P, EE, MS, ME>,
+) -> Result<Graph, DemesError> {
+    let generation_time = InputGenerationTime::from(f64::from(graph.generation_time()));
+    let mut new_graph = GraphBuilder::new(graph.time_units(), Some(generation_time), None);
+    let retained_deme_indexes = retained_deme_indexes(&graph, callbacks.keep_deme);
+    let retained_deme_names = retained_deme_indexes
+        .iter()
+        .cloned()
+        .map(|index| graph.deme(index).name().to_string())
+        .collect::<Vec<_>>();
+    liftover_demes(
+        &graph,
+        retained_deme_indexes,
+        &retained_deme_names,
+        callbacks.keep_epoch,
+        callbacks.epoch_end_time,
+        &mut new_graph,
+    );
+    liftover_migrations(
+        &graph,
+        &retained_deme_names,
+        callbacks.keep_migration,
+        callbacks.migration_start_time,
+        callbacks.migration_end_time,
+        &mut new_graph,
+    );
+    liftover_pulses(
+        &graph,
+        &retained_deme_names,
+        callbacks.keep_pulse,
+        &mut new_graph,
+    );
+    liftover_metadata(&graph, &mut new_graph)?;
     new_graph.resolve()
+}
+
+// Remove all history from [when, infinity)
+// NOTE: this function could take &Graph b/c it doesn't modify the input
+// This function is a prototype for a future API to "slice" demographic models.
+#[allow(dead_code)]
+pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
+    let callbacks = Callbacks {
+        keep_deme: |d: &Deme| d.end_time() < when,
+        keep_epoch: |e: &Epoch| e.end_time() < when,
+        keep_migration: |m: &AsymmetricMigration| m.end_time() < when,
+        keep_pulse: |m: &Pulse| m.time() < when,
+        epoch_end_time: |t: Time| Some(t.into()),
+        migration_start_time: |t: Time| {
+            if t > when {
+                Some(when.into())
+            } else {
+                Some(t.into())
+            }
+        },
+        migration_end_time: |t: Time| Some(t.into()),
+    };
+
+    remove_history(graph, callbacks)
 }
 
 // Remove all history from [0, when)
@@ -131,121 +247,29 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
 // This function is a prototype for a future API to "slice" demographic models.
 #[allow(dead_code)]
 pub fn remove_before(graph: Graph, when: Time) -> Result<Graph, DemesError> {
-    let generation_time = InputGenerationTime::from(f64::from(graph.generation_time()));
-
-    let mut new_graph = GraphBuilder::new(graph.time_units(), Some(generation_time), None);
-    let retained_deme_indexes = graph
-        .demes
-        .iter()
-        .enumerate()
-        // NOTE: this is different from the other fn
-        .filter(|(_, deme)| deme.start_time() > when)
-        .map(|(index, _)| index)
-        .collect::<Vec<_>>();
-
-    let mut retained_deme_names = vec![];
-    for i in retained_deme_indexes {
-        let deme = graph.deme(i);
-        let mut ancestors = vec![];
-        let mut proportions: Vec<InputProportion> = vec![];
-        for (name, proportion) in graph
-            .deme(i)
-            .ancestor_names()
-            .iter()
-            .zip(graph.deme(i).proportions().iter())
-        {
-            if retained_deme_names.contains(name) {
-                ancestors.push(name.to_string());
-                proportions.push(f64::from(*proportion).into());
-            }
-        }
-        let mut history = UnresolvedDemeHistory::default();
-        if !ancestors.is_empty() {
-            history.start_time = Some(deme.start_time().into())
-        }
-        if !ancestors.is_empty() {
-            history.ancestors = Some(ancestors);
-            history.proportions = Some(proportions);
-        }
-        retained_deme_names.push(deme.name().to_string());
-        let mut epochs: Vec<UnresolvedEpoch> = vec![];
-        for e in deme.epochs().iter().filter(|e| e.start_time() > when) {
-            let ue = UnresolvedEpoch {
-                // NOTE: this is a big diff from the remove_before fn!
-                end_time: if e.end_time() < when {
-                    Some(when.into())
-                } else {
-                    Some(e.end_time().into())
-                },
-                start_size: Some(f64::from(e.start_size()).into()),
-                end_size: Some(f64::from(e.end_size()).into()),
-                size_function: Some(e.size_function()),
-                cloning_rate: Some(f64::from(e.cloning_rate()).into()),
-                selfing_rate: Some(f64::from(e.selfing_rate()).into()),
-            };
-            epochs.push(ue)
-        }
-        new_graph.add_deme(
-            deme.name(),
-            epochs,
-            history,
-            if deme.description().is_empty() {
-                None
-            } else {
-                Some(deme.description())
-            },
-        )
-    }
-
-    for m in graph.migrations().iter().filter(|m| {
-        retained_deme_names.iter().any(|n| n == m.source())
-            && retained_deme_names.iter().any(|n| n == m.dest())
-            && m.start_time() >= when
-    }) {
-        let mig = UnresolvedMigration {
-            source: Some(m.source().to_string()),
-            dest: Some(m.dest().to_string()),
-            start_time: Some(m.start_time().into()),
-            end_time: if m.end_time() <= when {
+    let callbacks = Callbacks {
+        keep_deme: |d: &Deme| d.start_time() > when,
+        keep_epoch: |e: &Epoch| e.start_time() > when,
+        keep_migration: |m: &AsymmetricMigration| m.start_time() > when,
+        keep_pulse: |m: &Pulse| m.time() > when,
+        epoch_end_time: |t: Time| {
+            if t < when {
                 Some(when.into())
             } else {
-                Some(m.end_time().into())
-            },
-            rate: Some(f64::from(m.rate()).into()),
-            ..Default::default()
-        };
-        new_graph.add_migration(mig);
-    }
+                Some(t.into())
+            }
+        },
+        migration_start_time: |t: Time| Some(t.into()),
+        migration_end_time: |t: Time| {
+            if t <= when {
+                Some(when.into())
+            } else {
+                Some(t.into())
+            }
+        },
+    };
 
-    for pulse in graph.pulses().iter().filter(|p| {
-        p.time() > when
-            && retained_deme_names.iter().any(|n| n == p.dest())
-            && p.sources()
-                .iter()
-                .all(|s| retained_deme_names.iter().any(|n| n == s))
-    }) {
-        let sources = pulse
-            .sources()
-            .iter()
-            .map(|s| s.as_ref())
-            .collect::<Vec<_>>();
-        new_graph.add_pulse(
-            Some(&sources),
-            Some(pulse.dest()),
-            Some(InputTime::from(pulse.time())),
-            Some(pulse.proportions().iter().cloned().map(f64::from)),
-        )
-    }
-
-    if let Some(metadata) = graph.metadata() {
-        if let Err(e) = new_graph.set_toplevel_metadata(metadata.as_raw_ref()) {
-            return Err(DemesError::GraphError(format!(
-                "failed to set toplevel metadata: {e:?}"
-            )));
-        }
-    }
-
-    new_graph.resolve()
+    remove_history(graph, callbacks)
 }
 
 #[cfg(test)]

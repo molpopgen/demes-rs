@@ -329,4 +329,36 @@ mod tests {
             graph_from_yaml.as_string().unwrap()
         );
     }
+
+    #[test]
+    fn test_invalid_pulse() {
+        let mut b = GraphBuilder::new(TimeUnits::Generations, None, None);
+        b.add_deme(
+            "ancestor1",
+            vec![UnresolvedEpoch {
+                start_size: Some(50.0.into()),
+                end_time: Some(20.0.into()),
+                ..Default::default()
+            }],
+            UnresolvedDemeHistory::default(),
+            None,
+        );
+        b.add_deme(
+            "ancestor2",
+            vec![UnresolvedEpoch {
+                start_size: Some(50.0.into()),
+                end_time: Some(20.0.into()),
+                ..Default::default()
+            }],
+            UnresolvedDemeHistory::default(),
+            None,
+        );
+        b.add_pulse(
+            Some(&["ancestor1"]),
+            Some("ancestor2"),
+            Some(20.0),
+            Some(vec![0.5]),
+        );
+        assert!(b.resolve().is_err());
+    }
 }

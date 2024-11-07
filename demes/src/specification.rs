@@ -3035,6 +3035,7 @@ impl TryFrom<UnresolvedGraph> for Graph {
     type Error = DemesError;
 
     fn try_from(value: UnresolvedGraph) -> Result<Self, Self::Error> {
+        value.validate()?;
         let mut pulses = vec![];
         for p in value.pulses {
             pulses.push(Pulse::try_from(p)?);

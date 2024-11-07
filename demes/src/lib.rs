@@ -45,6 +45,7 @@ mod builder;
 mod cloning_rate;
 mod deme_size;
 mod error;
+mod graph_operations;
 mod migration_rate;
 mod proportion;
 mod selfing_rate;

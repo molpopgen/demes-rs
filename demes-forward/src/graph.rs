@@ -980,126 +980,6 @@ impl ForwardGraph {
 }
 
 #[cfg(test)]
-mod test_functions {
-    use super::*;
-
-    pub fn update_ancestry_proportions(
-        sources: &[usize],
-        source_proportions: &[f64],
-        ancestry_proportions: &mut [f64],
-    ) {
-        assert_eq!(sources.len(), source_proportions.len());
-        let sum = source_proportions.iter().fold(0.0, |a, b| a + b);
-        ancestry_proportions.iter_mut().for_each(|a| *a *= 1. - sum);
-        sources
-            .iter()
-            .zip(source_proportions.iter())
-            .for_each(|(source, proportion)| ancestry_proportions[*source] += proportion);
-    }
-
-    // NOTE: this function is implemented using
-    // private fields of ForwardGraph.
-    // Thus, this creates a testing anti-pattern.
-    pub fn ancestry_proportions_from_graph(
-        graph: &ForwardGraph,
-        child_deme: usize,
-    ) -> Option<Vec<f64>> {
-        graph.offspring_deme_sizes()?;
-
-        let mut rv = vec![0.0; graph.offspring_deme_sizes().unwrap().len()];
-
-        let deme = graph.child_demes.get(child_deme).unwrap();
-
-        if !deme.ancestors().is_empty() {
-            for (a, p) in deme.ancestors().iter().zip(deme.proportions().iter()) {
-                rv[*a] = f64::from(*p);
-            }
-        } else {
-            rv[child_deme] = 1.0;
-        }
-
-        let mut sources: Vec<usize> = vec![];
-        let mut source_proportions: Vec<f64> = vec![];
-
-        // FIXME: a bit of an anti-pattern here:
-        // * We are assumming the state of graph is correct!
-        // * We should, instead, use the last updated time
-        //   to get the pulses from the underlying demes::Graph.
-        for p in &graph.pulses {
-            sources.clear();
-            source_proportions.clear();
-            let dest = graph
-                .demes_graph()
-                .demes()
-                .iter()
-                .position(|d| d.name() == p.dest())
-                .unwrap();
-            if dest == child_deme {
-                for (s, d) in p.sources().iter().zip(p.proportions().iter()) {
-                    let source = graph
-                        .demes_graph()
-                        .demes()
-                        .iter()
-                        .position(|d| d.name() == s)
-                        .unwrap();
-                    sources.push(source);
-                    source_proportions.push(f64::from(*d));
-                }
-                update_ancestry_proportions(&sources, &source_proportions, &mut rv);
-            }
-        }
-
-        sources.clear();
-        source_proportions.clear();
-
-        for m in &graph.migrations {
-            let d = graph
-                .demes_graph()
-                .demes()
-                .iter()
-                .position(|deme| deme.name() == m.dest())
-                .unwrap();
-            if d == child_deme {
-                let s = graph
-                    .demes_graph()
-                    .demes()
-                    .iter()
-                    .position(|deme| deme.name() == m.source())
-                    .unwrap();
-                sources.push(s);
-                source_proportions.push(f64::from(m.rate()));
-            }
-        }
-        update_ancestry_proportions(&sources, &source_proportions, &mut rv);
-
-        Some(rv)
-    }
-
-    pub fn test_model_duration(graph: &mut ForwardGraph) {
-        for time in graph.time_iterator() {
-            graph.update_state(time).unwrap();
-            // assert!(graph.parental_demes().is_some(), "{}", time);
-            assert!(
-                graph.num_extant_parental_demes() > 0,
-                "{:?} {:?}",
-                time,
-                graph.end_time()
-            );
-            assert!(graph
-                .parental_deme_sizes()
-                .unwrap()
-                .iter()
-                .any(|size| size > &0.0));
-            if time == graph.end_time() - 1.0.into() {
-                assert!(graph.offspring_deme_sizes().is_none(), "time = {time:?}");
-            } else {
-                assert!(graph.offspring_deme_sizes().is_some(), "time = {time:?}");
-            }
-        }
-    }
-}
-
-#[cfg(test)]
 mod graphs_for_testing {
     pub fn four_deme_model() -> demes::Graph {
         let yaml = "
@@ -1586,13 +1466,14 @@ migrations:
             graph.offspring_deme_sizes().unwrap().first(),
             Some(&expected_size)
         );
-        test_functions::test_model_duration(&mut graph);
+        crate::test_functions::test_model_duration(&mut graph);
     }
 }
 
 #[cfg(test)]
 mod test_deme_ancestors {
-    use super::{test_functions::test_model_duration, *};
+    use super::*;
+    use crate::test_functions::test_model_duration;
 
     #[test]
     fn test_four_deme_model() {
@@ -1718,7 +1599,7 @@ pulses:
         for time in [199, 200] {
             g.update_state(time).unwrap();
             for deme in 0..g.num_demes_in_model() {
-                let ap = test_functions::ancestry_proportions_from_graph(&g, deme).unwrap();
+                let ap = crate::test_functions::ancestry_proportions_from_graph(&g, deme).unwrap();
                 let p = g.ancestry_proportions(deme).unwrap();
                 for pi in p {
                     assert!(pi <= &1.0);
@@ -1973,7 +1854,7 @@ migrations:
 #[cfg(test)]
 mod test_ancestry_proportions {
     use super::*;
-    use test_functions::*;
+    use crate::test_functions::*;
 
     #[test]
     fn sequential_pulses_at_same_time_two_demes() {
@@ -2139,15 +2020,21 @@ migrations:
 ";
         let demes_graph = demes::loads(yaml).unwrap();
         let mut graph = ForwardGraph::new_discrete_time(demes_graph, 50).unwrap();
-        graph.update_state(51.0).unwrap();
+        for parental_generation_time in [49.0, 50.0, 51.0, 52.0] {
+            graph.update_state(parental_generation_time).unwrap();
 
-        for child_deme in 0..3 {
-            let a = graph.ancestry_proportions(child_deme).unwrap();
-            let e = ancestry_proportions_from_graph(&graph, child_deme).unwrap();
-            assert_eq!(a.len(), e.len());
-            a.iter()
-                .zip(e.iter())
-                .for_each(|(a, b)| assert!((a - b).abs() <= 1e-9));
+            for child_deme in 0..3 {
+                let a = graph.ancestry_proportions(child_deme).unwrap();
+                let e = ancestry_proportions_from_graph(&graph, child_deme).unwrap();
+                assert_eq!(a.len(), e.len());
+                a.iter().zip(e.iter()).for_each(|(a, b)| {
+                    assert!(
+                        (a - b).abs() <= 1e-9,
+                        "failure at {parental_generation_time}, {:?}",
+                        graph.migrations
+                    )
+                });
+            }
         }
     }
 }
@@ -2155,7 +2042,7 @@ migrations:
 #[cfg(test)]
 mod migration_matrix {
     use super::*;
-    use test_functions::*;
+    use crate::test_functions::*;
 
     #[test]
     fn simple_two_way_migration() {

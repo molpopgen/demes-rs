@@ -30,6 +30,9 @@ mod iterators;
 mod square_matrix;
 mod time;
 
+#[cfg(test)]
+mod test_functions;
+
 pub use current_size::CurrentSize;
 pub use demes;
 pub use error::DemesForwardError;

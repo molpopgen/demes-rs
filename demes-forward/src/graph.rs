@@ -1028,10 +1028,20 @@ mod test_functions {
         for p in &graph.pulses {
             sources.clear();
             source_proportions.clear();
-            let dest = *graph.deme_to_index.get(p.dest()).unwrap();
+            let dest = graph
+                .demes_graph()
+                .demes()
+                .iter()
+                .position(|d| d.name() == p.dest())
+                .unwrap();
             if dest == child_deme {
                 for (s, d) in p.sources().iter().zip(p.proportions().iter()) {
-                    let source = *graph.deme_to_index.get(s).unwrap();
+                    let source = graph
+                        .demes_graph()
+                        .demes()
+                        .iter()
+                        .position(|d| d.name() == s)
+                        .unwrap();
                     sources.push(source);
                     source_proportions.push(f64::from(*d));
                 }
@@ -1043,9 +1053,19 @@ mod test_functions {
         source_proportions.clear();
 
         for m in &graph.migrations {
-            let d = *graph.deme_to_index.get(m.dest()).unwrap();
+            let d = graph
+                .demes_graph()
+                .demes()
+                .iter()
+                .position(|deme| deme.name() == m.dest())
+                .unwrap();
             if d == child_deme {
-                let s = *graph.deme_to_index.get(m.source()).unwrap();
+                let s = graph
+                    .demes_graph()
+                    .demes()
+                    .iter()
+                    .position(|deme| deme.name() == m.source())
+                    .unwrap();
                 sources.push(s);
                 source_proportions.push(f64::from(m.rate()));
             }

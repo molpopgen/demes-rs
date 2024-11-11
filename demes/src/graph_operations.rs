@@ -242,7 +242,7 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
     remove_history(graph, callbacks)
 }
 
-// Remove all history from [0, when)
+// Remove all history from [0, when), leaving a history from [when, ....)
 // NOTE: this function could take &Graph b/c it doesn't modify the input
 // This function is a prototype for a future API to "slice" demographic models.
 #[allow(dead_code)]
@@ -587,5 +587,23 @@ mod test_remove_before {
         let expected_graph = crate::loads(expected).unwrap();
         let clipped = remove_before(graph, 39.0.try_into().unwrap()).unwrap();
         assert_eq!(clipped, expected_graph);
+    }
+}
+
+#[test]
+fn slice_to_empty() {
+    {
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+        let graph = remove_before(graph, 40.0.try_into().unwrap()).unwrap();
+        assert!(remove_since(graph, 40.0.try_into().unwrap()).is_err());
+    }
+    // Reverse the order of operations
+    {
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+        let graph = remove_since(graph, 40.0.try_into().unwrap()).unwrap();
+        println!("{graph:?}");
+        let clipped = remove_before(graph.clone(), 40.0.try_into().unwrap()).unwrap();
+        println!("{clipped:?}");
+        assert!(remove_before(graph, 40.0.try_into().unwrap()).is_err());
     }
 }

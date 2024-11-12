@@ -666,12 +666,12 @@ fn test_removing_all_history_too_early() {
         let clipped = remove_since(graph.clone(), time);
         assert!(clipped.is_err(), "{t}");
     }
+    // Removing after 10 will be okay
     {
         // NOTE: the std lib functions to get the next/prev representable float
         // are currently unstable.
         // See https://github.com/rust-lang/rust/issues/91399
         use float_next_after::NextAfter;
-        // Removing after 10 will be okay
         for t in [10.0.next_after(f64::INFINITY), 11., 100., 1000., 10000.] {
             let time = Time::try_from(t).unwrap();
             let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();

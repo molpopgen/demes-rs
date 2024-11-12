@@ -648,10 +648,8 @@ fn slice_to_empty_1() {
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
         // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
         let clipped = remove_since(graph.clone(), time).unwrap();
-        println!("{graph:?}");
         // Then slice down to [time, inf), which is still valid
         let clipped = remove_before(clipped.clone(), time).unwrap();
-        println!("{clipped:?}");
         let res = remove_before(clipped, time);
         assert!(res.is_ok(), "{time:?}");
     }

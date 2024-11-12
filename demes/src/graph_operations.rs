@@ -605,11 +605,12 @@ fn slice_to_empty() {
     {
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
         // Slice from [0, inf) to [0, 40), which evaluates to [0, inf) to return a valid grapu
-        let graph = remove_since(graph, 40.0.try_into().unwrap()).unwrap();
+        let clipped = remove_since(graph.clone(), 40.0.try_into().unwrap()).unwrap();
+        assert_eq!(clipped, graph);
         println!("{graph:?}");
         // Then slice down to [40, inf), which is still valid
-        let clipped = remove_before(graph.clone(), 40.0.try_into().unwrap()).unwrap();
+        let clipped = remove_before(clipped.clone(), 40.0.try_into().unwrap()).unwrap();
         println!("{clipped:?}");
-        assert!(remove_before(graph, 40.0.try_into().unwrap()).is_ok());
+        assert!(remove_before(clipped, 40.0.try_into().unwrap()).is_ok());
     }
 }

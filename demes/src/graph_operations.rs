@@ -668,34 +668,22 @@ fn test_removing_all_history_too_early() {
         let clipped = remove_since(graph.clone(), time);
         assert!(clipped.is_err(), "{t}");
     }
-    // Removing after 10 will be okay
-    for t in [11, 100, 1000, 10000] {
-        let time = Time::try_from(t as f64).unwrap();
-        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
-        // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
-        let clipped = remove_since(graph.clone(), time);
-        assert!(clipped.is_ok(), "{time:?}");
-        let clipped = clipped.unwrap();
-        let clipped = remove_before(clipped.clone(), time).unwrap();
-        let res = remove_before(clipped, time);
-        assert!(res.is_ok(), "{time:?}");
-    }
-
     {
         // NOTE: the std lib functions to get the next/prev representable float
         // are currently unstable.
         // See https://github.com/rust-lang/rust/issues/91399
         use float_next_after::NextAfter;
-        let t = 10.0.next_after(f64::INFINITY);
-        assert!(t > 10.0);
-        let time = Time::try_from(t).unwrap();
-        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
-        // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
-        let clipped = remove_since(graph.clone(), time);
-        assert!(clipped.is_ok(), "{time:?}");
-        let clipped = clipped.unwrap();
-        let clipped = remove_before(clipped.clone(), time).unwrap();
-        let res = remove_before(clipped, time);
-        assert!(res.is_ok(), "{time:?}");
+        // Removing after 10 will be okay
+        for t in [10.0.next_after(f64::INFINITY), 11., 100., 1000., 10000.] {
+            let time = Time::try_from(t).unwrap();
+            let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
+            // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+            let clipped = remove_since(graph.clone(), time);
+            assert!(clipped.is_ok(), "{time:?}");
+            let clipped = clipped.unwrap();
+            let clipped = remove_before(clipped.clone(), time).unwrap();
+            let res = remove_before(clipped, time);
+            assert!(res.is_ok(), "{time:?}");
+        }
     }
 }

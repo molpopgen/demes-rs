@@ -603,18 +603,18 @@ fn slice_to_empty_0() {
 
 #[test]
 fn slice_to_empty_1() {
-    todo!("write down expected graphs");
     // Reverse the order of operations
 
+    let time = Time::try_from(40.0).unwrap();
     let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
-    // Slice from [0, inf) to [0, 40), which evaluates to [0, inf) to return a valid grapu
-    let clipped = remove_since(graph.clone(), 40.0.try_into().unwrap()).unwrap();
+    // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+    let clipped = remove_since(graph.clone(), time).unwrap();
     assert_eq!(clipped, graph);
     println!("{graph:?}");
-    // Then slice down to [40, inf), which is still valid
-    let clipped = remove_before(clipped.clone(), 40.0.try_into().unwrap()).unwrap();
+    // Then slice down to [time, inf), which is still valid
+    let clipped = remove_before(clipped.clone(), time).unwrap();
     println!("{clipped:?}");
-    assert!(remove_before(clipped, 40.0.try_into().unwrap()).is_ok());
+    assert!(remove_before(clipped, time).is_ok());
 }
 
 #[test]

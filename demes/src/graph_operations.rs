@@ -651,7 +651,7 @@ fn slice_to_empty_1() {
 
 #[test]
 fn slice_to_empty_2() {
-    // this graph ends before time 0, so clipping 
+    // this graph ends before time 0, so clipping
     // from all events >= t where t is more recent than the first
     // end time will give an empty graph.
     for t in [0.1, 1.0, 10., 100., 1000.] {
@@ -661,7 +661,7 @@ fn slice_to_empty_2() {
         let clipped = remove_since(graph.clone(), time);
         if time > 20. {
             assert!(clipped.is_ok(), "{time:?}");
-            let clipped  = clipped.unwrap();
+            let clipped = clipped.unwrap();
             println!("{graph:?}");
             // Then slice down to [time, inf), which is still valid
             let clipped = remove_before(clipped.clone(), time).unwrap();

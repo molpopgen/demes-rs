@@ -591,26 +591,33 @@ mod test_remove_before {
 }
 
 #[test]
-fn slice_to_empty() {
-    {
-        // This graph goes from [0, inf)
-        // We first slice it down to [40, inf) and then from [min, 40).
-        // The last interval is not inclusive of the result of the first slice,
-        // leaving an empty graph, which is an error.
-        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
-        let graph = remove_before(graph, 40.0.try_into().unwrap()).unwrap();
-        assert!(remove_since(graph, 40.0.try_into().unwrap()).is_err());
-    }
+fn slice_to_empty_0() {
+    // This graph goes from [0, inf)
+    // We first slice it down to [40, inf) and then from [min, 40).
+    // The last interval is not inclusive of the result of the first slice,
+    // leaving an empty graph, which is an error.
+    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+    let graph = remove_before(graph, 40.0.try_into().unwrap()).unwrap();
+    assert!(remove_since(graph, 40.0.try_into().unwrap()).is_err());
+}
+
+#[test]
+fn slice_to_empty_1() {
+    todo!("write down expected graphs");
     // Reverse the order of operations
-    {
-        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
-        // Slice from [0, inf) to [0, 40), which evaluates to [0, inf) to return a valid grapu
-        let clipped = remove_since(graph.clone(), 40.0.try_into().unwrap()).unwrap();
-        assert_eq!(clipped, graph);
-        println!("{graph:?}");
-        // Then slice down to [40, inf), which is still valid
-        let clipped = remove_before(clipped.clone(), 40.0.try_into().unwrap()).unwrap();
-        println!("{clipped:?}");
-        assert!(remove_before(clipped, 40.0.try_into().unwrap()).is_ok());
-    }
+
+    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+    // Slice from [0, inf) to [0, 40), which evaluates to [0, inf) to return a valid grapu
+    let clipped = remove_since(graph.clone(), 40.0.try_into().unwrap()).unwrap();
+    assert_eq!(clipped, graph);
+    println!("{graph:?}");
+    // Then slice down to [40, inf), which is still valid
+    let clipped = remove_before(clipped.clone(), 40.0.try_into().unwrap()).unwrap();
+    println!("{clipped:?}");
+    assert!(remove_before(clipped, 40.0.try_into().unwrap()).is_ok());
+}
+
+#[test]
+fn slice_to_empty_2() {
+    todo!("can we find example where we get err/ok vs ok/err for different graphs when using the different orders?")
 }

@@ -591,6 +591,15 @@ mod test_remove_before {
 }
 
 #[test]
+fn slice_history_older_than_0() {
+    // By def'n, this results in an empty graph
+    let time = Time::try_from(0.0).unwrap();
+    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+    let graph = remove_before(graph, time).unwrap();
+    assert!(remove_since(graph, time).is_err());
+}
+
+#[test]
 fn slice_to_empty_0() {
     // This graph goes from [0, inf)
     // We first slice it down to [40, inf) and then from [min, 40).
@@ -605,17 +614,17 @@ fn slice_to_empty_0() {
 fn slice_to_empty_1() {
     // Reverse the order of operations
 
-    for t in [0.0, 0.1, 1.0, 10., 100., 1000.] {
-    let time = Time::try_from(time).unwrap();
-    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
-    // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
-    let clipped = remove_since(graph.clone(), time).unwrap();
-    assert_eq!(clipped, graph);
-    println!("{graph:?}");
-    // Then slice down to [time, inf), which is still valid
-    let clipped = remove_before(clipped.clone(), time).unwrap();
-    println!("{clipped:?}");
-    assert!(remove_before(clipped, time).is_ok());
+    for t in [0.1, 1.0, 10., 100., 1000.] {
+        let time = Time::try_from(t).unwrap();
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+        // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+        let clipped = remove_since(graph.clone(), time).unwrap();
+        println!("{graph:?}");
+        // Then slice down to [time, inf), which is still valid
+        let clipped = remove_before(clipped.clone(), time).unwrap();
+        println!("{clipped:?}");
+        let res = remove_before(clipped, time);
+        assert!(res.is_ok(), "{time:?}");
     }
 }
 

@@ -39,6 +39,7 @@ features = ["std", "unicode-perl"]
 
 [dev-dependencies]
 anyhow = "~1"
+float_next_after = "1.0.0"
 
 [[example]]
 name = "iterate_graph_detail"

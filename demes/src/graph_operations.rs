@@ -673,3 +673,8 @@ fn slice_to_empty_2() {
         }
     }
 }
+
+#[test]
+fn test_remove_before_end_before_0() {
+    todo!("do we have a test for this case")
+}

@@ -293,6 +293,27 @@ static SIMPLE_TWO_DEME_GRAPH: &str = "
 ";
 
 #[cfg(test)]
+static SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0: &str = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+       end_time: 10
+";
+
+#[cfg(test)]
 static SIMPLE_TWO_DEME_GRAPH_WITH_METADATA: &str = "
  time_units: generations
  metadata:
@@ -630,5 +651,25 @@ fn slice_to_empty_1() {
 
 #[test]
 fn slice_to_empty_2() {
-    todo!("can we find example where we get err/ok vs ok/err for different graphs when using the different orders?")
+    // this graph ends before time 0, so clipping 
+    // from all events >= t where t is more recent than the first
+    // end time will give an empty graph.
+    for t in [0.1, 1.0, 10., 100., 1000.] {
+        let time = Time::try_from(t).unwrap();
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
+        // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+        let clipped = remove_since(graph.clone(), time);
+        if time > 20. {
+            assert!(clipped.is_ok(), "{time:?}");
+            let clipped  = clipped.unwrap();
+            println!("{graph:?}");
+            // Then slice down to [time, inf), which is still valid
+            let clipped = remove_before(clipped.clone(), time).unwrap();
+            println!("{clipped:?}");
+            let res = remove_before(clipped, time);
+            assert!(res.is_ok(), "{time:?}");
+        } else {
+            assert!(clipped.is_err())
+        }
+    }
 }

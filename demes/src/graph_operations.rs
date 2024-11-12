@@ -604,7 +604,7 @@ fn slice_to_empty() {
     // Reverse the order of operations
     {
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
-        // Slice from [0, inf) to [0, inf), but removing all events after 40
+        // Slice from [0, inf) to [0, 40), which evaluates to [0, inf) to return a valid grapu
         let graph = remove_since(graph, 40.0.try_into().unwrap()).unwrap();
         println!("{graph:?}");
         // Then slice down to [40, inf), which is still valid

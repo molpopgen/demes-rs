@@ -605,7 +605,8 @@ fn slice_to_empty_0() {
 fn slice_to_empty_1() {
     // Reverse the order of operations
 
-    let time = Time::try_from(40.0).unwrap();
+    for t in [0.0, 0.1, 1.0, 10., 100., 1000.] {
+    let time = Time::try_from(time).unwrap();
     let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
     // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
     let clipped = remove_since(graph.clone(), time).unwrap();
@@ -615,6 +616,7 @@ fn slice_to_empty_1() {
     let clipped = remove_before(clipped.clone(), time).unwrap();
     println!("{clipped:?}");
     assert!(remove_before(clipped, time).is_ok());
+    }
 }
 
 #[test]

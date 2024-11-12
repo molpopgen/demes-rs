@@ -629,7 +629,7 @@ fn slice_history_older_than_0() {
 }
 
 #[test]
-fn slice_to_empty_0() {
+fn reduce_to_empty_graph() {
     // This graph goes from [0, inf)
     // We first slice it down to [40, inf) and then from [min, 40).
     // The last interval is not inclusive of the result of the first slice,
@@ -640,10 +640,9 @@ fn slice_to_empty_0() {
 }
 
 #[test]
-fn slice_to_empty_1() {
-    // Reverse the order of operations
-
-    for t in [0.1, 1.0, 10., 100., 1000.] {
+fn correct_order_of_operations_in_general() {
+    // Reverse the order of operations compared to previous test
+    for t in [0.1, 1.0, 10., 40., 100., 1000.] {
         let time = Time::try_from(t).unwrap();
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
         // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu

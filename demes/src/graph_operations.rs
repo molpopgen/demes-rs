@@ -221,8 +221,16 @@ fn remove_history<
 // Remove all history from [when, infinity)
 // NOTE: this function could take &Graph b/c it doesn't modify the input
 // This function is a prototype for a future API to "slice" demographic models.
+// Details:
+//
+// * retains everything with a time < when
 #[allow(dead_code)]
 pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
+    if when <= 0.0 {
+        return Err(DemesError::ValueError(format!(
+            "when = {when} will result in an empty output Graph"
+        )));
+    }
     let callbacks = Callbacks {
         keep_deme: |d: &Deme| d.end_time() < when,
         keep_epoch: |e: &Epoch| e.end_time() < when,
@@ -242,7 +250,7 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
     remove_history(graph, callbacks)
 }
 
-// Remove all history from [0, when)
+// Remove all history from [0, when), leaving a history from [when, ....)
 // NOTE: this function could take &Graph b/c it doesn't modify the input
 // This function is a prototype for a future API to "slice" demographic models.
 #[allow(dead_code)]
@@ -290,6 +298,27 @@ static SIMPLE_TWO_DEME_GRAPH: &str = "
     start_time: 20
     epochs:
      - start_size: 50
+";
+
+#[cfg(test)]
+static SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0: &str = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+       end_time: 10
 ";
 
 #[cfg(test)]
@@ -587,5 +616,71 @@ mod test_remove_before {
         let expected_graph = crate::loads(expected).unwrap();
         let clipped = remove_before(graph, 39.0.try_into().unwrap()).unwrap();
         assert_eq!(clipped, expected_graph);
+    }
+}
+
+#[test]
+fn slice_history_older_than_0() {
+    // By def'n, this results in an empty graph
+    let time = Time::try_from(0.0).unwrap();
+    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+    let graph = remove_before(graph, time).unwrap();
+    assert!(remove_since(graph, time).is_err());
+}
+
+#[test]
+fn reduce_to_empty_graph() {
+    // This graph goes from [0, inf)
+    // We first slice it down to [40, inf) and then from [min, 40).
+    // The last interval is not inclusive of the result of the first slice,
+    // leaving an empty graph, which is an error.
+    let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+    let graph = remove_before(graph, 40.0.try_into().unwrap()).unwrap();
+    assert!(remove_since(graph, 40.0.try_into().unwrap()).is_err());
+}
+
+#[test]
+fn correct_order_of_operations_in_general() {
+    // Reverse the order of operations compared to previous test
+    for t in [0.1, 1.0, 10., 40., 100., 1000.] {
+        let time = Time::try_from(t).unwrap();
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+        // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+        let clipped = remove_since(graph.clone(), time).unwrap();
+        // Then slice down to [time, inf), which is still valid
+        let clipped = remove_before(clipped.clone(), time).unwrap();
+        let res = remove_before(clipped, time);
+        assert!(res.is_ok(), "{time:?}");
+    }
+}
+
+#[test]
+fn test_removing_all_history_too_early() {
+    // The test graph ends at time 10.
+    // Therefore, removing all history after any time <= 10 will
+    // give an empty graph, which is an Err
+    for t in 0..11 {
+        let time = Time::try_from(t as f64).unwrap();
+        let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
+        let clipped = remove_since(graph.clone(), time);
+        assert!(clipped.is_err(), "{t}");
+    }
+    // Removing after 10 will be okay
+    {
+        // NOTE: the std lib functions to get the next/prev representable float
+        // are currently unstable.
+        // See https://github.com/rust-lang/rust/issues/91399
+        use float_next_after::NextAfter;
+        for t in [10.0.next_after(f64::INFINITY), 11., 100., 1000., 10000.] {
+            let time = Time::try_from(t).unwrap();
+            let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH_END_BEFORE_0).unwrap();
+            // Slice from [0, inf) to [0, time), which evaluates to [0, inf) to return a valid grapu
+            let clipped = remove_since(graph.clone(), time);
+            assert!(clipped.is_ok(), "{time:?}");
+            let clipped = clipped.unwrap();
+            let clipped = remove_before(clipped.clone(), time).unwrap();
+            let res = remove_before(clipped, time);
+            assert!(res.is_ok(), "{time:?}");
+        }
     }
 }

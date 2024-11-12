@@ -593,6 +593,10 @@ mod test_remove_before {
 #[test]
 fn slice_to_empty() {
     {
+        // This graph goes from [0, inf)
+        // We first slice it down to [40, inf) and then from [min, 40).
+        // The last interval is not inclusive of the result of the first slice,
+        // leaving an empty graph, which is an error.
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
         let graph = remove_before(graph, 40.0.try_into().unwrap()).unwrap();
         assert!(remove_since(graph, 40.0.try_into().unwrap()).is_err());
@@ -600,8 +604,10 @@ fn slice_to_empty() {
     // Reverse the order of operations
     {
         let graph = crate::loads(SIMPLE_TWO_DEME_GRAPH).unwrap();
+        // Slice from [0, inf) to [0, inf), but removing all events after 40
         let graph = remove_since(graph, 40.0.try_into().unwrap()).unwrap();
         println!("{graph:?}");
+        // Then slice down to [40, inf)
         let clipped = remove_before(graph.clone(), 40.0.try_into().unwrap()).unwrap();
         println!("{clipped:?}");
         assert!(remove_before(graph, 40.0.try_into().unwrap()).is_err());

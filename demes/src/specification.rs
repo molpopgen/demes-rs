@@ -3515,6 +3515,170 @@ impl Graph {
         let g = UnresolvedGraph::from(self);
         g.rescale(scaling_factor)?.try_into()
     }
+
+    /// Remove recent history from a [Graph].
+    ///
+    /// For a given value of `when`, a new graph is created with all
+    /// history from `[0, when)` removed.
+    ///
+    /// # Examples
+    ///
+    /// Remove the first ten generations:
+    ///
+    /// ```
+    /// let yaml = "
+    /// time_units: generations
+    /// demes:
+    ///  - start_time: .inf
+    ///    name: deme
+    ///    epochs:
+    ///     - start_size: 100
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// assert_eq!(graph.demes()[0].end_time(), 0.0);
+    /// let when = demes::Time::try_from(10.0).unwrap();
+    /// let sliced = graph.slice_until(when).unwrap();
+    /// assert_eq!(sliced.demes()[0].end_time(), 10.0);
+    /// ```
+    ///
+    /// For the next example, removing the first 20 generations
+    /// removes the ancestral deme entirely:
+    ///
+    /// ```
+    /// let yaml = "
+    /// time_units: generations
+    /// demes:
+    ///  - start_time: .inf
+    ///    name: ancestor
+    ///    epochs:
+    ///     - start_size: 100
+    ///       end_time: 20
+    ///  - name: derived
+    ///    start_time: 20
+    ///    ancestors: [ancestor]
+    ///    proportions: [1.0]
+    ///    epochs:
+    ///     - start_size: 50
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// assert_eq!(graph.demes().len(), 2);
+    /// assert_eq!(graph.demes()[0].end_time(), 20.0);
+    /// assert_eq!(graph.demes()[1].end_time(), 0.0);
+    /// let when = demes::Time::try_from(20.0).unwrap();
+    /// let sliced = graph.slice_until(when).unwrap();
+    /// assert_eq!(sliced.demes().len(), 1);
+    /// assert_eq!(sliced.demes()[0].end_time(), 20.0);
+    /// assert_eq!(sliced.demes()[0].start_time(), f64::INFINITY);
+    /// assert_eq!(sliced.demes()[0].name(), "ancestor");
+    /// ```
+    ///
+    /// For the same input, removing the first 10 generations
+    /// simply truncates the duration of the derived deme:
+    ///
+    /// ```
+    /// # let yaml = "
+    /// # time_units: generations
+    /// # demes:
+    /// #  - start_time: .inf
+    /// #    name: ancestor
+    /// #    epochs:
+    /// #     - start_size: 100
+    /// #       end_time: 20
+    /// #  - name: derived
+    /// #    start_time: 20
+    /// #    ancestors: [ancestor]
+    /// #    proportions: [1.0]
+    /// #    epochs:
+    /// #     - start_size: 50
+    /// # ";
+    /// # let graph = demes::loads(yaml).unwrap();
+    /// # assert_eq!(graph.demes().len(), 2);
+    /// # assert_eq!(graph.demes()[0].end_time(), 20.0);
+    /// # assert_eq!(graph.demes()[1].end_time(), 0.0);
+    /// let when = demes::Time::try_from(10.0).unwrap();
+    /// let sliced = graph.slice_until(when).unwrap();
+    /// assert_eq!(sliced.demes().len(), 2);
+    /// assert_eq!(sliced.demes()[0].end_time(), 20.0);
+    /// assert_eq!(sliced.demes()[0].start_time(), f64::INFINITY);
+    /// assert_eq!(sliced.demes()[0].name(), "ancestor");
+    /// assert_eq!(sliced.demes()[1].end_time(), 10.0);
+    /// assert_eq!(sliced.demes()[1].start_time(), 20.0);
+    /// assert_eq!(sliced.demes()[1].name(), "derived");
+    /// ```
+    pub fn slice_until(self, when: Time) -> Result<Self, DemesError> {
+        crate::graph_operations::slice::slice_until(self, when)
+    }
+
+    /// Remove ancient history from a [Graph].
+    ///
+    /// For a given value of `when`, a new graph is created with only
+    /// history from `[0, when)` retained.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let yaml = "
+    /// time_units: generations
+    /// demes:
+    ///  - start_time: .inf
+    ///    name: ancestor
+    ///    epochs:
+    ///     - start_size: 100
+    ///       end_time: 20
+    ///  - name: derived
+    ///    start_time: 20
+    ///    ancestors: [ancestor]
+    ///    proportions: [1.0]
+    ///    epochs:
+    ///     - start_size: 50
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// assert_eq!(graph.demes().len(), 2);
+    /// assert_eq!(graph.demes()[0].end_time(), 20.0);
+    /// assert_eq!(graph.demes()[1].end_time(), 0.0);
+    /// let when = demes::Time::try_from(20.0).unwrap();
+    /// let sliced = graph.slice_after(when).unwrap();
+    /// assert_eq!(sliced.demes().len(), 1);
+    /// assert_eq!(sliced.demes()[0].end_time(), 0.0);
+    /// assert_eq!(sliced.demes()[0].start_time(), f64::INFINITY);
+    /// assert_eq!(sliced.demes()[0].name(), "derived");
+    /// ```
+    ///
+    /// If `when` is within an epoch, we insert an extra epoch
+    /// that has constant size until infinity in the past.
+    /// The size is the epoch's size at `when`.
+    /// Let's look at an example involving population growth.
+    ///
+    /// ```
+    /// let yaml = "
+    /// time_units: generations
+    /// demes:
+    ///  - name: growing
+    ///    epochs:
+    ///     - start_size: 100
+    ///       end_time: 100
+    ///     - start_size: 100
+    ///       end_size: 200
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// let when = demes::Time::try_from(50.).unwrap();
+    /// let sliced = graph.clone().slice_after(when).unwrap();
+    /// let deme = &sliced.deme(0);
+    /// assert_eq!(deme.num_epochs(), 2);
+    /// let e = deme.epochs()[0];
+    /// assert_eq!(e.start_time(), f64::INFINITY);
+    /// assert_eq!(e.end_time(), when);
+    /// assert_eq!(e.start_size(), graph.deme(0).size_at(when).unwrap().unwrap());
+    /// assert_eq!(e.start_size(), e.end_size());
+    /// let e = deme.epochs()[1];
+    /// assert_eq!(e.start_time(), when);
+    /// assert_eq!(e.end_time(), 0.0);
+    /// assert_eq!(e.start_size(), graph.deme(0).size_at(when).unwrap().unwrap());
+    /// assert_eq!(e.end_size(), graph.deme(0).end_size());
+    /// ```
+    pub fn slice_after(self, when: Time) -> Result<Self, DemesError> {
+        crate::graph_operations::slice::slice_after(self, when)
+    }
 }
 
 #[cfg(test)]

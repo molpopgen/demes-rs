@@ -1,1 +1,1 @@
-mod splice;
+pub mod slice;

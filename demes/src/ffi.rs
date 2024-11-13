@@ -1772,3 +1772,47 @@ fn test_deme_ancestry_iterator() {
         assert_eq!(&ancestors, &ancestors_from_deme);
     }
 }
+
+#[test]
+fn test_load_from_file() {
+    let filename = "demes-spec/examples/browning_america.yaml";
+    let file = std::fs::File::open(filename).unwrap();
+    let graph = crate::load(file).unwrap();
+    let mut graph_from_file: *mut Graph = std::ptr::null_mut();
+    let mut error = FFIError::default();
+
+    let c_filename = CString::new(filename.to_string()).unwrap();
+    let code = unsafe {
+        demes_graph_load_from_file(c_filename.as_ptr(), &mut error, &mut graph_from_file)
+    };
+    assert_eq!(code, 0);
+    assert_eq!(&graph, unsafe { graph_from_file.as_ref() }.unwrap());
+    unsafe { demes_graph_deallocate(graph_from_file) };
+}
+#[test]
+fn test_load_from_nonexistent_file() {
+    let filename = "AGEWRGEVABEAGFACARHG";
+    let c_filename = CString::new(filename.to_string()).unwrap();
+    let mut graph_from_file: *mut Graph = std::ptr::null_mut();
+    let mut error = FFIError::default();
+    let code = unsafe {
+        demes_graph_load_from_file(c_filename.as_ptr(), &mut error, &mut graph_from_file)
+    };
+    assert_ne!(code, 0);
+    assert!(graph_from_file.is_null());
+    assert!(matches!(error.error, Some(ErrorDetails::BoxedError(_))))
+}
+
+#[test]
+fn test_load_from_null_file() {
+    let mut graph_from_file: *mut Graph = std::ptr::null_mut();
+    let mut error = FFIError::default();
+    let code =
+        unsafe { demes_graph_load_from_file(std::ptr::null(), &mut error, &mut graph_from_file) };
+    assert_ne!(code, 0);
+    assert!(graph_from_file.is_null());
+    assert!(matches!(
+        error.error,
+        Some(ErrorDetails::UnexpectedNullPointer)
+    ))
+}

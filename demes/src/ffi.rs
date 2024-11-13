@@ -93,6 +93,10 @@ pub enum SizeFunction {
 
 /// Allocate a [`FFIError`]
 ///
+/// # Return
+///
+/// * A newly-allocated [`FFIError`]
+///
 /// # Notes
 ///
 /// The memory for this type is allocated via the rust allocator.
@@ -121,6 +125,10 @@ pub extern "C" fn demes_error_clear(error: &mut FFIError) {
 
 /// Obtain a C string containing the error message.
 ///
+/// # Parameters
+///
+/// * `errror` - an instance of [`FFIError`]
+///
 /// # Returns
 ///
 /// * The error message, if one exists .
@@ -140,6 +148,10 @@ pub extern "C" fn demes_error_message(error: &FFIError) -> *mut c_char {
 
 /// Free the memory for a [`FFIError`]
 ///
+/// # Parameters
+///
+/// * `error` - mutable pointer to [`FFIError`]
+///
 /// # Safety
 ///
 /// * `error` must point to a non-NULL instance of [`FFIError`]
@@ -152,6 +164,11 @@ pub unsafe extern "C" fn demes_error_deallocate(error: *mut FFIError) {
 }
 
 /// Free the memory for a C-style string that was allocated by this module.
+///
+/// # Parameters
+///
+/// * `ptr` - Pointer to a C-style string that has been allocated by other
+///   functions from this module.
 ///
 /// # Safety
 ///
@@ -216,6 +233,12 @@ unsafe fn load(file: std::fs::File, error: &mut FFIError, output: *mut *mut Grap
 
 /// Generate a copy of a [`Graph`] with time units changed to generations.
 ///
+/// # Paramters
+///
+/// * `graph` - the input [`Graph`]
+/// * `error` - a mutable [`FFIError`]
+/// * `output` - pointer to memory to store the output.
+///
 /// # Returns
 ///
 /// * 0 upon success
@@ -223,7 +246,7 @@ unsafe fn load(file: std::fs::File, error: &mut FFIError, output: *mut *mut Grap
 ///
 /// # Safety
 ///
-/// * `output` must point to a mutable pointer to a [`Graph`]
+/// * `output` must not be a null pointer.
 ///
 /// # Side effects
 ///
@@ -351,13 +374,29 @@ pub unsafe extern "C" fn demes_graph_deallocate(graph: *mut Graph) {
 
 /// Initialize a [`Graph`] from a YAML string.
 ///
+/// # Parameters
+///
+/// * `yaml` - C-style string referring to YAML input.
+/// * `graph` - a mutable pointer to a pointer to a [`Graph`].
+/// * `error` - a mutatble reference/pointer to [`FFIError`].
+///
 /// # Returns
 ///
-/// * An initialized [`Graph`] upon success.
-/// * A null pointer upon error
-/// * A null pointer if `error` contains an error state,
-///   implying either an error has not been handled and/or
-///   it has not been cleared.
+/// * 0 upon success
+/// * non-zero upon error
+///
+/// # Side effects
+///
+/// Upon success:
+///
+/// * The pointee of `graph` points to a newly-allocated [`Graph`].
+///   This object must be freed via [`demes_graph_deallocate`].
+///
+/// Upon error:
+///
+/// * `error` will contain an error state.
+///   See [`demes_error_message`].
+/// * The pointee of `graph` will be a null pointer.
 ///
 /// # Error
 ///
@@ -366,16 +405,16 @@ pub unsafe extern "C" fn demes_graph_deallocate(graph: *mut Graph) {
 ///
 /// # Safety
 ///
-/// * `yaml` must be a non-null `char *`.
+/// * `yaml` must be a non-null pointer.
 /// * For `yaml`, all safety requirements of
 ///   [`CStr::from_ptr`](std::ffi::CStr::from_ptr)
 ///   must be upheld.
 /// * `error` must be a non-null pointer to a [`FFIError`]
+/// * `graph` must not be NULL.
 ///
-/// # Note
+/// # Notes
 ///
-/// The return value, if not NULL, **must** be freed via
-/// [`demes_graph_deallocate`], else a memory leak will occur.
+/// * Resource leaks may occur if the pointee of `graph` is not NULL.
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_load_from_yaml(
     // NOTE: it is very hard to test invalid c style strings.
@@ -404,13 +443,29 @@ pub unsafe extern "C" fn demes_graph_load_from_yaml(
 
 /// Initialize a [`Graph`] from a file.
 ///
+/// # Parameters
+///
+/// * `filename` - C-style string referring to a file containing YAML data.
+/// * `graph` - a mutable pointer to a pointer to a [`Graph`].
+/// * `error` - a mutatble reference/pointer to [`FFIError`].
+///
 /// # Returns
 ///
-/// * An initialized [`Graph`] upon success.
-/// * A null pointer upon error
-/// * A null pointer if `error` contains an error state,
-///   implying either an error has not been handled and/or
-///   it has not been cleared.
+/// * 0 upon success
+/// * non-zero upon error
+///
+/// # Side effects
+///
+/// Upon success:
+///
+/// * The pointee of `graph` points to a newly-allocated [`Graph`].
+///   This object must be freed via [`demes_graph_deallocate`].
+///
+/// Upon error:
+///
+/// * `error` will contain an error state.
+///   See [`demes_error_message`].
+/// * The pointee of `graph` will be a null pointer.
 ///
 /// # Error
 ///
@@ -424,11 +479,11 @@ pub unsafe extern "C" fn demes_graph_load_from_yaml(
 ///   [`CStr::from_ptr`](std::ffi::CStr::from_ptr)
 ///   must be upheld.
 /// * `error` must be a non-null pointer to a [`FFIError`]
+/// * `graph` must not be NULL.
 ///
-/// # Note
+/// # Notes
 ///
-/// The return value, if not NULL, **must** be freed via
-/// [`demes_graph_deallocate`], else a memory leak will occur.
+/// * Resource leaks may occur if the pointee of `graph` is not NULL.
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_load_from_file(
     // NOTE: it is very hard to test invalid c style strings.
@@ -973,6 +1028,10 @@ pub extern "C" fn demes_pulse_time(pulse: &Pulse) -> f64 {
 
 /// Get a pointer to all ancestry proportions for a [`Pulse`].
 ///
+/// # Parameters
+///
+/// * `pulse` - a [Pulse]
+///
 /// # Notes
 ///
 /// * The return value points to memory managed by rust
@@ -987,6 +1046,10 @@ pub extern "C" fn demes_pulse_proportions(pulse: &Pulse) -> *const f64 {
 
 /// Allocate a [`DemeIterator`].
 ///
+/// # Parameters
+///
+/// * `graph` - the parent [`Graph`]
+///
 /// # Notes
 ///
 /// * You must call [`demes_deme_iterator_deallocate`] to return resources
@@ -997,6 +1060,10 @@ pub extern "C" fn demes_graph_deme_iterator(graph: &Graph) -> *mut DemeIterator 
 }
 
 /// Dellocate a [`DemeIterator`].
+///
+/// # Parameters
+///
+/// * `ptr` - pointer to [DemeIterator] to deallocate
 ///
 /// # Safety
 ///
@@ -1009,16 +1076,24 @@ pub unsafe extern "C" fn demes_deme_iterator_deallocate(ptr: *mut DemeIterator) 
 
 /// Advance a [`DemeIterator`]
 ///
+/// # Parameters
+///
+/// * `iterator` - the [DemeIterator] to advance
+///
 /// # Return
 ///
 /// * A const pointer to a [`Deme`] if the iterator is still valid.
 /// * A NULL pointer when iteration has ended.
 #[no_mangle]
-pub extern "C" fn demes_deme_iterator_next(deme_iterator: &mut DemeIterator) -> *const Deme {
-    deme_iterator.next().unwrap_or(std::ptr::null())
+pub extern "C" fn demes_deme_iterator_next(iterator: &mut DemeIterator) -> *const Deme {
+    iterator.next().unwrap_or(std::ptr::null())
 }
 
 /// Allocate and initialize an [`EpochIterator`].
+///
+/// # Parameters
+///
+/// * `deme` - the [Deme] containing the [Epoch]s for iteration
 ///
 /// # Note
 ///
@@ -1030,16 +1105,24 @@ pub extern "C" fn demes_deme_epoch_iterator(deme: &Deme) -> *mut EpochIterator {
 
 /// Advance an [`EpochIterator`].
 ///
+/// # Parameters
+///
+/// * `iterator` - the [EpochIterator] to advance
+///
 /// # Return
 ///
 /// * A const pointer to an [`Epoch`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
 #[no_mangle]
-pub extern "C" fn demes_epoch_iterator_next(epoch_iterator: &mut EpochIterator) -> *const Epoch {
-    epoch_iterator.next().unwrap_or(std::ptr::null())
+pub extern "C" fn demes_epoch_iterator_next(iterator: &mut EpochIterator) -> *const Epoch {
+    iterator.next().unwrap_or(std::ptr::null())
 }
 
 /// Deallocate an [`EpochIterator`]
+///
+/// # Parameters
+///
+/// * `ptr` - pointer to [EpochIterator] to deallocate
 ///
 /// # Safety
 ///
@@ -1063,16 +1146,24 @@ pub extern "C" fn demes_graph_pulse_iterator(graph: &Graph) -> *mut PulseIterato
 
 /// Advance a [`PulseIterator`].
 ///
+/// # Parameters
+///
+/// * `iterator` - the [PulseIterator] to advance.
+///
 /// # Return
 ///
 /// * A const pointer to a [`Pulse`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
 #[no_mangle]
-pub extern "C" fn demes_pulse_iterator_next(pulse_iterator: &mut PulseIterator) -> *const Pulse {
-    pulse_iterator.next().unwrap_or(std::ptr::null())
+pub extern "C" fn demes_pulse_iterator_next(iterator: &mut PulseIterator) -> *const Pulse {
+    iterator.next().unwrap_or(std::ptr::null())
 }
 
 /// Deallocate an [`PulseIterator`]
+///
+/// # Parameters
+///
+/// * `ptr` - pointer to [PulseIterator].
 ///
 /// # Safety
 ///
@@ -1084,6 +1175,14 @@ pub unsafe extern "C" fn demes_pulse_iterator_deallocate(ptr: *mut PulseIterator
 }
 
 /// Allocate and initialize an [`AsymmetricMigrationIterator`].
+///
+/// # Parameters
+///
+/// * `graph` - the parent [`Graph`]
+///
+/// # Returns
+///
+/// * A newly-allocated [`AsymmetricMigrationIterator`]
 ///
 /// # Notes
 ///
@@ -1098,20 +1197,26 @@ pub extern "C" fn demes_graph_asymmetric_migration_iterator(
 
 /// Advance an [`AsymmetricMigrationIterator`].
 ///
+/// # Parameters
+///
+/// * `iterator` - mutable [`AsymmetricMigrationIterator`]
+///
 /// # Return
 ///
 /// * A const pointer to an [`AsymmetricMigration`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
 #[no_mangle]
 pub extern "C" fn demes_asymmetric_migration_iterator_next(
-    asymmetric_migration_iterator: &mut AsymmetricMigrationIterator,
+    iterator: &mut AsymmetricMigrationIterator,
 ) -> *const AsymmetricMigration {
-    asymmetric_migration_iterator
-        .next()
-        .unwrap_or(std::ptr::null())
+    iterator.next().unwrap_or(std::ptr::null())
 }
 
 /// Deallocate an [`AsymmetricMigrationIterator`]
+///
+/// # Parameters
+///
+/// * `ptr` - pointer to [`AsymmetricMigrationIterator`]
 ///
 /// # Safety
 ///
@@ -1155,6 +1260,10 @@ pub unsafe extern "C" fn demes_deme_ancestor_iterator(
 
 /// Advance a [`DemeAncestorIterator`].
 ///
+/// # Parameters
+///
+/// * `iterator` - mutable [`DemeAncestorIterator`]
+///
 /// # Return
 ///
 /// * A const pointer to a [`DemeAncestor`] if the iterator is still valid
@@ -1167,6 +1276,10 @@ pub extern "C" fn demes_deme_ancestor_iterator_next(
 }
 
 /// Deallocate a [`DemeAncestorIterator`]
+///
+/// # Parameter
+///
+/// * `ptr` - pointer to [`DemeAncestorIterator`]
 ///
 /// # Safety
 ///

@@ -28,32 +28,28 @@ where
 
 struct Callbacks<
     D: Fn(&Deme) -> bool,
-    E: Fn(&Epoch) -> bool,
     M: Fn(&AsymmetricMigration) -> bool,
     P: Fn(&Pulse) -> bool,
-    EE: Fn(Time) -> Option<InputTime>,
+    EL: Fn(&Epoch) -> Option<Box<dyn Iterator<Item = UnresolvedEpoch>>>,
     MS: Fn(Time) -> Option<InputTime>,
     ME: Fn(Time) -> Option<InputTime>,
 > {
     keep_deme: D,
-    keep_epoch: E,
     keep_migration: M,
     keep_pulse: P,
-    epoch_end_time: EE,
+    epoch_liftover: EL,
     migration_start_time: MS,
     migration_end_time: ME,
 }
 
-fn liftover_demes<K, E>(
+fn liftover_demes<EL>(
     graph: &Graph,
     retained_deme_indexes: Vec<usize>,
     retained_deme_names: &[String],
-    keep_epoch: K,
-    epoch_end_time: E,
+    epoch_liftover: EL,
     new_graph: &mut GraphBuilder,
 ) where
-    K: Fn(&Epoch) -> bool,
-    E: Fn(Time) -> Option<InputTime>,
+    EL: Fn(&Epoch) -> Option<Box<dyn Iterator<Item = UnresolvedEpoch>>>,
 {
     for i in retained_deme_indexes {
         let deme = graph.deme(i);
@@ -79,16 +75,12 @@ fn liftover_demes<K, E>(
             history.proportions = Some(proportions);
         }
         let mut epochs: Vec<UnresolvedEpoch> = vec![];
-        for e in deme.epochs().iter().filter(|e| keep_epoch(e)) {
-            let ue = UnresolvedEpoch {
-                end_time: epoch_end_time(e.end_time()),
-                start_size: Some(f64::from(e.start_size()).into()),
-                end_size: Some(f64::from(e.end_size()).into()),
-                size_function: Some(e.size_function()),
-                cloning_rate: Some(f64::from(e.cloning_rate()).into()),
-                selfing_rate: Some(f64::from(e.selfing_rate()).into()),
-            };
-            epochs.push(ue)
+        for e in deme.epochs().iter() {
+            if let Some(iterator) = epoch_liftover(e) {
+                for epoch in iterator {
+                    epochs.push(epoch)
+                }
+            }
         }
         new_graph.add_deme(
             deme.name(),
@@ -174,15 +166,14 @@ fn liftover_metadata(graph: &Graph, new_graph: &mut GraphBuilder) -> Result<(), 
 
 fn remove_history<
     D: Fn(&Deme) -> bool,
-    E: Fn(&Epoch) -> bool,
     M: Fn(&AsymmetricMigration) -> bool,
     P: Fn(&Pulse) -> bool,
-    EE: Fn(Time) -> Option<InputTime>,
+    EL: Fn(&Epoch) -> Option<Box<dyn Iterator<Item = UnresolvedEpoch>>>,
     MS: Fn(Time) -> Option<InputTime>,
     ME: Fn(Time) -> Option<InputTime>,
 >(
     graph: Graph,
-    callbacks: Callbacks<D, E, M, P, EE, MS, ME>,
+    callbacks: Callbacks<D, M, P, EL, MS, ME>,
 ) -> Result<Graph, DemesError> {
     let generation_time = InputGenerationTime::from(f64::from(graph.generation_time()));
     let mut new_graph = GraphBuilder::new(graph.time_units(), Some(generation_time), None);
@@ -196,8 +187,7 @@ fn remove_history<
         &graph,
         retained_deme_indexes,
         &retained_deme_names,
-        callbacks.keep_epoch,
-        callbacks.epoch_end_time,
+        callbacks.epoch_liftover,
         &mut new_graph,
     );
     liftover_migrations(
@@ -218,6 +208,29 @@ fn remove_history<
     new_graph.resolve()
 }
 
+fn slice_epoch(epoch: &Epoch, when: Time) -> (UnresolvedEpoch, UnresolvedEpoch) {
+    // We unwrap b/c we really don't expect any chance of failure
+    let size_at_when = epoch.size_at(when).unwrap().unwrap();
+    let size_at_when = crate::InputDemeSize::from(f64::from(size_at_when));
+    let a = UnresolvedEpoch {
+        end_time: Some(f64::from(when).into()),
+        start_size: Some(size_at_when),
+        end_size: Some(size_at_when),
+        size_function: None,
+        cloning_rate: Some(f64::from(epoch.cloning_rate()).into()),
+        selfing_rate: Some(f64::from(epoch.selfing_rate()).into()),
+    };
+    let b = UnresolvedEpoch {
+        end_time: Some(f64::from(epoch.end_time()).into()),
+        start_size: Some(size_at_when),
+        end_size: Some(f64::from(epoch.end_size()).into()),
+        size_function: Some(epoch.size_function()),
+        cloning_rate: Some(f64::from(epoch.cloning_rate()).into()),
+        selfing_rate: Some(f64::from(epoch.selfing_rate()).into()),
+    };
+    (a, b)
+}
+
 // Remove all history from [when, infinity)
 // NOTE: this function could take &Graph b/c it doesn't modify the input
 // This function is a prototype for a future API to "slice" demographic models.
@@ -225,10 +238,31 @@ fn remove_history<
 pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
     let callbacks = Callbacks {
         keep_deme: |d: &Deme| d.end_time() < when,
-        keep_epoch: |e: &Epoch| e.end_time() < when,
         keep_migration: |m: &AsymmetricMigration| m.end_time() < when,
         keep_pulse: |m: &Pulse| m.time() < when,
-        epoch_end_time: |t: Time| Some(t.into()),
+        epoch_liftover: |e: &Epoch| {
+            if e.end_time() < when {
+                let mut epochs = vec![];
+                if e.start_time() > when {
+                    let (a, b) = slice_epoch(e, when);
+                    epochs.push(a);
+                    epochs.push(b);
+                } else {
+                    let ue = UnresolvedEpoch {
+                        end_time: Some(f64::from(e.end_time()).into()),
+                        start_size: Some(f64::from(e.start_size()).into()),
+                        end_size: Some(f64::from(e.end_size()).into()),
+                        size_function: Some(e.size_function()),
+                        cloning_rate: Some(f64::from(e.cloning_rate()).into()),
+                        selfing_rate: Some(f64::from(e.selfing_rate()).into()),
+                    };
+                    epochs.push(ue)
+                }
+                Some(Box::new(epochs.into_iter()))
+            } else {
+                None
+            }
+        },
         migration_start_time: |t: Time| {
             if t > when {
                 Some(when.into())
@@ -249,14 +283,36 @@ pub fn remove_since(graph: Graph, when: Time) -> Result<Graph, DemesError> {
 pub fn remove_before(graph: Graph, when: Time) -> Result<Graph, DemesError> {
     let callbacks = Callbacks {
         keep_deme: |d: &Deme| d.start_time() > when,
-        keep_epoch: |e: &Epoch| e.start_time() > when,
         keep_migration: |m: &AsymmetricMigration| m.start_time() > when,
         keep_pulse: |m: &Pulse| m.time() > when,
-        epoch_end_time: |t: Time| {
-            if t < when {
-                Some(when.into())
+        epoch_liftover: |e: &Epoch| {
+            if e.start_time() > when {
+                let end_time: Option<InputTime> = if e.end_time() < when {
+                    Some(when.into())
+                } else {
+                    Some(e.end_time().into())
+                };
+                // NOTE: this assert is b/c we are not expecting the other
+                // case to be possible.
+                assert!(end_time.is_some());
+                let start_time = e.start_time();
+                let t = Time::try_from(f64::from(end_time.unwrap())).unwrap();
+                let end_size: Option<crate::InputDemeSize> = if when >= t && when < start_time {
+                    Some(f64::from(e.size_at(when).unwrap().unwrap()).into())
+                } else {
+                    Some(f64::from(e.end_size()).into())
+                };
+                let ue = UnresolvedEpoch {
+                    end_time,
+                    start_size: Some(f64::from(e.start_size()).into()),
+                    end_size,
+                    size_function: Some(e.size_function()),
+                    cloning_rate: Some(f64::from(e.cloning_rate()).into()),
+                    selfing_rate: Some(f64::from(e.selfing_rate()).into()),
+                };
+                Some(Box::new(vec![ue].into_iter()))
             } else {
-                Some(t.into())
+                None
             }
         },
         migration_start_time: |t: Time| Some(t.into()),
@@ -366,15 +422,65 @@ static SIMPLE_TWO_DEME_GRAPH_WITH_PULSE_0: &str = "
 ";
 
 #[cfg(test)]
+static SIMPLE_MODEL_WITH_GROWTH: &str = "
+time_units: generations
+demes:
+ - name: ancestor
+   epochs:
+    - end_time: 100
+      start_size: 100
+ - name: derived
+   ancestors: [ancestor]
+   proportions: [1.0]
+   epochs:
+    - start_size: 100
+      end_size: 200
+";
+
+#[cfg(test)]
+static SIMPLE_TWO_EPOCH_MODEL: &str = "
+time_units: generations
+demes:
+ - name: deme
+   epochs:
+    - end_time: 100
+      start_size: 100
+    - end_time: 0
+      start_size: 50
+";
+
+#[cfg(test)]
 mod test_remove_since {
     use super::remove_since;
 
     #[test]
     fn test_simple_two_deme_graph_0() {
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH).unwrap();
-        // This clipping will leave the graph unchanged.
-        let clipped = remove_since(graph.clone(), 30.0.try_into().unwrap()).unwrap();
-        assert_eq!(graph, clipped);
+        let expected = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 30
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 30
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+        let expected = crate::loads(expected).unwrap();
+        let clipped = remove_since(graph, 30.0.try_into().unwrap()).unwrap();
+        assert_eq!(expected, clipped);
     }
 
     #[test]
@@ -388,9 +494,13 @@ mod test_remove_since {
   - name: ancestor1
     epochs:
      - start_size: 50
+       end_time: 50
+     - start_size: 50
        end_time: 20
   - name: ancestor2
     epochs:
+     - start_size: 50
+       end_time: 50
      - start_size: 50
        end_time: 20
   - name: derived
@@ -412,26 +522,97 @@ mod test_remove_since {
     #[test]
     fn test_simple_two_deme_graph_with_migration_1() {
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH_WITH_MIGRATION_0).unwrap();
+        let expected = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 45 
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 45 
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
         // This clipping will entirely remove migrations
         let clipped = remove_since(graph, 45.0.try_into().unwrap()).unwrap();
-        let expected = crate::loads(super::SIMPLE_TWO_DEME_GRAPH).unwrap();
+        let expected = crate::loads(expected).unwrap();
         assert_eq!(expected, clipped);
     }
 
     #[test]
     fn test_simple_two_deme_graph_with_pulse_0() {
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH_WITH_PULSE_0).unwrap();
-        // This clipping will leave the graph unchanged.
-        let clipped = remove_since(graph.clone(), 41.0.try_into().unwrap()).unwrap();
-        assert_eq!(graph, clipped);
+        let expected = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 41
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 41
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+ pulses:
+  - sources: [ancestor1]
+    dest: ancestor2
+    proportions: [0.33]
+    time: 40
+";
+        let expected = crate::loads(expected).unwrap();
+        let clipped = remove_since(graph, 41.0.try_into().unwrap()).unwrap();
+        assert_eq!(expected, clipped);
     }
 
     #[test]
     fn test_simple_two_deme_graph_with_pulse_1() {
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH_WITH_PULSE_0).unwrap();
-        // This clipping will leave remove pulses from the graph.
+        let expected = "
+ time_units: generations
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 40
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 40
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+        let expected = crate::loads(expected).unwrap();
+        // This clipping will remove pulses from the graph.
         let clipped = remove_since(graph, 40.0.try_into().unwrap()).unwrap();
-        let expected = crate::loads(super::SIMPLE_TWO_DEME_GRAPH).unwrap();
         assert_eq!(expected, clipped);
     }
 
@@ -443,6 +624,7 @@ mod test_remove_since {
           - name: derived
             epochs:
              - start_size: 50
+               end_time: 0
         ";
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH).unwrap();
         let expected_result = crate::loads(expected_result).unwrap();
@@ -452,8 +634,17 @@ mod test_remove_since {
         let clipped = remove_since(graph.clone(), 20.0.try_into().unwrap()).unwrap();
         assert_eq!(expected_result, clipped);
 
-        // This clipping will leave the graph with a single population
-        // that has no ancestors, no proportions, and start time of infinity
+        let expected_result = "
+         time_units: generations
+         demes:
+          - name: derived
+            epochs:
+             - start_size: 50
+               end_time: 1
+             - start_size: 50
+               end_time: 0
+        ";
+        let expected_result = crate::loads(expected_result).unwrap();
         let clipped = remove_since(graph, 1.0.try_into().unwrap()).unwrap();
         assert_eq!(expected_result, clipped);
     }
@@ -461,10 +652,66 @@ mod test_remove_since {
     #[test]
     fn test_simple_two_deme_graph_with_metadata() {
         let graph = crate::loads(super::SIMPLE_TWO_DEME_GRAPH_WITH_METADATA).unwrap();
+        let expected = "
+ time_units: generations
+ metadata:
+  x: 1
+  y: 2
+ demes:
+  - name: ancestor1
+    epochs:
+     - start_size: 50
+       end_time: 30
+     - start_size: 50
+       end_time: 20
+  - name: ancestor2
+    epochs:
+     - start_size: 50
+       end_time: 30
+     - start_size: 50
+       end_time: 20
+  - name: derived
+    ancestors: [ancestor1, ancestor2]
+    proportions: [0.75, 0.25]
+    start_time: 20
+    epochs:
+     - start_size: 50
+";
+        let expected = crate::loads(expected).unwrap();
+        let clipped = remove_since(graph, 30.0.try_into().unwrap()).unwrap();
+        assert_eq!(expected, clipped);
+    }
 
-        // Leaves graph unchanged
-        let clipped = remove_since(graph.clone(), 30.0.try_into().unwrap()).unwrap();
-        assert_eq!(graph, clipped);
+    #[test]
+    fn test_correct_epoch_sizes() {
+        let graph = crate::loads(super::SIMPLE_MODEL_WITH_GROWTH).unwrap();
+        let when: crate::Time = 50.0.try_into().unwrap();
+        let clipped = remove_since(graph.clone(), when).unwrap();
+        assert_eq!(clipped.num_demes(), 1);
+        assert_eq!(clipped.deme(0).name(), "derived");
+        assert_eq!(clipped.deme(0).num_ancestors(), 0);
+        assert_eq!(clipped.deme(0).num_epochs(), 2);
+        let e = clipped.deme(0).epochs()[0];
+        assert_eq!(e.end_time(), when);
+        assert_eq!(
+            e.start_size(),
+            graph.deme(1).size_at(when).unwrap().unwrap()
+        );
+        assert_eq!(e.start_size(), e.end_size());
+        let e = clipped.deme(0).epochs()[1];
+        assert_eq!(
+            e.start_size(),
+            graph.deme(1).size_at(when).unwrap().unwrap()
+        );
+        assert_eq!(e.end_size(), graph.deme(1).end_size());
+    }
+
+    #[test]
+    fn test_split_two_epoch_model() {
+        let graph = crate::loads(super::SIMPLE_TWO_EPOCH_MODEL).unwrap();
+        let when: crate::Time = 100.0.try_into().unwrap();
+        let clipped = remove_since(graph.clone(), when).unwrap();
+        assert_eq!(clipped.deme(0).num_epochs(), 1);
     }
 }
 
@@ -587,5 +834,18 @@ mod test_remove_before {
         let expected_graph = crate::loads(expected).unwrap();
         let clipped = remove_before(graph, 39.0.try_into().unwrap()).unwrap();
         assert_eq!(clipped, expected_graph);
+    }
+
+    #[test]
+    fn test_correct_epoch_sizes() {
+        let graph = crate::loads(super::SIMPLE_MODEL_WITH_GROWTH).unwrap();
+        let when: crate::Time = 50.0.try_into().unwrap();
+        let clipped = remove_before(graph.clone(), when).unwrap();
+        assert_eq!(clipped.num_demes(), 2);
+        assert_eq!(clipped.demes()[1].start_size(), 100.0);
+        assert_eq!(
+            clipped.demes()[1].end_size(),
+            graph.demes[1].size_at(when).unwrap().unwrap()
+        );
     }
 }

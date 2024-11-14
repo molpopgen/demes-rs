@@ -241,11 +241,10 @@ pub fn slice_after(graph: Graph, when: Time) -> Result<Graph, DemesError> {
         keep_pulse: |m: &Pulse| m.time() < when,
         epoch_liftover: |e: &Epoch| {
             if e.end_time() < when {
-                let mut epochs = vec![];
                 if e.start_time() > when {
                     let (a, b) = slice_epoch(e, when);
-                    epochs.push(a);
-                    epochs.push(b);
+                    let epochs = vec![a, b];
+                    Some(Box::new(epochs.into_iter()))
                 } else {
                     let ue = UnresolvedEpoch {
                         end_time: Some(f64::from(e.end_time()).into()),
@@ -255,9 +254,8 @@ pub fn slice_after(graph: Graph, when: Time) -> Result<Graph, DemesError> {
                         cloning_rate: Some(f64::from(e.cloning_rate()).into()),
                         selfing_rate: Some(f64::from(e.selfing_rate()).into()),
                     };
-                    epochs.push(ue)
+                    Some(Box::new(core::iter::once_with(move || ue)))
                 }
-                Some(Box::new(epochs.into_iter()))
             } else {
                 None
             }

@@ -3724,6 +3724,145 @@ impl Graph {
     pub fn deme_index<S: AsRef<str>>(&self, name: S) -> Option<usize> {
         self.deme_map.get(name.as_ref()).cloned()
     }
+
+    /// Obtain the ancestry proportions for a deme at a given time.
+    ///
+    /// # Parameters
+    ///
+    /// * `deme` - the "focal" deme whose ancestry proportions will be calculated.
+    /// * `at` - the [Time] at which to calculate ancestry proportions.
+    ///
+    /// # Returns
+    ///
+    /// * A boxed slice if `deme` exists in the graph and time `at` is a sensible
+    ///   parental time point
+    /// * None, otherwise
+    ///
+    /// # Details
+    ///
+    /// * `at` is treated as a time immediately before individuals are born
+    ///   into `deme`.
+    /// * This function allocates memory.
+    ///   See [Graph::fill_ancestry_proportions] for a function to reuse
+    ///   existing allocations.
+    ///
+    /// # Complexity
+    ///
+    /// * See [Graph::fill_ancestry_proportions].
+    ///
+    /// # Panics
+    ///
+    /// * See [Graph::fill_ancestry_proportions].
+    pub fn ancestry_proportions<'d, I: Into<DemeId<'d>>>(
+        &self,
+        deme: I,
+        at: Time,
+    ) -> Option<Box<[f64]>> {
+        let mut rv = vec![0.0; self.num_demes()];
+        self.fill_ancestry_proportions(deme, at, &mut rv)
+            .map(|_| rv.into_boxed_slice())
+    }
+
+    /// Obtain the ancestry proportions for a deme at a given time.
+    ///
+    /// # Parameters
+    ///
+    /// * `deme` - the "focal" deme whose ancestry proportions will be calculated.
+    /// * `at` - the [Time] at which to calculate ancestry proportions.
+    /// * `buffer` -  output location for the ancestry proportions.
+    ///    The buffer length must be at least the number of demes in
+    ///    the graph. (See [Graph::num_demes].)
+    ///
+    /// # Returns
+    ///
+    /// * A unit type if `deme` exists in the graph and time `at` is a sensible
+    ///   parental time point
+    /// * None, otherwise
+    /// # Details
+    ///
+    /// `at` is treated as a time immediately before individuals are born
+    /// into `deme`.
+    ///
+    /// # Complexity
+    ///
+    /// * Linear in the number of ancestor demes, pulses, and migration events
+    ///   affecting ancestry at time `at`.
+    ///
+    /// # Panics
+    ///
+    /// * if any calculations result in invalid values (x < 0, x > 1, x not finite).
+    /// * if `buffer` does not contain sufficient space for the output
+    pub fn fill_ancestry_proportions<'d, I: Into<DemeId<'d>>>(
+        &self,
+        deme: I,
+        at: Time,
+        buffer: &mut [f64],
+    ) -> Option<()> {
+        let deme = self.get_deme(deme)?;
+        if at <= deme.start_time() && at > deme.end_time() {
+            self.fill_ancestry_proportions_details(deme, at, buffer);
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    fn fill_ancestry_proportions_details(&self, deme: &Deme, at: Time, buffer: &mut [f64]) {
+        let deme_index = self.deme_map[deme.name()];
+        if at <= deme.start_time() && at > deme.end_time() {
+            buffer.fill_with(|| 0.0);
+            if at == deme.start_time() {
+                for (a, p) in deme
+                    .ancestor_indexes()
+                    .iter()
+                    .cloned()
+                    .zip(deme.proportions().iter().cloned())
+                {
+                    buffer[a] += f64::from(p);
+                }
+            } else {
+                buffer[deme_index] = 1.0;
+            }
+            for pulse in self
+                .pulses()
+                .iter()
+                .filter(|&p| p.time() == at && p.dest() == deme.name())
+            {
+                let sum_pulses = pulse
+                    .proportions()
+                    .iter()
+                    .fold(0.0, |sum, &p| sum + f64::from(p));
+                buffer.iter_mut().for_each(|v| *v *= 1. - sum_pulses);
+                for (source, proportion) in pulse
+                    .sources()
+                    .iter()
+                    .zip(pulse.proportions().iter().cloned().map(f64::from))
+                {
+                    let source_index = self.deme_map[source];
+                    buffer[source_index] += proportion;
+                }
+            }
+            let input_migrations = self
+                .migrations()
+                .iter()
+                .filter(|m| at <= m.start_time() && at > m.end_time() && m.dest() == deme.name())
+                .collect::<Vec<_>>();
+            let sum_migrates = input_migrations
+                .iter()
+                .fold(0.0, |sum, m| sum + f64::from(m.rate()));
+            buffer.iter_mut().for_each(|v| *v *= 1. - sum_migrates);
+            for i in input_migrations {
+                let source = self.deme_map[i.source()];
+                buffer[source] += f64::from(i.rate());
+            }
+            assert!(
+                buffer
+                    .iter()
+                    .all(|p| p.is_finite() && (0.0..=1.0).contains(p)),
+                "invalid value in {buffer:?}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -4704,7 +4843,7 @@ mod test_rescaling {
      - start_size: 50
 ";
 
-    static SIMPLE_TEST_GRAPH_1: &str = "
+    pub static SIMPLE_TEST_GRAPH_1: &str = "
  time_units: generations
  demes:
   - name: ancestor1
@@ -4733,7 +4872,7 @@ mod test_rescaling {
     rate: 0.25
 ";
 
-    static SIMPLE_TEST_GRAPH_2: &str = "
+    pub static SIMPLE_TEST_GRAPH_2: &str = "
  time_units: generations
  demes:
   - name: ancestor1
@@ -4963,5 +5102,68 @@ mod test_rescaling {
                 assert_eq!(ei.selfing_rate(), ej.selfing_rate)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test_forward_ancestry_proportions {
+
+    #[test]
+    fn test_simple_graph() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_2).unwrap();
+        assert!(graph
+            .ancestry_proportions(2, 21.0.try_into().unwrap())
+            .is_none());
+        let proportions = graph
+            .ancestry_proportions("derived1", 20.0.try_into().unwrap())
+            .unwrap();
+        assert_eq!(proportions[0], 1.0);
+        assert!(proportions.iter().skip(1).cloned().all(|p| p == 0.0));
+
+        let mut proportions = proportions;
+        graph
+            .fill_ancestry_proportions("derived1", 19.0.try_into().unwrap(), &mut proportions)
+            .unwrap();
+        assert_eq!(proportions.as_ref(), &[0., 0., 1., 0.]);
+    }
+
+    #[test]
+    fn test_migrations() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_1).unwrap();
+        let proportions = graph.ancestry_proportions("derived2", 19.0.try_into().unwrap());
+        let proportions = proportions.unwrap().to_vec();
+        assert_eq!(&proportions, &[0., 0., 0.25, 0.75])
+    }
+
+    #[test]
+    fn test_pulses() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_2).unwrap();
+        let proportions = graph.ancestry_proportions("derived2", 19.0.try_into().unwrap());
+        let proportions = proportions.unwrap().to_vec();
+        assert_eq!(&proportions, &[0., 0., 0.25, 0.75])
+    }
+
+    #[test]
+    fn test_invalid_deme_name() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_2).unwrap();
+        assert!(graph
+            .ancestry_proportions("bananas", 19.0.try_into().unwrap())
+            .is_none());
+    }
+
+    #[test]
+    fn test_invalid_deme_index() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_2).unwrap();
+        assert!(graph
+            .ancestry_proportions(usize::MAX, 19.0.try_into().unwrap())
+            .is_none());
+    }
+
+    #[test]
+    fn test_time_0() {
+        let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_2).unwrap();
+        assert!(graph
+            .ancestry_proportions(usize::MAX, 0.0.try_into().unwrap())
+            .is_none());
     }
 }

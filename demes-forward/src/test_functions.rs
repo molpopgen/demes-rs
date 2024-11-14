@@ -21,16 +21,22 @@ pub fn ancestry_proportions_from_graph(
     let mut rv = vec![0.0; graph.offspring_deme_sizes().unwrap().len()];
 
     let deme = graph.demes_graph().get_deme(child_deme).unwrap();
+    let bwtime = graph
+        .time_to_backward(graph.last_time_updated().unwrap())
+        .unwrap()
+        .unwrap();
+    if bwtime > deme.start_time() || bwtime < deme.end_time() {
+        return Some(rv);
+    }
 
-    if !deme.ancestor_indexes().is_empty() {
-        panic!("this block should only be used for the first generation of a deme");
-        //for (a, p) in deme
-        //    .ancestor_indexes()
-        //    .iter()
-        //    .zip(deme.proportions().iter())
-        //{
-        //    rv[*a] = f64::from(*p);
-        //}
+    if !deme.ancestor_indexes().is_empty() && bwtime == deme.start_time() {
+        for (a, p) in deme
+            .ancestor_indexes()
+            .iter()
+            .zip(deme.proportions().iter())
+        {
+            rv[*a] = f64::from(*p);
+        }
     } else {
         rv[child_deme] = 1.0;
     }

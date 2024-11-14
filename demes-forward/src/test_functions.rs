@@ -23,13 +23,14 @@ pub fn ancestry_proportions_from_graph(
     let deme = graph.demes_graph().get_deme(child_deme).unwrap();
 
     if !deme.ancestor_indexes().is_empty() {
-        for (a, p) in deme
-            .ancestor_indexes()
-            .iter()
-            .zip(deme.proportions().iter())
-        {
-            rv[*a] = f64::from(*p);
-        }
+        panic!("this block should only be used for the first generation of a deme");
+        //for (a, p) in deme
+        //    .ancestor_indexes()
+        //    .iter()
+        //    .zip(deme.proportions().iter())
+        //{
+        //    rv[*a] = f64::from(*p);
+        //}
     } else {
         rv[child_deme] = 1.0;
     }

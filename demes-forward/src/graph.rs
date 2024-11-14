@@ -2037,6 +2037,52 @@ migrations:
             }
         }
     }
+
+    #[test]
+    fn test_ancestry_proportions_from_ancestors() {
+        let yaml = "
+time_units: generations
+demes:
+ - name: A1
+   epochs:
+    - end_time: 50
+      start_size: 100
+ - name: A2
+   epochs:
+    - end_time: 50
+      start_size: 100
+ - name: D
+   start_time: 50
+   ancestors: [A1, A2]
+   proportions: [0.5, 0.5]
+   epochs:
+    - start_size: 100
+";
+        let graph = demes::loads(yaml).unwrap();
+        let mut fgraph = ForwardGraph::new_discrete_time(graph, 1.).unwrap();
+        let at = fgraph.time_to_forward(50.0).unwrap().unwrap();
+        // We are updating to a PARENTAL generation
+        fgraph.update_state(at).unwrap();
+        // So the ancestry proportions of the OFFSPRING should be:
+        let aprops = fgraph.ancestry_proportions(2).unwrap().to_owned();
+        assert_eq!(aprops, vec![0.5, 0.5, 0.0]);
+        let ap = ancestry_proportions_from_graph(&fgraph, 2).unwrap();
+        assert_eq!(aprops, ap);
+
+        let at = fgraph.time_to_forward(49.0).unwrap().unwrap();
+        fgraph.update_state(at).unwrap();
+        let aprops = fgraph.ancestry_proportions(2).unwrap().to_owned();
+        assert_eq!(aprops, vec![0., 0., 1.]);
+        let ap = ancestry_proportions_from_graph(&fgraph, 2).unwrap();
+        assert_eq!(aprops, ap);
+
+        let at = fgraph.time_to_forward(51.0).unwrap().unwrap();
+        fgraph.update_state(at).unwrap();
+        let aprops = fgraph.ancestry_proportions(2).unwrap().to_owned();
+        assert_eq!(aprops, vec![0., 0., 0.]);
+        let ap = ancestry_proportions_from_graph(&fgraph, 2).unwrap();
+        assert_eq!(ap, vec![0., 0., 0.]);
+    }
 }
 
 #[cfg(test)]

@@ -1890,6 +1890,7 @@ pulses:
         update_ancestry_proportions(&[index_a], &[0.33], &mut ancestry_proportions);
         update_ancestry_proportions(&[index_b], &[0.25], &mut ancestry_proportions);
         graph.update_state(49.0).unwrap();
+        assert!(!graph.pulses.is_empty());
         assert_eq!(graph.ancestry_proportions(2).unwrap().len(), 3);
         graph
             .ancestry_proportions(2)
@@ -1925,7 +1926,8 @@ pulses:
 ";
         let demes_graph = demes::loads(yaml).unwrap();
         let mut graph = ForwardGraph::new_discrete_time(demes_graph, 50).unwrap();
-        graph.update_state(50.0).unwrap();
+        graph.update_state(49.0).unwrap();
+        assert!(!graph.pulses.is_empty());
         assert_eq!(graph.ancestry_proportions(2).unwrap().len(), 3);
         let ancestry_proportions = ancestry_proportions_from_graph(&graph, 2).unwrap();
         assert_eq!(ancestry_proportions.len(), 3);

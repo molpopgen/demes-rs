@@ -3679,6 +3679,51 @@ impl Graph {
     pub fn slice_after(self, when: Time) -> Result<Self, DemesError> {
         crate::graph_operations::slice::slice_after(self, when)
     }
+
+    /// Obtain a deme index from a deme name
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - the deme name
+    ///
+    /// # Returns
+    ///
+    /// * `Some(index)` if `name` is a valid deme name
+    /// * `None` Otherwise
+    ///
+    /// # Complexity
+    ///
+    /// * O(1)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let yaml = "
+    ///  time_units: generations
+    ///  demes:
+    ///   - name: ancestor1
+    ///     epochs:
+    ///      - start_size: 50
+    ///        end_time: 20
+    ///   - name: ancestor2
+    ///     epochs:
+    ///      - start_size: 50
+    ///        end_time: 20
+    ///   - name: derived
+    ///     ancestors: [ancestor1, ancestor2]
+    ///     proportions: [0.5, 0.5]
+    ///     start_time: 20
+    ///     epochs:
+    ///      - start_size: 50
+    /// ";
+    /// let graph = demes::loads(yaml).unwrap();
+    /// for (i, d) in graph.demes().iter().enumerate() {
+    ///     assert_eq!(graph.deme_index(d.name()), Some(i))
+    /// }
+    /// ```
+    pub fn deme_index<S: AsRef<str>>(&self, name: S) -> Option<usize> {
+        self.deme_map.get(name.as_ref()).cloned()
+    }
 }
 
 #[cfg(test)]

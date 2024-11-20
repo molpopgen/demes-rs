@@ -3872,6 +3872,7 @@ impl Graph {
     }
 
     #[allow(missing_docs)]
+    #[must_use]
     pub fn ancestry_proportions_matrix(&self, at: Time) -> Option<Box<[f64]>> {
         let mut buffer = vec![0.; self.num_demes() * self.num_demes()].into_boxed_slice();
         if self
@@ -3885,6 +3886,7 @@ impl Graph {
     }
 
     #[allow(missing_docs)]
+    #[must_use]
     pub fn fill_ancestry_proportions_matrix<'i, 'o>(
         &self,
         at: Time,

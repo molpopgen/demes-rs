@@ -29,6 +29,24 @@ macro_rules! get_deme {
     };
 }
 
+// Divide all times by the scaling factor
+fn rescale_input_time(input: Option<InputTime>, scaling_factor: f64) -> Option<InputTime> {
+    input.map(|time| (f64::from(time) / scaling_factor).into())
+}
+
+// Divide all sizes by the scaling factor
+fn rescale_input_size(input: Option<InputDemeSize>, scaling_factor: f64) -> Option<InputDemeSize> {
+    input.map(|size| (f64::from(size) / scaling_factor).into())
+}
+
+// Multiply all migration rates by the scaling factor
+fn rescale_input_migration_rate(
+    input: Option<InputMigrationRate>,
+    scaling_factor: f64,
+) -> Option<InputMigrationRate> {
+    input.map(|rate| (f64::from(rate) * scaling_factor).into())
+}
+
 fn size_at_details<F: Into<f64>>(
     time: F,
     epoch_start_time: f64,
@@ -421,15 +439,9 @@ impl UnresolvedMigration {
     }
 
     fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
-        if let Some(start_time) = self.start_time {
-            self.start_time = Some(InputTime::from(scaling_factor * f64::from(start_time)))
-        }
-        if let Some(end_time) = self.end_time {
-            self.end_time = Some(InputTime::from(scaling_factor * f64::from(end_time)))
-        }
-        if let Some(rate) = self.rate {
-            self.rate = Some(rate / scaling_factor)
-        }
+        self.start_time = rescale_input_time(self.start_time, scaling_factor);
+        self.end_time = rescale_input_time(self.end_time, scaling_factor);
+        self.rate = rescale_input_migration_rate(self.rate, scaling_factor);
         Ok(())
     }
 }
@@ -819,9 +831,7 @@ impl UnresolvedPulse {
     }
 
     fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
-        if let Some(time) = self.time {
-            self.time = Some(InputTime::from(scaling_factor * f64::from(time)))
-        }
+        self.time = rescale_input_time(self.time, scaling_factor);
         Ok(())
     }
 }
@@ -949,15 +959,9 @@ impl UnresolvedEpoch {
     }
 
     fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
-        if let Some(end_time) = self.end_time {
-            self.end_time = Some(InputTime::from(scaling_factor * f64::from(end_time)))
-        }
-        if let Some(start_size) = self.start_size {
-            self.start_size = Some(InputDemeSize::from(scaling_factor * f64::from(start_size)))
-        }
-        if let Some(end_size) = self.end_size {
-            self.end_size = Some(InputDemeSize::from(scaling_factor * f64::from(end_size)))
-        }
+        self.end_time = rescale_input_time(self.end_time, scaling_factor);
+        self.start_size = rescale_input_size(self.start_size, scaling_factor);
+        self.end_size = rescale_input_size(self.end_size, scaling_factor);
 
         self.cloning_rate = self.cloning_rate.map_or_else(
             || None,
@@ -2139,9 +2143,7 @@ impl UnresolvedDeme {
     }
 
     fn rescale(&mut self, scaling_factor: f64) -> Result<(), DemesError> {
-        if let Some(time) = self.start_time {
-            self.start_time = Some(InputTime::from(scaling_factor * f64::from(time)))
-        }
+        self.start_time = rescale_input_time(self.start_time, scaling_factor);
         self.epochs
             .iter_mut()
             .try_for_each(|e| e.rescale(scaling_factor))
@@ -3488,9 +3490,9 @@ impl Graph {
     /// Rescale a model by a constant scaling factor.
     ///
     /// For a given scaling factor, `Q`:
-    /// 1. All input population sizes will be multiplied by `Q`.
+    /// 1. All input population sizes will be divided by `Q`.
     /// 2. All times will be divided by `Q`.
-    /// 3. All rates (migration, etc.) will be divided by `Q.`
+    /// 3. All rates (migration, etc.) will be multiplied by `Q.`
     /// 4. Pulse proportions, selfing rates, and cloning rates all
     ///    remaing unchanged.
     ///
@@ -5012,11 +5014,30 @@ mod test_rescaling {
         prefix: &str,
     ) -> Result<(), String> {
         if !matches!(
-            a.partial_cmp(&(b / scaling_factor).unwrap()).unwrap(),
+            a.partial_cmp(&(b * scaling_factor).unwrap()).unwrap(),
             std::cmp::Ordering::Equal
         ) {
             return Err(format!(
-                "{prefix} {:?}*{scaling_factor} should equal {:?}",
+                "{prefix} {:?}/{scaling_factor} should equal {:?}",
+                a, b
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn compare_size(
+        a: crate::DemeSize,
+        b: crate::DemeSize,
+        scaling_factor: f64,
+        prefix: &str,
+    ) -> Result<(), String> {
+        if !matches!(
+            a.partial_cmp(&(b * scaling_factor).unwrap()).unwrap(),
+            std::cmp::Ordering::Equal
+        ) {
+            return Err(format!(
+                "{prefix} {:?}/{scaling_factor} should equal {:?}",
                 a, b
             ));
         }
@@ -5030,6 +5051,12 @@ mod test_rescaling {
         scaling_factor: f64,
     ) -> Result<(), String> {
         for (epoch_i, epoch_j) in epochs_i.iter().zip(epochs_j.iter()) {
+            compare_size(
+                epoch_i.end_size(),
+                epoch_j.end_size(),
+                scaling_factor,
+                "epoch end size",
+            )?;
             compare_time(
                 epoch_i.start_time(),
                 epoch_j.start_time(),
@@ -5041,6 +5068,12 @@ mod test_rescaling {
                 epoch_j.end_time(),
                 scaling_factor,
                 "epoch end time",
+            )?;
+            compare_size(
+                epoch_i.start_size(),
+                epoch_j.start_size(),
+                scaling_factor,
+                "epoch start time",
             )?;
         }
         Ok(())
@@ -5096,12 +5129,12 @@ mod test_rescaling {
             if !matches!(
                 mig_i
                     .rate()
-                    .partial_cmp(&(mig_j.rate() * scaling_factor).unwrap())
+                    .partial_cmp(&(mig_j.rate() / scaling_factor).unwrap())
                     .unwrap(),
                 std::cmp::Ordering::Equal,
             ) {
                 return Err(format!(
-                    "migration rate {:?}/{scaling_factor} should equal {:?}",
+                    "migration rate {:?}*{scaling_factor} should equal {:?}",
                     mig_i.rate(),
                     mig_j.rate()
                 ));
@@ -5123,23 +5156,23 @@ mod test_rescaling {
 
     #[test]
     fn test_rescaling() {
-        assert!(run_test(SIMPLE_TEST_GRAPH_0, 10.).is_ok())
+        run_test(SIMPLE_TEST_GRAPH_0, 10.).unwrap()
     }
 
     #[test]
     fn test_rescaling1() {
-        assert!(run_test(SIMPLE_TEST_GRAPH_1, 10.).is_ok())
+        run_test(SIMPLE_TEST_GRAPH_1, 0.1).unwrap()
     }
 
     #[test]
     fn test_rescaling2() {
-        assert!(run_test(SIMPLE_TEST_GRAPH_2, 10.).is_ok())
+        run_test(SIMPLE_TEST_GRAPH_2, 10.).unwrap()
     }
 
     #[test]
     fn test_rescaling1_bad_scale_factor() {
         // Will result in migration rates > 1, which is an error at resolution time
-        assert!(run_test(SIMPLE_TEST_GRAPH_1, 1e-3).is_err())
+        assert!(run_test(SIMPLE_TEST_GRAPH_1, 1000.0).is_err())
     }
 
     #[test]

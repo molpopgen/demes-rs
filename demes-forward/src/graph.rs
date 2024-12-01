@@ -1326,7 +1326,7 @@ migrations:
             panic!();
         }
         graph.update_state(150).unwrap(); // last gen
-        assert!(graph.child_demes.first().is_none());
+        assert!(graph.child_demes.is_empty());
         if let Some(deme) = graph.parent_demes.first() {
             assert_eq!(
                 deme.current_size().unwrap(),
@@ -1386,7 +1386,7 @@ migrations:
             panic!();
         }
         graph.update_state(150).unwrap(); // last gen
-        assert!(graph.child_demes.first().is_none());
+        assert!(graph.child_demes.is_empty());
         if let Some(deme) = graph.parent_demes.first() {
             assert_eq!(
                 deme.current_size().unwrap(),
@@ -1443,7 +1443,7 @@ migrations:
             panic!();
         }
         graph.update_state(150).unwrap(); // last gen
-        assert!(graph.child_demes.first().is_none());
+        assert!(graph.child_demes.is_empty());
         if let Some(deme) = graph.parent_demes.first() {
             assert_eq!(
                 deme.current_size().unwrap(),

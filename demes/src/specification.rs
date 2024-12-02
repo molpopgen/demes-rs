@@ -169,7 +169,7 @@ pub enum InputFormat<'graph> {
     Toml(&'graph str),
 }
 
-impl<'graph> InputFormat<'graph> {
+impl InputFormat<'_> {
     /// Get the input data as [str]
     pub fn to_str(&self) -> &str {
         match self {
@@ -201,7 +201,7 @@ pub enum DemeId<'name> {
     Name(&'name str),
 }
 
-impl<'name> From<usize> for DemeId<'name> {
+impl From<usize> for DemeId<'_> {
     fn from(value: usize) -> Self {
         Self::Index(value)
     }

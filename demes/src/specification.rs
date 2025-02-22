@@ -1063,26 +1063,20 @@ impl Epoch {
         generation_time: GenerationTime,
         rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
-        self.start_time = match convert_resolved_time_to_generations(
+        self.start_time = convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::EpochError,
             "start_time is unresolved",
             Some(self.start_time),
-        ) {
-            Ok(time) => time,
-            Err(e) => return Err(e),
-        };
-        self.end_time = match convert_resolved_time_to_generations(
+        )?;
+        self.end_time = convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::EpochError,
             "end_time is unresolved",
             Some(self.end_time),
-        ) {
-            Ok(time) => time,
-            Err(e) => return Err(e),
-        };
+        )?;
         Ok(())
     }
 
@@ -1376,16 +1370,13 @@ impl Deme {
         generation_time: GenerationTime,
         rounding: fn(Time, GenerationTime) -> Time,
     ) -> Result<(), DemesError> {
-        self.start_time = match convert_resolved_time_to_generations(
+        self.start_time = convert_resolved_time_to_generations(
             generation_time,
             rounding,
             DemesError::DemeError,
             &format!("start_time unresolved for deme: {}", self.name),
             Some(self.start_time),
-        ) {
-            Ok(time) => time,
-            Err(e) => return Err(e),
-        };
+        )?;
         self.epochs
             .iter_mut()
             .try_for_each(|epoch| epoch.resolved_time_to_generations(generation_time, rounding))?;

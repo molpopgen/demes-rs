@@ -21,7 +21,7 @@
 //! ```
 
 #![warn(missing_docs)]
-#![warn(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 mod current_size;
 mod error;

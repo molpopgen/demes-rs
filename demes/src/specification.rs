@@ -3858,22 +3858,31 @@ impl Graph {
     }
 
     #[allow(missing_docs)]
-    pub fn ancestry_proportions_matrix(&self, at: Time) -> Result<Box<[f64]>, DemesError> {
-        let mut buffer = vec![0.; self.num_demes() * self.num_demes()];
-        self.fill_ancestry_proportions_matrix(at, &mut buffer)
-            .map(|_| buffer.into_boxed_slice())
+    #[must_use]
+    pub fn ancestry_proportions_matrix(&self, at: Time) -> Option<Box<[f64]>> {
+        let mut buffer = vec![0.; self.num_demes() * self.num_demes()].into_boxed_slice();
+        if self
+            .fill_ancestry_proportions_matrix(at, &mut buffer)
+            .is_some()
+        {
+            Some(buffer)
+        } else {
+            None
+        }
     }
 
     #[allow(missing_docs)]
-    pub fn fill_ancestry_proportions_matrix(
+    #[must_use]
+    pub fn fill_ancestry_proportions_matrix<'i, 'o>(
         &self,
         at: Time,
-        buffer: &mut [f64],
-    ) -> Result<(), DemesError> {
+        buffer: &'i mut [f64],
+    ) -> Option<&'o [f64]>
+    where
+        'i: 'o,
+    {
         if at == 0.0 {
-            return Err(DemesError::ValueError(format!(
-                "time must be > 0.0, got {at:?}"
-            )));
+            return None;
         }
         buffer.fill_with(|| 0.);
         for (deme_index, deme) in self.demes().iter().enumerate() {
@@ -3948,7 +3957,7 @@ impl Graph {
                 }
             }
         }
-        Ok(())
+        Some(buffer)
     }
 }
 
@@ -5445,10 +5454,10 @@ mod test_ancestry_proportion_matrix {
         let graph = crate::loads(super::test_rescaling::SIMPLE_TEST_GRAPH_1).unwrap();
         assert!(graph
             .ancestry_proportions_matrix(0.0.try_into().unwrap())
-            .is_err());
+            .is_none());
         let mut buffer = vec![f64::NAN; graph.num_demes() * graph.num_demes()];
         assert!(graph
             .fill_ancestry_proportions_matrix(0.0.try_into().unwrap(), &mut buffer)
-            .is_err());
+            .is_none());
     }
 }

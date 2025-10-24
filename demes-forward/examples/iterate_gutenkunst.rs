@@ -1,6 +1,4 @@
-use anyhow::Result;
-
-fn load_model() -> Result<demes::Graph> {
+fn load_model() -> Result<demes::Graph, Box<dyn std::error::Error>> {
     let file = std::fs::File::open("examples/gutenkunst_ooa.yaml")?;
     let graph = demes::load(file)?;
     Ok(graph)
@@ -24,7 +22,10 @@ fn load_model() -> Result<demes::Graph> {
 //   calling update_state at the end of the loop body.
 // * The API currently returns Option<_> for deme sizes, etc..
 //   It would be nice to find a way to avoid that.
-fn iterate_model(graph: demes::Graph, burnin: i32) -> Result<demes_forward::ForwardTime> {
+fn iterate_model(
+    graph: demes::Graph,
+    burnin: i32,
+) -> Result<demes_forward::ForwardTime, Box<dyn std::error::Error>> {
     // Convert the backwards time model
     // to a forward-time representation with
     // some generations of burn-in.
@@ -132,7 +133,7 @@ fn iterate_model(graph: demes::Graph, burnin: i32) -> Result<demes_forward::Forw
         .expect("expected Some(ForwardTime)"))
 }
 
-fn do_work(burnin: i32) -> Result<()> {
+fn do_work(burnin: i32) -> Result<(), Box<dyn std::error::Error>> {
     // Read in the YAML model, giving
     // the backwards-time "MDM" representation
     // of the resolved graph.

@@ -1,6 +1,4 @@
-use anyhow::Result;
-
-fn load_yaml(path: &str) -> Result<demes::Graph> {
+fn load_yaml(path: &str) -> Result<demes::Graph, Box<dyn std::error::Error>> {
     let file = std::fs::File::open(path)?;
     let graph = demes::load(file)?;
     Ok(graph)
@@ -96,7 +94,7 @@ fn iterate_pulses(graph: &demes::Graph) {
     }
 }
 
-fn do_work(path: &str) -> Result<()> {
+fn do_work(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let graph = load_yaml(path)?;
 
     // demes::Graph implements Display, which

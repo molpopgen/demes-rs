@@ -12,8 +12,5 @@ rust-version = "1.66.1"
 [dependencies]
 demes = { version = "0.6.1", path = "../demes" }
 
-[dev-dependencies]
-anyhow = "~1"
-
 [[example]]
 name = "iterate_gutenkunst"

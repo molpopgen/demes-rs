@@ -36,9 +36,6 @@ default-features = false
 # BIG reduction in final library size
 features = ["std", "unicode-perl"]
 
-[dev-dependencies]
-anyhow = "~1"
-
 [[example]]
 name = "iterate_graph_detail"
 

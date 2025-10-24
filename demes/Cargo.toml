@@ -25,7 +25,6 @@ json = ["serde_json"]
 ffi = []
 
 [dependencies]
-thiserror = "~1"
 serde = { version = "~1", features = ["derive", "rc"] }
 serde_yaml = "~0.9"
 serde_json = {version = "1.0.114", optional = true, features=["float_roundtrip"]}

@@ -1,5 +1,3 @@
-use thiserror::Error;
-
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
 use crate::specification::UnresolvedDeme;
@@ -14,17 +12,38 @@ use crate::TimeUnits;
 use crate::UnresolvedMigration;
 
 /// Error type raised by [`GraphBuilder`]
-#[derive(Error, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum BuilderError {
     /// Error type when defaults fail to serialize
-    #[error(transparent)]
-    SerdeYamlError(#[from] serde_yaml::Error),
+    SerdeYamlError(serde_yaml::Error),
     /// Error propagated from the main
     /// graph resolution logic.
-    #[error(transparent)]
-    DemesError(#[from] crate::DemesError),
+    DemesError(crate::DemesError),
 }
+
+impl From<serde_yaml::Error> for BuilderError {
+    fn from(value: serde_yaml::Error) -> Self {
+        Self::SerdeYamlError(value)
+    }
+}
+
+impl From<crate::DemesError> for BuilderError {
+    fn from(value: crate::DemesError) -> Self {
+        Self::DemesError(value)
+    }
+}
+
+impl std::fmt::Display for BuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuilderError::DemesError(e) => write!(f, "demes error: {e:?}"),
+            BuilderError::SerdeYamlError(e) => write!(f, "yaml error: {e:?}"),
+        }
+    }
+}
+
+impl std::error::Error for BuilderError {}
 
 /// This type allows building a [`Graph`](crate::Graph) using code
 /// rather then using text input.

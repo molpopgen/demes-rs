@@ -741,7 +741,7 @@ demes:
         let rust_message: &str = rust_message.to_str().unwrap();
         assert_eq!(
             rust_message,
-            "deme A has finite start time but no ancestors"
+            "deme error: deme A has finite start time but no ancestors"
         );
     }
 

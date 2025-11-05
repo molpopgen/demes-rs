@@ -27,18 +27,13 @@
 #[non_exhaustive]
 pub enum DemesError {
     /// Errors related to demes
-    // #[error("{0:?}")]
     DemeError(String),
-    // #[error("{0:?}")]
     /// Errors related to epochs
     EpochError(String),
-    // #[error("{0:?}")]
     /// Top-level errors.
     GraphError(String),
-    // #[error("{0:?}")]
     /// Errors related to migrations
     MigrationError(String),
-    // #[error("{0:?}")]
     /// Errors related to pulses
     PulseError(String),
     /// Errors coming from `serde_yaml`.
@@ -52,7 +47,6 @@ pub enum DemesError {
     /// Errors coming from `toml` during deserialization.
     TomlDeError(toml::de::Error),
     /// Errors related to low-level types
-    // #[error("{0:?}")]
     ValueError(String),
     /// IO errors from the rust standard library
     IOerror(std::io::Error),

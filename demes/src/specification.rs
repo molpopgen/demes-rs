@@ -1126,7 +1126,7 @@ impl Epoch {
     ///
     /// * `Some(size)` if `time` falls within the epoch's time interval.
     /// * `None` if `time` is a valid time but outside of the epochs' time
-    ///    interval.
+    ///   interval.
     ///
     /// # Errors
     ///
@@ -3467,7 +3467,7 @@ impl Graph {
     ///
     /// The string is in the same format (YAML or JSON)
     /// that was used to generate the graph.
-    pub fn input_string(&self) -> Option<InputFormat> {
+    pub fn input_string(&'_ self) -> Option<InputFormat<'_>> {
         match &self.input_string {
             None => None,
             Some(format) => match format {
@@ -3763,8 +3763,8 @@ impl Graph {
     /// * `deme` - the "focal" deme whose ancestry proportions will be calculated.
     /// * `at` - the [Time] at which to calculate ancestry proportions.
     /// * `buffer` -  output location for the ancestry proportions.
-    ///    The buffer length must be at least the number of demes in
-    ///    the graph. (See [Graph::num_demes].)
+    ///   The buffer length must be at least the number of demes in
+    ///   the graph. (See [Graph::num_demes].)
     ///
     /// # Returns
     ///

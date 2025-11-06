@@ -681,7 +681,7 @@ impl ForwardGraph {
     /// # Returns
     ///
     /// * `Some(&[f64])` if `offspring_deme` is a valid index and extant
-    ///    offspring demes exist.
+    ///   offspring demes exist.
     /// * `None` otherwise.
     pub fn ancestry_proportions(&self, offspring_deme: usize) -> Option<&[f64]> {
         if offspring_deme >= self.num_demes_in_model() {
@@ -788,7 +788,7 @@ impl ForwardGraph {
     ///
     /// * `Some(DemeSize)` if there are parents at the given time.
     /// * `None` if `deme` does not exist or the deme exists but is
-    ///    not in existence at `time`.
+    ///   not in existence at `time`.
     ///
     /// # Errors
     ///

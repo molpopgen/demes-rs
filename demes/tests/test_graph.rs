@@ -231,7 +231,7 @@ migrations:
     assert_eq!(g.time_units().to_string(), "years".to_string());
     assert_eq!(g.migrations().len(), 8);
 
-    let expected_resolved_migrations = vec![
+    let expected_resolved_migrations = [
         ExpectedMigration::new("YRI", "OOA", 25e-5, 140e3, 21.2e3).unwrap(),
         ExpectedMigration::new("OOA", "YRI", 25e-5, 140e3, 21.2e3).unwrap(),
         ExpectedMigration::new("YRI", "CEU", 3e-5, 21.2e3, 0.0).unwrap(),

@@ -52,7 +52,7 @@ jobs:
             rm -rf build
       - name: Run cmake on demes example
         run: |
-            cmake -Sdemes/c_example -Bbuild
+            cmake -Sdemes-ffi/c_example -Bbuild
       - name: Build demes example
         run: |
             cmake --build build
@@ -64,7 +64,7 @@ jobs:
            ./build/example_using_iterators demes/demes-spec/examples/jacobs_papuans.yaml
       - name: Run cmake on demes example in release mode
         run: |
-            cmake -Sdemes/c_example -Bbuild_release -DCMAKE_BUILD_TYPE=Release
+            cmake -Sdemes-ffi/c_example -Bbuild_release -DCMAKE_BUILD_TYPE=Release
       - name: Build demes example in release mode
         run: |
             cmake --build build_release

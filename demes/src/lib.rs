@@ -55,11 +55,6 @@ mod time;
 #[cfg(feature = "json")]
 mod process_json;
 
-#[cfg(feature = "ffi")]
-pub mod ffi;
-#[cfg(feature = "ffi")]
-mod ffi_iterators;
-
 use std::io::Read;
 
 pub use builder::{BuilderError, GraphBuilder};

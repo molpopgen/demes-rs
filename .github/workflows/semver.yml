@@ -28,5 +28,9 @@ jobs:
           crate: cargo-semver-checks
           version: "~0.45.0"
       - name: run check-release
-        run: cargo semver-checks check-release --all-features
-
+        # We do each crate separately b/c the demes ffi crate
+        # is not yet on crates.io so there are no docs to compare to
+        run: |
+          cargo semver-checks check-release --all-features --manifest-path demes/Cargo.toml
+          cargo semver-checks check-release --all-features --manifest-path demes-forward/Cargo.toml
+          cargo semver-checks check-release --all-features --manifest-path demes-forward-capi/Cargo.toml

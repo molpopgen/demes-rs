@@ -1,16 +1,13 @@
 [package]
 name = "demes"
 build = "build.rs"
-version = "0.6.1"
+version = "0.7.0-alpha.0"
 edition = "2021"
 license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
 rust-version = "1.66.1"
-
-[lib]
-crate-type = ["lib", "staticlib"]
 
 [lints.rust]
 # Added for rust 1.80.0
@@ -22,7 +19,6 @@ rustdoc-args = ["--cfg", "doc_cfg"]
 
 [features]
 json = ["serde_json"]
-ffi = []
 
 [dependencies]
 serde = { version = "~1", features = ["derive", "rc"] }

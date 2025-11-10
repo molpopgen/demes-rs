@@ -1,0 +1,26 @@
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+name: MIRI
+
+jobs:
+  run-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        rust:
+          - "nightly"
+    steps:
+       - uses: actions/checkout@v5
+         with:
+           submodules: recursive
+       - name: Install Miri
+         run: |
+           rustup toolchain install nightly --component miri
+           rustup override set nightly
+           cargo miri setup
+       - name: Test demes-ffi
+         run: cargo miri test --manifest-path demes-ffi/Cargo.toml test_iterators

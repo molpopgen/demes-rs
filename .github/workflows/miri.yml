@@ -23,4 +23,4 @@ jobs:
            rustup override set nightly
            cargo miri setup
        - name: Test demes-ffi
-         run: cargo miri test --manifest-path demes-ffi/Cargo.toml test_iterators
+         run: cargo miri test --manifest-path demes-ffi/Cargo.toml

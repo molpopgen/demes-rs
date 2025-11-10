@@ -8,9 +8,9 @@ use crate::Pulse;
 ///
 /// # FFI use
 ///
-/// * Create with [`crate::ffi::demes_graph_deme_iterator`].
-/// * Advance with [`crate::ffi::demes_deme_iterator_next`].
-/// * Tear down using [`crate::ffi::demes_deme_iterator_deallocate`]
+/// * Create with [`crate::demes_graph_deme_iterator`].
+/// * Advance with [`crate::demes_deme_iterator_next`].
+/// * Tear down using [`crate::demes_deme_iterator_deallocate`]
 pub struct DemeIterator {
     graph: std::ptr::NonNull<Graph>,
     deme: usize,
@@ -18,10 +18,9 @@ pub struct DemeIterator {
 
 impl DemeIterator {
     /// Create a new iterator
-    pub fn new(graph: &Graph) -> Self {
-        let ptr = graph as *const Graph;
+    pub fn new(graph: *const Graph) -> Self {
         Self {
-            graph: std::ptr::NonNull::new(ptr.cast_mut()).unwrap(),
+            graph: std::ptr::NonNull::new(graph.cast_mut()).unwrap(),
             deme: 0,
         }
     }
@@ -43,9 +42,9 @@ impl Iterator for DemeIterator {
 ///
 /// # FFI use
 ///
-/// * Create with [`crate::ffi::demes_deme_epoch_iterator`].
-/// * Advance with [`crate::ffi::demes_epoch_iterator_next`].
-/// * Tear down using [`crate::ffi::demes_epoch_iterator_deallocate`]
+/// * Create with [`crate::demes_deme_epoch_iterator`].
+/// * Advance with [`crate::demes_epoch_iterator_next`].
+/// * Tear down using [`crate::demes_epoch_iterator_deallocate`]
 pub struct EpochIterator {
     deme: std::ptr::NonNull<Deme>,
     epoch: usize,
@@ -53,10 +52,9 @@ pub struct EpochIterator {
 
 impl EpochIterator {
     /// Create a new iterator
-    pub fn new(deme: &Deme) -> Self {
-        let ptr = deme as *const Deme;
+    pub fn new(deme: *const Deme) -> Self {
         Self {
-            deme: std::ptr::NonNull::new(ptr.cast_mut()).unwrap(),
+            deme: std::ptr::NonNull::new(deme.cast_mut()).unwrap(),
             epoch: 0,
         }
     }
@@ -77,9 +75,9 @@ impl Iterator for EpochIterator {
 /// Iterator over [`AsymmetricMigration`]
 /// # FFI use
 ///
-/// * Create with [`crate::ffi::demes_graph_asymmetric_migration_iterator`].
-/// * Advance with [`crate::ffi::demes_asymmetric_migration_iterator_next`].
-/// * Tear down using [`crate::ffi::demes_asymmetric_migration_iterator_deallocate`]
+/// * Create with [`crate::demes_graph_asymmetric_migration_iterator`].
+/// * Advance with [`crate::demes_asymmetric_migration_iterator_next`].
+/// * Tear down using [`crate::demes_asymmetric_migration_iterator_deallocate`]
 pub struct AsymmetricMigrationIterator {
     migrations_start: Option<*const AsymmetricMigration>,
     current: isize,
@@ -88,16 +86,20 @@ pub struct AsymmetricMigrationIterator {
 
 impl AsymmetricMigrationIterator {
     /// Create a new iterator
-    pub fn new(graph: &Graph) -> Self {
-        let ptr = if graph.migrations().is_empty() {
+    ///
+    /// # Safety
+    ///
+    /// * `graph` must point to a non-NULL [`Graph`]
+    pub unsafe fn new(graph: *const Graph) -> Self {
+        let ptr = if unsafe { graph.as_ref() }.unwrap().migrations().is_empty() {
             None
         } else {
-            Some(graph.migrations().as_ptr())
+            Some(unsafe { graph.as_ref() }.unwrap().migrations().as_ptr())
         };
         Self {
             migrations_start: ptr,
             current: 0,
-            num_migrations: graph.migrations().len(),
+            num_migrations: unsafe { graph.as_ref() }.unwrap().migrations().len(),
         }
     }
 
@@ -128,9 +130,9 @@ impl Iterator for AsymmetricMigrationIterator {
 /// Iterator over [`AsymmetricMigration`]
 /// # FFI use
 ///
-/// * Create with [`crate::ffi::demes_graph_pulse_iterator`].
-/// * Advance with [`crate::ffi::demes_pulse_iterator_next`].
-/// * Tear down using [`crate::ffi::demes_pulse_iterator_deallocate`]
+/// * Create with [`crate::demes_graph_pulse_iterator`].
+/// * Advance with [`crate::demes_pulse_iterator_next`].
+/// * Tear down using [`crate::demes_pulse_iterator_deallocate`]
 pub struct PulseIterator {
     pulses_start: Option<*const Pulse>,
     current: isize,
@@ -139,17 +141,21 @@ pub struct PulseIterator {
 
 impl PulseIterator {
     /// Create a new iterator
-    pub fn new(graph: &Graph) -> Self {
-        let ptr = if graph.pulses().is_empty() {
+    ///
+    /// # Safety
+    ///
+    /// * `graph` must point to a non-NULL [`Graph`]
+    pub unsafe fn new(graph: *const Graph) -> Self {
+        let ptr = if unsafe { graph.as_ref() }.unwrap().pulses().is_empty() {
             None
         } else {
-            Some(graph.pulses().as_ptr())
+            Some(unsafe { graph.as_ref() }.unwrap().pulses().as_ptr())
         };
         // SAFETY: ptr is correctly initialized
         // and the lenght of pulses is correct.
         Self {
             pulses_start: ptr,
-            num_pulses: graph.pulses().len(),
+            num_pulses: unsafe { graph.as_ref() }.unwrap().pulses().len(),
             current: 0,
         }
     }

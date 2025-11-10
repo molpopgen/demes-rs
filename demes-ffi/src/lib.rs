@@ -845,7 +845,7 @@ pub extern "C" fn demes_deme_end_size(deme: &Deme) -> f64 {
 ///
 /// `output` must be a non-NULL pointer to a [`f64`].
 #[no_mangle]
-pub unsafe extern "C" fn demes_deme_size_at(deme: &Deme, time: f64, output: &mut f64) -> c_int {
+pub extern "C" fn demes_deme_size_at(deme: &Deme, time: f64, output: &mut f64) -> c_int {
     match deme.size_at(time) {
         Ok(time) => {
             *output = time.map_or(f64::NAN, |t| t.into());
@@ -915,7 +915,7 @@ pub extern "C" fn demes_epoch_end_size(epoch: &Epoch) -> f64 {
 ///
 /// `output` must be a non-NULL pointer to a [`f64`].
 #[no_mangle]
-pub unsafe extern "C" fn demes_epoch_size_at(epoch: &Epoch, time: f64, output: &mut f64) -> c_int {
+pub extern "C" fn demes_epoch_size_at(epoch: &Epoch, time: f64, output: &mut f64) -> c_int {
     match epoch.size_at(time) {
         Ok(t) => {
             *output = t.map_or(f64::NAN, |time| time.into());
@@ -1502,7 +1502,7 @@ fn test_basic_graph_deme_sizes() {
 
         let mut deme_size = f64::NAN;
         let t = demes_deme_start_time(deme_ref);
-        let rv = unsafe { demes_deme_size_at(deme_ref, t, &mut deme_size) };
+        let rv = demes_deme_size_at(deme_ref, t, &mut deme_size);
         assert_eq!(rv, 0);
         if !t.is_infinite() {
             assert!(deme_size.is_nan(), "{deme_size}");
@@ -1511,7 +1511,7 @@ fn test_basic_graph_deme_sizes() {
         }
         let mut deme_size = 0.0;
         let t = demes_deme_end_time(deme_ref);
-        let rv = unsafe { demes_deme_size_at(deme_ref, t, &mut deme_size) };
+        let rv = demes_deme_size_at(deme_ref, t, &mut deme_size);
         assert_eq!(rv, 0);
         assert!((deme_size - demes_deme_end_size(deme_ref)).abs() <= 1e-9);
     }
@@ -1534,7 +1534,7 @@ fn test_basic_graph_epochs() {
             let _ = demes_epoch_size_function(epoch);
 
             let mut deme_size = f64::MIN;
-            let rv = unsafe { demes_epoch_size_at(epoch, start_time, &mut deme_size) };
+            let rv = demes_epoch_size_at(epoch, start_time, &mut deme_size);
             if start_time.is_finite() {
                 assert_eq!(rv, 0, "{e}, {start_time}, {start_size} -> {error:?}");
                 assert!(deme_size.is_nan(), "{deme_size} {start_time}");
@@ -1545,7 +1545,7 @@ fn test_basic_graph_epochs() {
             }
 
             deme_size = f64::MIN;
-            let rv = unsafe { demes_epoch_size_at(epoch, end_time, &mut deme_size) };
+            let rv = demes_epoch_size_at(epoch, end_time, &mut deme_size);
             assert_eq!(rv, 0);
             assert!((deme_size - end_size).abs() <= 1e-9);
         }

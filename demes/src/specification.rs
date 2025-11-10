@@ -2399,6 +2399,12 @@ impl Metadata {
     pub(crate) fn as_raw_ref(&self) -> &std::collections::BTreeMap<String, serde_yaml::Value> {
         &self.metadata
     }
+
+    #[cfg(feature = "json")]
+    /// Return a copy of the metadata as string in JSON format
+    pub fn to_json_string(&self) -> Result<String, DemesError> {
+        Ok(serde_json::to_string(self.as_raw_ref())?)
+    }
 }
 
 #[derive(Deserialize, Debug)]

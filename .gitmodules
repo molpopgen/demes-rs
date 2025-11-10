@@ -5,5 +5,5 @@
 	path = demes-forward-capi/c_example/corrosion
 	url = https://github.com/corrosion-rs/corrosion.git
 [submodule "demes/c_example/corrosion"]
-	path = demes/c_example/corrosion
+	path = demes-ffi/c_example/corrosion
 	url = https://github.com/corrosion-rs/corrosion.git

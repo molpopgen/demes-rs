@@ -1,0 +1,17 @@
+[package]
+name = "demes-ffi"
+version = "0.1.0-alpha.0"
+edition = "2021"
+rust-version = "1.66.1"
+
+[lib]
+crate-type = ["lib", "staticlib"]
+
+[dependencies]
+serde = { version = "~1", features = ["derive", "rc"] }
+serde_yaml = "~0.9"
+serde_json = {version = "1.0.114", optional = true, features=["float_roundtrip"]}
+demes = { version = "0.7.0-alpha.0", path = "../demes" }
+
+[features]
+json = ["serde_json", "demes/json"]

@@ -10,7 +10,7 @@ repository = "https://github.com/molpopgen/demes-rs"
 rust-version = "1.66.1"
 
 [dependencies]
-demes = { version = "0.6.1", path = "../demes" }
+demes = { version = "0.7.0-alpha.0", path = "../demes" }
 
 [[example]]
 name = "iterate_gutenkunst"

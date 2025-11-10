@@ -13,13 +13,23 @@ dependencies = [
 
 [[package]]
 name = "demes"
-version = "0.6.1"
+version = "0.7.0-alpha.0"
 dependencies = [
  "regex",
  "serde",
  "serde_json",
  "serde_yaml",
  "toml",
+]
+
+[[package]]
+name = "demes-ffi"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "demes",
+ "serde",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]

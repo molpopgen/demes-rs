@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-    "demes",
+    "demes", "demes-ffi",
     "demes-forward",
     "demes-forward-capi"
 ]

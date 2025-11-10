@@ -35,24 +35,27 @@
 //!
 //! However, when called from languages like `C`, this API is subject
 //! to the same safety pitfalls as any API for that language.
-//! Witout rust's borrow checker, it is up to client code to make
+//! Without rust's borrow checker, it is up to client code to make
 //! sure that parent objects ([`Graph`]s for example) are still valid
 //! when child objects ([`Deme`]s for example) are passed to API functions.
 
 use std::ffi::{CStr, CString};
 
-pub use crate::ffi_iterators::AsymmetricMigrationIterator;
-pub use crate::ffi_iterators::DemeAncestor;
-pub use crate::ffi_iterators::DemeAncestorIterator;
-pub use crate::ffi_iterators::DemeIterator;
-pub use crate::ffi_iterators::EpochIterator;
-pub use crate::ffi_iterators::PulseIterator;
-use crate::AsymmetricMigration;
-use crate::Deme;
-use crate::Epoch;
-use crate::Graph;
-use crate::Pulse;
+mod iterators;
+
+pub use crate::iterators::AsymmetricMigrationIterator;
+pub use crate::iterators::DemeAncestor;
+pub use crate::iterators::DemeAncestorIterator;
+pub use crate::iterators::DemeIterator;
+pub use crate::iterators::EpochIterator;
+pub use crate::iterators::PulseIterator;
 use std::os::raw::{c_char, c_int};
+
+pub use demes::AsymmetricMigration;
+pub use demes::Deme;
+pub use demes::Epoch;
+pub use demes::Graph;
+pub use demes::Pulse;
 
 enum ErrorDetails {
     UnexpectedNullPointer,
@@ -199,7 +202,7 @@ fn str_to_owned_c_char(string: &str) -> *mut c_char {
 
 unsafe fn loads(yaml: &str, error: &mut FFIError, output: *mut *mut Graph) -> c_int {
     assert!(error.error.is_none());
-    match crate::loads(yaml) {
+    match demes::loads(yaml) {
         Ok(g) => {
             let graph = Box::new(g);
             *output = Box::leak(graph);
@@ -216,7 +219,7 @@ unsafe fn loads(yaml: &str, error: &mut FFIError, output: *mut *mut Graph) -> c_
 
 unsafe fn load(file: std::fs::File, error: &mut FFIError, output: *mut *mut Graph) -> c_int {
     assert!(error.error.is_none());
-    match crate::load(file) {
+    match demes::load(file) {
         Ok(g) => {
             let graph = Box::new(g);
             // NOTE: this is why fn is unsafe
@@ -721,7 +724,7 @@ pub unsafe extern "C" fn demes_graph_toplevel_metadata_json(
             *output = std::ptr::null_mut();
             0
         }
-        Some(metadata) => match serde_json::to_string(metadata.as_raw_ref()) {
+        Some(metadata) => match metadata.to_json_string() {
             Err(e) => {
                 error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 1
@@ -927,11 +930,12 @@ pub unsafe extern "C" fn demes_epoch_size_at(epoch: &Epoch, time: f64, output: &
 
 /// Get the [`SizeFunction`] of an [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_size_function(epoch: &Epoch) -> SizeFunction {
+pub extern "C" fn demes_epoch_size_function(epoch: &demes::Epoch) -> SizeFunction {
     match epoch.size_function() {
-        crate::SizeFunction::Linear => SizeFunction::Linear,
-        crate::SizeFunction::Exponential => SizeFunction::Exponential,
-        crate::SizeFunction::Constant => SizeFunction::Constant,
+        demes::SizeFunction::Linear => SizeFunction::Linear,
+        demes::SizeFunction::Exponential => SizeFunction::Exponential,
+        demes::SizeFunction::Constant => SizeFunction::Constant,
+        _ => todo!(),
     }
 }
 
@@ -1332,7 +1336,7 @@ fn basic_valid_graph_yaml() -> &'static str {
 #[cfg(test)]
 fn basic_valid_graph() -> Graph {
     let yaml = basic_valid_graph_yaml();
-    crate::loads(yaml).unwrap()
+    demes::loads(yaml).unwrap()
 }
 
 #[cfg(test)]
@@ -1517,7 +1521,7 @@ fn test_basic_graph_deme_sizes() {
 fn test_basic_graph_epochs() {
     let graph = basic_valid_graph();
     let mut error = FFIError::default();
-    for i in 0..graph.demes.len() {
+    for i in 0..graph.demes().len() {
         let deme = demes_graph_deme(&graph, i);
         let deme_ref = unsafe { deme.as_ref().unwrap() };
         for e in 0..demes_deme_num_epochs(deme_ref) {
@@ -1578,7 +1582,7 @@ fn test_missing_toplevel_metadata() {
      - end_time: 100
        start_size: 100
     ";
-    let graph = crate::loads(yaml).unwrap();
+    let graph = demes::loads(yaml).unwrap();
     let mut error = FFIError::default();
     let mut metadata_string = std::ptr::null_mut();
     assert_eq!(
@@ -1601,7 +1605,7 @@ fn test_toplevel_metadata() {
      - end_time: 100
        start_size: 100
     ";
-    let graph = crate::loads(yaml).unwrap();
+    let graph = demes::loads(yaml).unwrap();
     let mut error = FFIError::default();
     let mut metadata_string = std::ptr::null_mut();
     let rv =
@@ -1641,13 +1645,13 @@ fn test_graph_to_yaml() {
      - end_time: 100
        start_size: 100
     ";
-    let graph = crate::loads(yaml).unwrap();
+    let graph = demes::loads(yaml).unwrap();
     let mut error = FFIError::default();
     let mut c_yaml = std::ptr::null_mut();
     let rv = unsafe { demes_graph_to_yaml(&graph, &mut error, &mut c_yaml) };
     assert_eq!(rv, 0);
     let cstr = unsafe { CStr::from_ptr(c_yaml) };
-    let graph_from_c_yaml = crate::loads(cstr.to_str().unwrap()).unwrap();
+    let graph_from_c_yaml = demes::loads(cstr.to_str().unwrap()).unwrap();
     assert_eq!(graph, graph_from_c_yaml);
     unsafe {
         demes_c_char_deallocate(c_yaml);
@@ -1674,7 +1678,7 @@ fn test_ancestors_and_proportions() {
            epochs:
             - start_size: 100
         ";
-    let graph = crate::loads(yaml).unwrap();
+    let graph = demes::loads(yaml).unwrap();
     unsafe {
         let deme_ptr = demes_graph_deme(&graph, 0);
         let deme = deme_ptr.as_ref().unwrap();
@@ -1888,9 +1892,9 @@ fn test_deme_ancestry_iterator() {
 
 #[test]
 fn test_load_from_file() {
-    let filename = "demes-spec/examples/browning_america.yaml";
+    let filename = "examples/browning_america.yaml";
     let file = std::fs::File::open(filename).unwrap();
-    let graph = crate::load(file).unwrap();
+    let graph = demes::load(file).unwrap();
     let mut graph_from_file: *mut Graph = std::ptr::null_mut();
     let mut error = FFIError::default();
 

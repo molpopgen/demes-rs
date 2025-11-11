@@ -2,6 +2,7 @@
 //! [specification](https://popsim-consortium.github.io/demes-spec-docs/main/specification.html)
 //! in terms of rust structs.
 
+use crate::error::OpaqueYamlError;
 use crate::time::*;
 use crate::CloningRate;
 use crate::DemeSize;
@@ -2403,7 +2404,8 @@ impl Metadata {
     #[cfg(feature = "json")]
     /// Return a copy of the metadata as string in JSON format
     pub fn to_json_string(&self) -> Result<String, DemesError> {
-        Ok(serde_json::to_string(self.as_raw_ref())?)
+        serde_json::to_string(self.as_raw_ref())
+            .map_err(|e| DemesError::JsonError(crate::error::OpaqueJSONError(e)))
     }
 }
 
@@ -3065,13 +3067,16 @@ impl TryFrom<UnresolvedGraph> for Graph {
 fn string_from_reader<T: Read>(reader: T) -> Result<String, DemesError> {
     let mut reader = reader;
     let mut buf = String::default();
-    let _ = reader.read_to_string(&mut buf)?;
+    let _ = reader
+        .read_to_string(&mut buf)
+        .map_err(|e| DemesError::IOerror(crate::error::OpaqueIOError(e)))?;
     Ok(buf)
 }
 
 impl Graph {
     pub(crate) fn new_from_str(yaml: &'_ str) -> Result<Self, DemesError> {
-        let g: UnresolvedGraph = serde_yaml::from_str(yaml)?;
+        let g: UnresolvedGraph =
+            serde_yaml::from_str(yaml).map_err(|e| DemesError::YamlError(OpaqueYamlError(e)))?;
         let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Yaml(yaml.to_owned()));
@@ -3081,11 +3086,13 @@ impl Graph {
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     pub(crate) fn new_resolved_from_json_str(json: &'_ str) -> Result<Self, DemesError> {
-        let json: std::collections::HashMap<String, serde_json::Value> =
-            serde_json::from_str(json)?;
+        let json: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(json)
+            .map_err(|e| DemesError::JsonError(crate::error::OpaqueJSONError(e)))?;
         let json = crate::process_json::fix_json_input(json)?;
-        let json = serde_json::to_string(&json)?;
-        let g: UnresolvedGraph = serde_json::from_str(&json)?;
+        let json = serde_json::to_string(&json)
+            .map_err(|e| DemesError::JsonError(crate::error::OpaqueJSONError(e)))?;
+        let g: UnresolvedGraph = serde_json::from_str(&json)
+            .map_err(|e| DemesError::JsonError(crate::error::OpaqueJSONError(e)))?;
         let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Json(json.to_owned()));
@@ -3095,7 +3102,8 @@ impl Graph {
     #[cfg(feature = "toml")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
     pub(crate) fn new_resolved_from_toml_str(toml: &'_ str) -> Result<Self, DemesError> {
-        let g: UnresolvedGraph = toml::from_str(toml)?;
+        let g: UnresolvedGraph = toml::from_str(toml)
+            .map_err(|e| DemesError::TomlDeError(crate::error::OpaqueTOMLError(e)))?;
         let mut g = g.resolve()?;
         g.validate()?;
         g.input_string = Some(InputFormatInternal::Toml(toml.to_owned()));
@@ -3302,7 +3310,7 @@ impl Graph {
     pub fn as_string(&self) -> Result<String, DemesError> {
         match serde_yaml::to_string(self) {
             Ok(string) => Ok(string),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(DemesError::YamlError(OpaqueYamlError(e))),
         }
     }
 
@@ -3320,7 +3328,7 @@ impl Graph {
     pub fn as_json_string(&self) -> Result<String, DemesError> {
         match serde_json::to_string(self) {
             Ok(string) => Ok(string),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(DemesError::JsonError(crate::error::OpaqueJSONError(e))),
         }
     }
 

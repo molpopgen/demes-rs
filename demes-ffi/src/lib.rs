@@ -27,17 +27,6 @@
 //!
 //! Functions returning pointers all document if the return value must be
 //! freed and, if so, how to do so.
-//!
-//! Many of the function in this module do not have an `unsafe` label.
-//! These labels are correct.
-//! When called from rust, these functions are indeed safe.
-//! The borrow checker prevents them from being unsafe.
-//!
-//! However, when called from languages like `C`, this API is subject
-//! to the same safety pitfalls as any API for that language.
-//! Without rust's borrow checker, it is up to client code to make
-//! sure that parent objects ([`Graph`]s for example) are still valid
-//! when child objects ([`Deme`]s for example) are passed to API functions.
 
 use std::ffi::{CStr, CString};
 
@@ -115,15 +104,23 @@ pub extern "C" fn demes_error_allocate() -> *mut FFIError {
 /// # Returns
 ///
 /// `true` if there is an error and `false` otherwise.
+///
+/// # Safety
+///
+/// * `error` must be a non-NULL pointer to an allocated [`FFIError`]
 #[no_mangle]
-pub extern "C" fn demes_error_has_error(error: &FFIError) -> bool {
-    error.error.is_some()
+pub unsafe extern "C" fn demes_error_has_error(error: *const FFIError) -> bool {
+    error.as_ref().unwrap().error.is_some()
 }
 
 /// Clear error state.
+///
+/// # Safety
+///
+/// * `error` must be a non-NULL pointer to an allocated [`FFIError`]
 #[no_mangle]
-pub extern "C" fn demes_error_clear(error: &mut FFIError) {
-    error.error = None
+pub unsafe extern "C" fn demes_error_clear(error: *mut FFIError) {
+    error.as_mut().unwrap().error = None
 }
 
 /// Obtain a C string containing the error message.
@@ -138,9 +135,13 @@ pub extern "C" fn demes_error_clear(error: &mut FFIError) {
 ///   The allocated memory **must** be freed via the [`demes_c_char_deallocate`] function,
 ///   else a memory leak will occur.
 /// * A NULL pointer if there is no error.
+///
+/// # Safety
+///
+/// * `error` must be a non-NULL pointer to an allocated [`FFIError`]
 #[no_mangle]
-pub extern "C" fn demes_error_message(error: &FFIError) -> *mut c_char {
-    match &error.error {
+pub unsafe extern "C" fn demes_error_message(error: *const FFIError) -> *mut c_char {
+    match &error.as_ref().unwrap().error {
         None => std::ptr::null_mut(),
         Some(e) => {
             let msg = format!("{:?}", e);
@@ -266,17 +267,17 @@ unsafe fn load(file: std::fs::File, error: &mut FFIError, output: *mut *mut Grap
 /// If any field is unresolved, an error will be returned.
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_into_generations(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut Graph,
 ) -> c_int {
-    match graph.clone().into_generations() {
+    match graph.as_ref().unwrap().clone().into_generations() {
         Ok(graph_in_generations) => {
             *output = Box::leak(Box::new(graph_in_generations));
             0
         }
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
             *output = std::ptr::null_mut();
             1
         }
@@ -307,17 +308,17 @@ pub unsafe extern "C" fn demes_graph_into_generations(
 /// which will trigger an error.
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_into_integer_generations(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut Graph,
 ) -> c_int {
-    match graph.clone().into_integer_generations() {
+    match graph.as_ref().unwrap().clone().into_integer_generations() {
         Ok(graph_in_generations) => {
             *output = Box::leak(Box::new(graph_in_generations));
             0
         }
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
             *output = std::ptr::null_mut();
             1
         }
@@ -347,17 +348,22 @@ pub unsafe extern "C" fn demes_graph_into_integer_generations(
 /// which will trigger an error.
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_into_integer_start_end_sizes(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut Graph,
 ) -> c_int {
-    match graph.clone().into_integer_start_end_sizes() {
+    match graph
+        .as_ref()
+        .unwrap()
+        .clone()
+        .into_integer_start_end_sizes()
+    {
         Ok(graph_in_generations) => {
             *output = Box::leak(Box::new(graph_in_generations));
             0
         }
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
             *output = std::ptr::null_mut();
             1
         }
@@ -422,22 +428,22 @@ pub unsafe extern "C" fn demes_graph_deallocate(graph: *mut Graph) {
 pub unsafe extern "C" fn demes_graph_load_from_yaml(
     // NOTE: it is very hard to test invalid c style strings.
     yaml: *const c_char,
-    error: &mut FFIError,
+    error: *mut FFIError,
     output: *mut *mut Graph,
 ) -> c_int {
-    assert!(error.error.is_none());
+    assert!(error.as_ref().unwrap().error.is_none());
 
     if yaml.is_null() {
-        error.error = Some(ErrorDetails::UnexpectedNullPointer);
+        error.as_mut().unwrap().error = Some(ErrorDetails::UnexpectedNullPointer);
         return 1;
     }
 
     // WARNING: from_ptr has a LOT in its SAFETY section!
     let yaml = CStr::from_ptr(yaml);
     match yaml.to_owned().to_str() {
-        Ok(s) => loads(s, error, output),
+        Ok(s) => loads(s, error.as_mut().unwrap(), output),
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
             *output = std::ptr::null_mut();
             1
         }
@@ -491,13 +497,13 @@ pub unsafe extern "C" fn demes_graph_load_from_yaml(
 pub unsafe extern "C" fn demes_graph_load_from_file(
     // NOTE: it is very hard to test invalid c style strings.
     filename: *const c_char,
-    error: &mut FFIError,
+    error: *mut FFIError,
     output: *mut *mut Graph,
 ) -> c_int {
-    assert!(error.error.is_none());
+    assert!(error.as_ref().unwrap().error.is_none());
     if filename.is_null() {
         // There is no input string, so fill error
-        error.error = Some(ErrorDetails::UnexpectedNullPointer);
+        error.as_mut().unwrap().error = Some(ErrorDetails::UnexpectedNullPointer);
         return 1;
     }
 
@@ -505,15 +511,15 @@ pub unsafe extern "C" fn demes_graph_load_from_file(
     let filename = CStr::from_ptr(filename);
     match filename.to_str() {
         Ok(s) => match std::fs::File::open(s) {
-            Ok(file) => load(file, error, output),
+            Ok(file) => load(file, error.as_mut().unwrap(), output),
             Err(e) => {
-                error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+                error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 *output = std::ptr::null_mut();
                 1
             }
         },
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
             *output = std::ptr::null_mut();
             1
         }
@@ -521,15 +527,23 @@ pub unsafe extern "C" fn demes_graph_load_from_file(
 }
 
 /// Get the number of demes in a [`Graph`]
+///
+/// # Safety
+///
+/// * `graph` must be a non-NULL pointer to an allocated [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_num_demes(graph: &Graph) -> usize {
-    graph.num_demes()
+pub unsafe extern "C" fn demes_graph_num_demes(graph: *const Graph) -> usize {
+    graph.as_ref().unwrap().num_demes()
 }
 
 /// Get a pointer to a [`Deme`] from a [`Graph`]
+///
+/// # Safety
+///
+/// * `graph` must be a non-NULL pointer to an allocated [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_deme(graph: &Graph, at: usize) -> *const Deme {
-    match graph.demes().get(at) {
+pub unsafe extern "C" fn demes_graph_deme(graph: *const Graph, at: usize) -> *const Deme {
+    match graph.as_ref().unwrap().demes().get(at) {
         Some(deme) => deme,
         None => std::ptr::null(),
     }
@@ -544,14 +558,15 @@ pub extern "C" fn demes_graph_deme(graph: &Graph, at: usize) -> *const Deme {
 ///
 /// # Safety
 ///
+/// * `graph` must be a non-NULL pointer to an allocated [`Graph`]
 /// * `name` must be non-NULL, nul-terminated string
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_deme_from_name(
-    graph: &Graph,
+    graph: *const Graph,
     name: *const c_char,
 ) -> *const Deme {
     let n = unsafe { CStr::from_ptr(name) }.to_str().unwrap();
-    match graph.get_deme(n) {
+    match graph.as_ref().unwrap().get_deme(n) {
         Some(deme) => deme,
         None => std::ptr::null(),
     }
@@ -580,18 +595,18 @@ pub unsafe extern "C" fn demes_graph_deme_from_name(
 /// * The output value pointee, if not NULL, **must** be freed by [`demes_c_char_deallocate`]
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_to_yaml(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut c_char,
 ) -> c_int {
-    assert!(error.error.is_none());
-    match serde_yaml::to_string(graph) {
+    assert!(error.as_ref().unwrap().error.is_none());
+    match serde_yaml::to_string(graph.as_ref().unwrap()) {
         Ok(yaml) => {
             *output = str_to_owned_c_char(&yaml);
             0
         }
         Err(e) => {
-            error.error = Some(ErrorDetails::BoxedError(e.into()));
+            error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(e.into()));
             1
         }
     }
@@ -621,19 +636,19 @@ pub unsafe extern "C" fn demes_graph_to_yaml(
 /// * The output value pointee, if not NULL, **must** be freed by [`demes_c_char_deallocate`].
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_toplevel_metadata_yaml(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut c_char,
 ) -> c_int {
-    assert!(error.error.is_none());
-    match graph.metadata() {
+    assert!(error.as_ref().unwrap().error.is_none());
+    match graph.as_ref().unwrap().metadata() {
         None => {
             *output = std::ptr::null_mut();
             0
         }
         Some(metadata) => match metadata.as_yaml_string() {
             Err(e) => {
-                error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+                error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 1
             }
             Ok(metadata) => {
@@ -645,12 +660,16 @@ pub unsafe extern "C" fn demes_graph_toplevel_metadata_yaml(
 }
 
 /// Get the number of [`Pulse`] items in a [`Graph`].
+///
+/// # Safety
+///
+/// `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_num_pulses(graph: &Graph) -> usize {
-    graph.pulses().len()
+pub unsafe extern "C" fn demes_graph_num_pulses(graph: *const Graph) -> usize {
+    graph.as_ref().unwrap().pulses().len()
 }
 
-/// Get a pointer to an [`Pulse`] from a [`Graph`]
+/// Get a pointer to a [`Pulse`] from a [`Graph`]
 ///
 /// # Notes
 ///
@@ -658,18 +677,26 @@ pub extern "C" fn demes_graph_num_pulses(graph: &Graph) -> usize {
 /// * A non-NULL return value points to memory managed by rust.
 /// * The const-ness of the return value should not be cast away.
 /// * The valid range for `at` can be deduced using [`demes_graph_num_pulses`].
+///
+/// # Safety
+///
+/// `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_pulse(graph: &Graph, at: usize) -> *const Pulse {
-    match graph.pulses().get(at) {
+pub unsafe extern "C" fn demes_graph_pulse(graph: *const Graph, at: usize) -> *const Pulse {
+    match graph.as_ref().unwrap().pulses().get(at) {
         Some(pulse) => pulse,
         None => std::ptr::null(),
     }
 }
 
 /// Get the number of [`AsymmetricMigration`] items in a [`Graph`].
+///
+/// # Safety
+///
+/// `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_num_migrations(graph: &Graph) -> usize {
-    graph.migrations().len()
+pub unsafe extern "C" fn demes_graph_num_migrations(graph: *const Graph) -> usize {
+    graph.as_ref().unwrap().migrations().len()
 }
 
 /// Get a pointer to an [`AsymmetricMigration`] from a [`Graph`]
@@ -680,9 +707,16 @@ pub extern "C" fn demes_graph_num_migrations(graph: &Graph) -> usize {
 /// * A non-NULL return value points to memory managed by rust.
 /// * The const-ness of the return value should not be cast away.
 /// * The valid range for `at` can be deduced using [`demes_graph_num_migrations`].
+///
+/// # Safety
+///
+/// `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_migration(graph: &Graph, at: usize) -> *const AsymmetricMigration {
-    match graph.migrations().get(at) {
+pub unsafe extern "C" fn demes_graph_migration(
+    graph: *const Graph,
+    at: usize,
+) -> *const AsymmetricMigration {
+    match graph.as_ref().unwrap().migrations().get(at) {
         Some(migration) => migration,
         None => std::ptr::null(),
     }
@@ -711,22 +745,27 @@ pub extern "C" fn demes_graph_migration(graph: &Graph, at: usize) -> *const Asym
 /// # Notes
 ///
 /// * The output value pointee, if not NULL, **must** be freed by [`demes_c_char_deallocate`].
+///
+/// # Safety
+///
+/// `graph` must be a non-NULL pointer to a [`Graph`]
+/// `error` must be a non-NULL pointer to an [`FFIError`]
 #[cfg(feature = "json")]
 #[no_mangle]
 pub unsafe extern "C" fn demes_graph_toplevel_metadata_json(
-    graph: &Graph,
-    error: &mut FFIError,
+    graph: *const Graph,
+    error: *mut FFIError,
     output: *mut *mut c_char,
 ) -> c_int {
-    assert!(error.error.is_none());
-    match graph.metadata() {
+    assert!(error.as_ref().unwrap().error.is_none());
+    match graph.as_ref().unwrap().metadata() {
         None => {
             *output = std::ptr::null_mut();
             0
         }
         Some(metadata) => match metadata.to_json_string() {
             Err(e) => {
-                error.error = Some(ErrorDetails::BoxedError(Box::new(e)));
+                error.as_mut().unwrap().error = Some(ErrorDetails::BoxedError(Box::new(e)));
                 1
             }
             Ok(metadata) => {
@@ -738,9 +777,13 @@ pub unsafe extern "C" fn demes_graph_toplevel_metadata_json(
 }
 
 /// Get the number of epochs in a [`Deme`]
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_num_epochs(deme: &Deme) -> usize {
-    deme.num_epochs()
+pub unsafe extern "C" fn demes_deme_num_epochs(deme: *const Deme) -> usize {
+    deme.as_ref().unwrap().num_epochs()
 }
 
 /// Get the ancestry proportions of a [`Deme`].
@@ -755,19 +798,27 @@ pub extern "C" fn demes_deme_num_epochs(deme: &Deme) -> usize {
 /// * The return value is NULL if a deme has no ancestors.
 /// * A non-NULL return value points to memory managed by rust.
 /// * The return value should not have its const-ness cast away.
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_proportions(deme: &Deme) -> *const f64 {
-    if !deme.proportions().is_empty() {
-        deme.proportions().as_ptr().cast::<f64>()
+pub unsafe extern "C" fn demes_deme_proportions(deme: *const Deme) -> *const f64 {
+    if !deme.as_ref().unwrap().proportions().is_empty() {
+        deme.as_ref().unwrap().proportions().as_ptr().cast::<f64>()
     } else {
         std::ptr::null()
     }
 }
 
 /// Get the number of ancestors of a [`Deme`].
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_num_ancestors(deme: &Deme) -> usize {
-    deme.num_ancestors()
+pub unsafe extern "C" fn demes_deme_num_ancestors(deme: *const Deme) -> usize {
+    deme.as_ref().unwrap().num_ancestors()
 }
 
 /// Get a pointer to the indexes of all ancestors of a [`Deme`]
@@ -778,10 +829,14 @@ pub extern "C" fn demes_deme_num_ancestors(deme: &Deme) -> usize {
 /// * The return value is NULL if a deme has no ancestors.
 /// * A non-NULL return value points to memory managed by rust.
 /// * The return value should not have its const-ness cast away.
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_ancestor_indexes(deme: &Deme) -> *const usize {
-    if !deme.ancestor_indexes().is_empty() {
-        deme.ancestor_indexes().as_ptr()
+pub unsafe extern "C" fn demes_deme_ancestor_indexes(deme: *const Deme) -> *const usize {
+    if !deme.as_ref().unwrap().ancestor_indexes().is_empty() {
+        deme.as_ref().unwrap().ancestor_indexes().as_ptr()
     } else {
         std::ptr::null()
     }
@@ -793,33 +848,53 @@ pub extern "C" fn demes_deme_ancestor_indexes(deme: &Deme) -> *const usize {
 ///
 /// The output value pointee must be free'd by [`demes_c_char_deallocate`]
 /// to avoid a memory leak.
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_name(deme: &Deme) -> *mut c_char {
-    str_to_owned_c_char(deme.name())
+pub unsafe extern "C" fn demes_deme_name(deme: *const Deme) -> *mut c_char {
+    str_to_owned_c_char(deme.as_ref().unwrap().name())
 }
 
 /// Get the start time of a [`Deme`].
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_start_time(deme: &Deme) -> f64 {
-    deme.start_time().into()
+pub unsafe extern "C" fn demes_deme_start_time(deme: *const Deme) -> f64 {
+    deme.as_ref().unwrap().start_time().into()
 }
 
 /// Get the end time of a [`Deme`].
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_end_time(deme: &Deme) -> f64 {
-    deme.end_time().into()
+pub unsafe extern "C" fn demes_deme_end_time(deme: *const Deme) -> f64 {
+    deme.as_ref().unwrap().end_time().into()
 }
 
 /// Get the start size of a [`Deme`].
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_start_size(deme: &Deme) -> f64 {
-    deme.start_size().into()
+pub unsafe extern "C" fn demes_deme_start_size(deme: *const Deme) -> f64 {
+    deme.as_ref().unwrap().start_size().into()
 }
 
 /// Get the end time of a [`Deme`].
+///
+/// # Safety
+///
+/// `deme` must be a non-NULL pointer to a [`Deme`]
 #[no_mangle]
-pub extern "C" fn demes_deme_end_size(deme: &Deme) -> f64 {
-    deme.end_size().into()
+pub unsafe extern "C" fn demes_deme_end_size(deme: *const Deme) -> f64 {
+    deme.as_ref().unwrap().end_size().into()
 }
 
 /// Get the size of a [`Deme`] at a specific time.
@@ -838,15 +913,20 @@ pub extern "C" fn demes_deme_end_size(deme: &Deme) -> f64 {
 ///
 /// # Errors
 ///
-/// If the internal calculation of the deme size results in an invalid [`crate::DemeSize`],
+/// If the internal calculation of the deme size results in an invalid [`demes::DemeSize`],
 /// then this function will return a non-zero value.
 ///
 /// # Safety
 ///
-/// `output` must be a non-NULL pointer to a [`f64`].
+/// * `deme` must be a non-NULL pointer to a [`Deme`].
+/// * `output` must be a non-NULL pointer to a [`f64`].
 #[no_mangle]
-pub unsafe extern "C" fn demes_deme_size_at(deme: &Deme, time: f64, output: &mut f64) -> c_int {
-    match deme.size_at(time) {
+pub unsafe extern "C" fn demes_deme_size_at(
+    deme: *const Deme,
+    time: f64,
+    output: *mut f64,
+) -> c_int {
+    match deme.as_ref().unwrap().size_at(time) {
         Ok(time) => {
             *output = time.map_or(f64::NAN, |t| t.into());
             0
@@ -860,36 +940,55 @@ pub unsafe extern "C" fn demes_deme_size_at(deme: &Deme, time: f64, output: &mut
 
 /// # Get a pointer to an [`Epoch`] of a [`Deme`].
 ///
+/// # Safety
+///
+/// * `deme` must be a non-NULL pointer to a [`Deme`].
 #[no_mangle]
-pub extern "C" fn demes_deme_epoch(deme: &Deme, at: usize) -> *const Epoch {
-    match deme.epochs().get(at) {
+pub unsafe extern "C" fn demes_deme_epoch(deme: *const Deme, at: usize) -> *const Epoch {
+    match deme.as_ref().unwrap().epochs().get(at) {
         Some(epoch) => epoch,
         None => std::ptr::null(),
     }
 }
 
 /// Get the start time of an [`Epoch`].
+///
+/// # Safety
+///
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_start_time(epoch: &Epoch) -> f64 {
-    epoch.start_time().into()
+pub unsafe extern "C" fn demes_epoch_start_time(epoch: *const Epoch) -> f64 {
+    epoch.as_ref().unwrap().start_time().into()
 }
 
 /// Get the end time of an [`Epoch`].
+///
+/// # Safety
+///
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_end_time(epoch: &Epoch) -> f64 {
-    epoch.end_time().into()
+pub unsafe extern "C" fn demes_epoch_end_time(epoch: *const Epoch) -> f64 {
+    epoch.as_ref().unwrap().end_time().into()
 }
 
 /// Get the start size of an [`Epoch`].
+///
+/// # Safety
+///
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_start_size(epoch: &Epoch) -> f64 {
-    epoch.start_size().into()
+pub unsafe extern "C" fn demes_epoch_start_size(epoch: *const Epoch) -> f64 {
+    epoch.as_ref().unwrap().start_size().into()
 }
 
 /// Get the end size of an [`Epoch`].
+///
+/// # Safety
+///
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_end_size(epoch: &Epoch) -> f64 {
-    epoch.end_size().into()
+pub unsafe extern "C" fn demes_epoch_end_size(epoch: *const Epoch) -> f64 {
+    epoch.as_ref().unwrap().end_size().into()
 }
 
 /// Get the size of an [`Epoch`] at a specific time.
@@ -908,15 +1007,20 @@ pub extern "C" fn demes_epoch_end_size(epoch: &Epoch) -> f64 {
 ///
 /// # Errors
 ///
-/// If the internal calculation of the epoch size results in an invalid [`crate::DemeSize`],
+/// If the internal calculation of the epoch size results in an invalid [`demes::DemeSize`],
 /// then this function will return a non-zero value.
 ///
 /// # Safety
 ///
-/// `output` must be a non-NULL pointer to a [`f64`].
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
+/// * `output` must be a non-NULL pointer to a [`f64`].
 #[no_mangle]
-pub unsafe extern "C" fn demes_epoch_size_at(epoch: &Epoch, time: f64, output: &mut f64) -> c_int {
-    match epoch.size_at(time) {
+pub unsafe extern "C" fn demes_epoch_size_at(
+    epoch: *const Epoch,
+    time: f64,
+    output: *mut f64,
+) -> c_int {
+    match epoch.as_ref().unwrap().size_at(time) {
         Ok(t) => {
             *output = t.map_or(f64::NAN, |time| time.into());
             0
@@ -929,9 +1033,13 @@ pub unsafe extern "C" fn demes_epoch_size_at(epoch: &Epoch, time: f64, output: &
 }
 
 /// Get the [`SizeFunction`] of an [`Epoch`].
+///
+/// # Safety
+///
+/// * `epoch` must be a non-NULL pointer to a [`Epoch`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_size_function(epoch: &demes::Epoch) -> SizeFunction {
-    match epoch.size_function() {
+pub unsafe extern "C" fn demes_epoch_size_function(epoch: *const demes::Epoch) -> SizeFunction {
+    match epoch.as_ref().unwrap().size_function() {
         demes::SizeFunction::Linear => SizeFunction::Linear,
         demes::SizeFunction::Exponential => SizeFunction::Exponential,
         demes::SizeFunction::Constant => SizeFunction::Constant,
@@ -940,48 +1048,80 @@ pub extern "C" fn demes_epoch_size_function(epoch: &demes::Epoch) -> SizeFunctio
 }
 
 /// Get the source deme of a [`AsymmetricMigration`]
+///
+/// # Safety
+///
+/// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_source(
-    migration: &AsymmetricMigration,
+pub unsafe extern "C" fn demes_asymmetric_migration_source(
+    migration: *const AsymmetricMigration,
 ) -> *mut c_char {
-    str_to_owned_c_char(migration.source())
+    str_to_owned_c_char(migration.as_ref().unwrap().source())
 }
 
 /// Get the destination deme of a [`AsymmetricMigration`]
+///
+/// # Safety
+///
+/// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_dest(migration: &AsymmetricMigration) -> *mut c_char {
-    str_to_owned_c_char(migration.dest())
+pub unsafe extern "C" fn demes_asymmetric_migration_dest(
+    migration: *const AsymmetricMigration,
+) -> *mut c_char {
+    str_to_owned_c_char(migration.as_ref().unwrap().dest())
 }
 
 /// Get the rate of a [`AsymmetricMigration`]
+///
+/// # Safety
+///
+/// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_rate(migration: &AsymmetricMigration) -> f64 {
-    migration.rate().into()
+pub unsafe extern "C" fn demes_asymmetric_migration_rate(
+    migration: *const AsymmetricMigration,
+) -> f64 {
+    migration.as_ref().unwrap().rate().into()
 }
 
 /// Get the start time of a [`AsymmetricMigration`]
+///
+/// # Safety
+///
+/// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_start_time(migration: &AsymmetricMigration) -> f64 {
-    migration.start_time().into()
+pub unsafe extern "C" fn demes_asymmetric_migration_start_time(
+    migration: *const AsymmetricMigration,
+) -> f64 {
+    migration.as_ref().unwrap().start_time().into()
 }
 
 /// Get the end time of a [`AsymmetricMigration`]
+///
+/// # Safety
+///
+/// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_end_time(migration: &AsymmetricMigration) -> f64 {
-    migration.end_time().into()
+pub unsafe extern "C" fn demes_asymmetric_migration_end_time(
+    migration: *const AsymmetricMigration,
+) -> f64 {
+    migration.as_ref().unwrap().end_time().into()
 }
 
 /// Get the number of source demes of a [`Pulse`].
+///
+/// # Safety
+///
+/// * `pulse` must be a non-NULL pointer to a [`Pulse`].
 #[no_mangle]
-pub extern "C" fn demes_pulse_num_sources(pulse: &Pulse) -> usize {
-    pulse.sources().len()
+pub unsafe extern "C" fn demes_pulse_num_sources(pulse: *const Pulse) -> usize {
+    pulse.as_ref().unwrap().sources().len()
 }
 
 /// Get the source deme of a [`Pulse`].
 ///
 /// # Parameters
 ///
-/// * `at` the index of the pulse.
+/// * `at` the index of the pulse.as_ref().unwrap().
 ///  
 /// # Returns
 ///
@@ -994,9 +1134,13 @@ pub extern "C" fn demes_pulse_num_sources(pulse: &Pulse) -> usize {
 ///   [`demes_c_char_deallocate`].
 /// * [`demes_pulse_num_sources`] can be used to get the range of valid
 ///   values for `at`.
+///
+/// # Safety
+///
+/// * `pulse` must be a non-NULL pointer to a [`Pulse`].
 #[no_mangle]
-pub extern "C" fn demes_pulse_source(pulse: &Pulse, at: usize) -> *mut c_char {
-    match pulse.sources().get(at) {
+pub unsafe extern "C" fn demes_pulse_source(pulse: *const Pulse, at: usize) -> *mut c_char {
+    match pulse.as_ref().unwrap().sources().get(at) {
         Some(source) => str_to_owned_c_char(source),
         None => std::ptr::null_mut(),
     }
@@ -1006,7 +1150,7 @@ pub extern "C" fn demes_pulse_source(pulse: &Pulse, at: usize) -> *mut c_char {
 ///
 /// # Parameters
 ///
-/// * `at` the index of the pulse.
+/// * `at` the index of the pulse.as_ref().unwrap().
 ///  
 /// # Returns
 ///
@@ -1019,15 +1163,23 @@ pub extern "C" fn demes_pulse_source(pulse: &Pulse, at: usize) -> *mut c_char {
 ///   [`demes_c_char_deallocate`].
 /// * [`demes_pulse_num_sources`] can be used to get the range of valid
 ///   values for `at`.
+///
+/// # Safety
+///
+/// * `pulse` must be a non-NULL pointer to a [`Pulse`].
 #[no_mangle]
-pub extern "C" fn demes_pulse_dest(pulse: &Pulse) -> *mut c_char {
-    str_to_owned_c_char(pulse.dest())
+pub unsafe extern "C" fn demes_pulse_dest(pulse: *const Pulse) -> *mut c_char {
+    str_to_owned_c_char(pulse.as_ref().unwrap().dest())
 }
 
 /// Get the time of a [`Pulse`].
+///
+/// # Safety
+///
+/// * `pulse` must be a non-NULL pointer to a [`Pulse`].
 #[no_mangle]
-pub extern "C" fn demes_pulse_time(pulse: &Pulse) -> f64 {
-    pulse.time().into()
+pub unsafe extern "C" fn demes_pulse_time(pulse: *const Pulse) -> f64 {
+    pulse.as_ref().unwrap().time().into()
 }
 
 /// Get a pointer to all ancestry proportions for a [`Pulse`].
@@ -1042,10 +1194,14 @@ pub extern "C" fn demes_pulse_time(pulse: &Pulse) -> f64 {
 ///   that will be freed when the parent graph is deallocated.
 /// * The number of elements in the return value can be obtained
 ///   from [`demes_pulse_num_sources`].
+///
+/// # Safety
+///
+/// * `pulse` must be a non-NULL pointer to a [`Pulse`].
 #[no_mangle]
-pub extern "C" fn demes_pulse_proportions(pulse: &Pulse) -> *const f64 {
-    assert!(!pulse.proportions().is_empty());
-    pulse.proportions().as_ptr().cast::<f64>()
+pub unsafe extern "C" fn demes_pulse_proportions(pulse: *const Pulse) -> *const f64 {
+    assert!(!pulse.as_ref().unwrap().proportions().is_empty());
+    pulse.as_ref().unwrap().proportions().as_ptr().cast::<f64>()
 }
 
 /// Allocate a [`DemeIterator`].
@@ -1058,8 +1214,12 @@ pub extern "C" fn demes_pulse_proportions(pulse: &Pulse) -> *const f64 {
 ///
 /// * You must call [`demes_deme_iterator_deallocate`] to return resources
 ///   to the system and avoid a resource leak.
+///
+/// # Safety
+///
+/// * `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_deme_iterator(graph: &Graph) -> *mut DemeIterator {
+pub unsafe extern "C" fn demes_graph_deme_iterator(graph: *const Graph) -> *mut DemeIterator {
     Box::leak(Box::new(DemeIterator::new(graph)))
 }
 
@@ -1088,9 +1248,17 @@ pub unsafe extern "C" fn demes_deme_iterator_deallocate(ptr: *mut DemeIterator) 
 ///
 /// * A const pointer to a [`Deme`] if the iterator is still valid.
 /// * A NULL pointer when iteration has ended.
+///
+/// # Safety
+///
+/// * `iterator` must be a non-NULL pointer to a [`DemeIterator`].
 #[no_mangle]
-pub extern "C" fn demes_deme_iterator_next(iterator: &mut DemeIterator) -> *const Deme {
-    iterator.next().unwrap_or(std::ptr::null())
+pub unsafe extern "C" fn demes_deme_iterator_next(iterator: *mut DemeIterator) -> *const Deme {
+    iterator
+        .as_mut()
+        .unwrap()
+        .next()
+        .unwrap_or(std::ptr::null())
 }
 
 /// Allocate and initialize an [`EpochIterator`].
@@ -1101,9 +1269,14 @@ pub extern "C" fn demes_deme_iterator_next(iterator: &mut DemeIterator) -> *cons
 ///
 /// # Note
 ///
-/// The return value must be freed using [`demes_epoch_iterator_deallocate`]
+/// The return value must be freed using [`demes_epoch_iterator_deallocate`].
+///
+/// # Safety
+///
+/// * `deme` must be a non-NULL pointer to a [`Deme`].
 #[no_mangle]
-pub extern "C" fn demes_deme_epoch_iterator(deme: &Deme) -> *mut EpochIterator {
+pub unsafe extern "C" fn demes_deme_epoch_iterator(deme: *const Deme) -> *mut EpochIterator {
+    assert!(!deme.is_null());
     Box::leak(Box::new(EpochIterator::new(deme)))
 }
 
@@ -1117,9 +1290,17 @@ pub extern "C" fn demes_deme_epoch_iterator(deme: &Deme) -> *mut EpochIterator {
 ///
 /// * A const pointer to an [`Epoch`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
+///
+/// # Safety
+///
+/// * `iterator` must be a non-NULL pointer to a [`EpochIterator`].
 #[no_mangle]
-pub extern "C" fn demes_epoch_iterator_next(iterator: &mut EpochIterator) -> *const Epoch {
-    iterator.next().unwrap_or(std::ptr::null())
+pub unsafe extern "C" fn demes_epoch_iterator_next(iterator: *mut EpochIterator) -> *const Epoch {
+    iterator
+        .as_mut()
+        .unwrap()
+        .next()
+        .unwrap_or(std::ptr::null())
 }
 
 /// Deallocate an [`EpochIterator`]
@@ -1143,8 +1324,12 @@ pub unsafe extern "C" fn demes_epoch_iterator_deallocate(ptr: *mut EpochIterator
 ///
 /// * You must call [`demes_pulse_iterator_deallocate`] to return resources
 ///   to the system and avoid a resource leak.
+///
+/// # Safety
+///
+/// * `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_pulse_iterator(graph: &Graph) -> *mut PulseIterator {
+pub unsafe extern "C" fn demes_graph_pulse_iterator(graph: *const Graph) -> *mut PulseIterator {
     Box::leak(Box::new(PulseIterator::new(graph)))
 }
 
@@ -1158,12 +1343,20 @@ pub extern "C" fn demes_graph_pulse_iterator(graph: &Graph) -> *mut PulseIterato
 ///
 /// * A const pointer to a [`Pulse`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
+///
+/// # Safety
+///
+/// * `iterator` must be a non-NULL pointer to a [`PulseIterator`]
 #[no_mangle]
-pub extern "C" fn demes_pulse_iterator_next(iterator: &mut PulseIterator) -> *const Pulse {
-    iterator.next().unwrap_or(std::ptr::null())
+pub unsafe extern "C" fn demes_pulse_iterator_next(iterator: *mut PulseIterator) -> *const Pulse {
+    iterator
+        .as_mut()
+        .unwrap()
+        .next()
+        .unwrap_or(std::ptr::null())
 }
 
-/// Deallocate an [`PulseIterator`]
+/// Deallocate a [`PulseIterator`]
 ///
 /// # Parameters
 ///
@@ -1171,7 +1364,7 @@ pub extern "C" fn demes_pulse_iterator_next(iterator: &mut PulseIterator) -> *co
 ///
 /// # Safety
 ///
-/// * `ptr` must be non-NULL
+/// * `ptr` must be non-NULL and point to a [`PulseIterator`]
 /// * This function must be called at most once on a given input pointer.
 #[no_mangle]
 pub unsafe extern "C" fn demes_pulse_iterator_deallocate(ptr: *mut PulseIterator) {
@@ -1192,9 +1385,13 @@ pub unsafe extern "C" fn demes_pulse_iterator_deallocate(ptr: *mut PulseIterator
 ///
 /// * You must call [`demes_asymmetric_migration_iterator_deallocate`] to return resources
 ///   to the system and avoid a resource leak.
+///
+/// # Safety
+///
+/// * `graph` must be a non-NULL pointer to a [`Graph`]
 #[no_mangle]
-pub extern "C" fn demes_graph_asymmetric_migration_iterator(
-    graph: &Graph,
+pub unsafe extern "C" fn demes_graph_asymmetric_migration_iterator(
+    graph: *const Graph,
 ) -> *mut AsymmetricMigrationIterator {
     Box::leak(Box::new(AsymmetricMigrationIterator::new(graph)))
 }
@@ -1209,11 +1406,19 @@ pub extern "C" fn demes_graph_asymmetric_migration_iterator(
 ///
 /// * A const pointer to an [`AsymmetricMigration`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
+///
+/// # Safety
+///
+/// * `iterator` must be a non-NULL pointer to a [`AsymmetricMigrationIterator`]
 #[no_mangle]
-pub extern "C" fn demes_asymmetric_migration_iterator_next(
-    iterator: &mut AsymmetricMigrationIterator,
+pub unsafe extern "C" fn demes_asymmetric_migration_iterator_next(
+    iterator: *mut AsymmetricMigrationIterator,
 ) -> *const AsymmetricMigration {
-    iterator.next().unwrap_or(std::ptr::null())
+    iterator
+        .as_mut()
+        .unwrap()
+        .next()
+        .unwrap_or(std::ptr::null())
 }
 
 /// Deallocate an [`AsymmetricMigrationIterator`]
@@ -1224,7 +1429,7 @@ pub extern "C" fn demes_asymmetric_migration_iterator_next(
 ///
 /// # Safety
 ///
-/// * `ptr` must be non-NULL
+/// * `ptr` must be non-NULL and point to an [`AsymmetricMigrationIterator`]
 /// * This function must be called at most once on a given input pointer.
 #[no_mangle]
 pub unsafe extern "C" fn demes_asymmetric_migration_iterator_deallocate(
@@ -1246,8 +1451,8 @@ pub unsafe extern "C" fn demes_asymmetric_migration_iterator_deallocate(
 ///
 /// # Safety
 ///
-/// * `deme` must not be NULL
-/// * `graph` must not be NULL
+/// * `deme` must not be NULL and point to a [`Deme`]
+/// * `graph` must not be NULL and point to a [`Graph`]
 /// * `graph` must point to the parent object of `deme`
 ///
 /// # Notes
@@ -1272,11 +1477,19 @@ pub unsafe extern "C" fn demes_deme_ancestor_iterator(
 ///
 /// * A const pointer to a [`DemeAncestor`] if the iterator is still valid
 /// * A NULL pointer when iteration has ended.
+///
+/// # Safety
+///
+/// * `iterator` must be a non-NULL pointer to a [`DemeAncestorIterator`]
 #[no_mangle]
-pub extern "C" fn demes_deme_ancestor_iterator_next(
-    iterator: &mut DemeAncestorIterator,
+pub unsafe extern "C" fn demes_deme_ancestor_iterator_next(
+    iterator: *mut DemeAncestorIterator,
 ) -> *const DemeAncestor {
-    iterator.next().unwrap_or(std::ptr::null())
+    iterator
+        .as_mut()
+        .unwrap()
+        .next()
+        .unwrap_or(std::ptr::null())
 }
 
 /// Deallocate a [`DemeAncestorIterator`]
@@ -1287,7 +1500,7 @@ pub extern "C" fn demes_deme_ancestor_iterator_next(
 ///
 /// # Safety
 ///
-/// * `ptr` must be non-NULL
+/// * `ptr` must be non-NULL and point to a [`DemeAncestorIterator`]
 /// * This function must be called at most once on a given input pointer.
 #[no_mangle]
 pub unsafe extern "C" fn demes_deme_ancestor_iterator_deallocate(ptr: *mut DemeAncestorIterator) {
@@ -1348,13 +1561,26 @@ struct MyMetadata {
     y: String,
 }
 
+// NOTE: we mark tests for MIRI to ignore because:
+// * they take far too long (due to constantly loading Graphs).
+//   On one of the developer's machines, simply loading a graph
+//   using the (safe) demes API take over a minute!!
+// * some use C calls that MIRI fails on. (We can work around some of that.)
+// * the tests in tests/ are written to be evaluated using MIRI
+//
+// The tests below focus on correctness -- does the FFI api give
+// us the same stuff as the rust API?  Etc..
+// What we want from MIRI is different -- do we have UB anywhere?
+
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_deallocate_graph() {
     let graph = Box::leak(Box::new(basic_valid_graph()));
     unsafe { demes_graph_deallocate(graph) };
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_allocate_deallocate_error() {
     let error = demes_error_allocate();
     unsafe { error.as_mut() }.unwrap().error = Some(ErrorDetails::UnexpectedNullPointer);
@@ -1362,6 +1588,7 @@ fn test_allocate_deallocate_error() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_graph_loads_from_yaml() {
     let yaml = basic_valid_graph_yaml();
     let yaml = str_to_owned_c_char(yaml);
@@ -1376,33 +1603,37 @@ fn test_graph_loads_from_yaml() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_error_clear() {
     let mut error = FFIError {
         error: Some(ErrorDetails::UnexpectedNullPointer),
     };
-    demes_error_clear(&mut error);
+    unsafe { demes_error_clear(&mut error) };
     assert!(error.error.is_none());
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_error_no_error_message() {
     let error = FFIError::default();
-    let m = demes_error_message(&error);
+    let m = unsafe { demes_error_message(&error) };
     assert!(m.is_null());
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_error_message() {
     let error = FFIError {
         error: Some(ErrorDetails::UnexpectedNullPointer),
     };
-    let m = demes_error_message(&error);
+    let m = unsafe { demes_error_message(&error) };
     assert!(!m.is_null());
     let _ = unsafe { CStr::from_ptr(m) }.to_str().unwrap();
     unsafe { demes_c_char_deallocate(m) };
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_miri_str_to_owned_c_char() {
     let s = "unicorns";
     let c = str_to_owned_c_char(s);
@@ -1416,6 +1647,7 @@ fn test_miri_str_to_owned_c_char() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_miri_str_to_owned_c_char_empty() {
     let s = "";
     let c = str_to_owned_c_char(s);
@@ -1423,6 +1655,7 @@ fn test_miri_str_to_owned_c_char_empty() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_num_demes() {
     let graph = basic_valid_graph();
     let mut output: *mut Graph = std::ptr::null_mut();
@@ -1448,12 +1681,14 @@ fn test_basic_graph_num_demes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_conversions() {
     let graph = basic_valid_graph();
-    assert_eq!(demes_graph_num_demes(&graph), graph.num_demes());
+    assert_eq!(unsafe { demes_graph_num_demes(&graph) }, graph.num_demes());
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_loads_from_null_yaml() {
     let mut graph: *mut Graph = std::ptr::null_mut();
     let mut error = FFIError::default();
@@ -1467,71 +1702,75 @@ fn test_loads_from_null_yaml() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_first_deme_num_epochs() {
     let graph = basic_valid_graph();
-    let deme = demes_graph_deme(&graph, 0);
-    assert_eq!(demes_deme_num_epochs(unsafe { deme.as_ref() }.unwrap()), 1);
+    let deme = unsafe { demes_graph_deme(&graph, 0) };
+    assert_eq!(unsafe { demes_deme_num_epochs(deme) }, 1);
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_deme_times() {
     let graph = basic_valid_graph();
     for (i, gdeme) in graph.demes().iter().enumerate() {
         let deme = unsafe { demes_graph_deme(&graph, i).as_ref() }.unwrap();
-        let t = demes_deme_start_time(deme);
+        let t = unsafe { demes_deme_start_time(deme) };
         assert_eq!(gdeme.start_time(), t);
-        let t = demes_deme_end_time(deme);
+        let t = unsafe { demes_deme_end_time(deme) };
         assert_eq!(gdeme.end_time(), t);
-        let t = demes_deme_start_size(deme);
+        let t = unsafe { demes_deme_start_size(deme) };
         assert_eq!(gdeme.start_size(), t);
-        let t = demes_deme_end_size(deme);
+        let t = unsafe { demes_deme_end_size(deme) };
         assert_eq!(gdeme.end_size(), t);
     }
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_deme_sizes() {
     let graph = basic_valid_graph();
     for (i, gdeme) in graph.demes().iter().enumerate() {
-        let deme = demes_graph_deme(&graph, i);
+        let deme = unsafe { demes_graph_deme(&graph, i) };
         let deme_ref = unsafe { deme.as_ref().unwrap() };
-        let s = demes_deme_start_size(deme_ref);
+        let s = unsafe { demes_deme_start_size(deme_ref) };
         assert_eq!(gdeme.start_size(), s);
-        let s = demes_deme_end_size(deme_ref);
+        let s = unsafe { demes_deme_end_size(deme_ref) };
         assert_eq!(gdeme.end_size(), s);
 
         let mut deme_size = f64::NAN;
-        let t = demes_deme_start_time(deme_ref);
+        let t = unsafe { demes_deme_start_time(deme_ref) };
         let rv = unsafe { demes_deme_size_at(deme_ref, t, &mut deme_size) };
         assert_eq!(rv, 0);
         if !t.is_infinite() {
             assert!(deme_size.is_nan(), "{deme_size}");
         } else {
-            assert_eq!(deme_size, demes_deme_start_size(deme_ref))
+            assert_eq!(deme_size, unsafe { demes_deme_start_size(deme_ref) })
         }
         let mut deme_size = 0.0;
-        let t = demes_deme_end_time(deme_ref);
+        let t = unsafe { demes_deme_end_time(deme_ref) };
         let rv = unsafe { demes_deme_size_at(deme_ref, t, &mut deme_size) };
         assert_eq!(rv, 0);
-        assert!((deme_size - demes_deme_end_size(deme_ref)).abs() <= 1e-9);
+        assert!((deme_size - unsafe { demes_deme_end_size(deme_ref) }).abs() <= 1e-9);
     }
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_basic_graph_epochs() {
     let graph = basic_valid_graph();
     let mut error = FFIError::default();
     for i in 0..graph.demes().len() {
-        let deme = demes_graph_deme(&graph, i);
+        let deme = unsafe { demes_graph_deme(&graph, i) };
         let deme_ref = unsafe { deme.as_ref().unwrap() };
-        for e in 0..demes_deme_num_epochs(deme_ref) {
-            let epoch_ptr = demes_deme_epoch(deme_ref, e);
+        for e in 0..unsafe { demes_deme_num_epochs(deme_ref) } {
+            let epoch_ptr = unsafe { demes_deme_epoch(deme_ref, e) };
             let epoch = unsafe { epoch_ptr.as_ref() }.unwrap();
-            let start_size = demes_epoch_start_size(epoch);
-            let end_size = demes_epoch_end_size(epoch);
-            let start_time = demes_epoch_start_time(epoch);
-            let end_time = demes_epoch_end_time(epoch);
-            let _ = demes_epoch_size_function(epoch);
+            let start_size = unsafe { demes_epoch_start_size(epoch) };
+            let end_size = unsafe { demes_epoch_end_size(epoch) };
+            let start_time = unsafe { demes_epoch_start_time(epoch) };
+            let end_time = unsafe { demes_epoch_end_time(epoch) };
+            let _ = unsafe { demes_epoch_size_function(epoch) };
 
             let mut deme_size = f64::MIN;
             let rv = unsafe { demes_epoch_size_at(epoch, start_time, &mut deme_size) };
@@ -1553,6 +1792,7 @@ fn test_basic_graph_epochs() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_loads_error() {
     let yaml = "
  time_units: generations
@@ -1569,10 +1809,11 @@ fn test_loads_error() {
     let mut graph = std::ptr::null_mut();
     assert!(unsafe { loads(yaml, &mut error, &mut graph) } != 0);
     assert!(graph.is_null());
-    assert!(demes_error_has_error(&error));
+    assert!(unsafe { demes_error_has_error(&error) });
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_missing_toplevel_metadata() {
     let yaml = "
  time_units: generations
@@ -1593,6 +1834,7 @@ fn test_missing_toplevel_metadata() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_toplevel_metadata() {
     let yaml = "
  time_units: generations
@@ -1633,6 +1875,7 @@ fn test_toplevel_metadata() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_graph_to_yaml() {
     let yaml = "
  time_units: generations
@@ -1659,6 +1902,7 @@ fn test_graph_to_yaml() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_ancestors_and_proportions() {
     let yaml = "
         time_units: generations
@@ -1701,26 +1945,27 @@ fn test_ancestors_and_proportions() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_pulses() {
     let graph = basic_valid_graph();
-    let num_pulses = demes_graph_num_pulses(&graph);
+    let num_pulses = unsafe { demes_graph_num_pulses(&graph) };
     for i in 0..num_pulses {
-        let pulse = demes_graph_pulse(&graph, i);
+        let pulse = unsafe { demes_graph_pulse(&graph, i) };
         let pref = unsafe { pulse.as_ref() }.unwrap();
-        let time = demes_pulse_time(pref);
+        let time = unsafe { demes_pulse_time(pref) };
         assert_eq!(time, graph.pulses()[i].time());
-        let proportions = demes_pulse_proportions(pref);
-        let num_proportions = demes_pulse_num_sources(pref);
+        let proportions = unsafe { demes_pulse_proportions(pref) };
+        let num_proportions = unsafe { demes_pulse_num_sources(pref) };
         let propslice = unsafe { std::slice::from_raw_parts(proportions, num_proportions) };
         for (a, b) in propslice.iter().zip(graph.pulses()[i].proportions().iter()) {
             assert_eq!(a, b);
         }
         for j in 0..num_proportions {
-            let source = demes_pulse_source(pref, j);
+            let source = unsafe { demes_pulse_source(pref, j) };
             let source_ref = unsafe { CStr::from_ptr(source) }.to_str().unwrap();
             assert_eq!(graph.pulses()[i].sources()[j], source_ref);
             unsafe { demes_c_char_deallocate(source) };
-            let dest = demes_pulse_dest(pref);
+            let dest = unsafe { demes_pulse_dest(pref) };
             let dest_ref = unsafe { CStr::from_ptr(dest) }.to_str().unwrap();
             assert_eq!(graph.pulses()[i].dest(), dest_ref);
             unsafe { demes_c_char_deallocate(dest) };
@@ -1729,26 +1974,27 @@ fn test_pulses() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_migrations() {
     let graph = basic_valid_graph();
-    let num_migrations = demes_graph_num_migrations(&graph);
+    let num_migrations = unsafe { demes_graph_num_migrations(&graph) };
     assert_eq!(num_migrations, graph.migrations().len());
     for (i, gmig) in graph.migrations().iter().enumerate() {
-        let migration = demes_graph_migration(&graph, i);
+        let migration = unsafe { demes_graph_migration(&graph, i) };
         let migref = unsafe { migration.as_ref() }.unwrap();
-        let rate = demes_asymmetric_migration_rate(migref);
+        let rate = unsafe { demes_asymmetric_migration_rate(migref) };
         assert_eq!(rate, gmig.rate());
-        let start_time = demes_asymmetric_migration_start_time(migref);
+        let start_time = unsafe { demes_asymmetric_migration_start_time(migref) };
         assert_eq!(start_time, gmig.start_time());
-        let end_time = demes_asymmetric_migration_end_time(migref);
+        let end_time = unsafe { demes_asymmetric_migration_end_time(migref) };
         assert_eq!(end_time, gmig.end_time());
-        let source = demes_asymmetric_migration_source(migref);
+        let source = unsafe { demes_asymmetric_migration_source(migref) };
         assert_eq!(
             unsafe { CStr::from_ptr(source) }.to_str().unwrap(),
             gmig.source()
         );
         unsafe { demes_c_char_deallocate(source) };
-        let dest = demes_asymmetric_migration_dest(migref);
+        let dest = unsafe { demes_asymmetric_migration_dest(migref) };
         assert_eq!(
             unsafe { CStr::from_ptr(dest) }.to_str().unwrap(),
             gmig.dest(),
@@ -1758,13 +2004,14 @@ fn test_migrations() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_deme_from_name() {
     let graph = basic_valid_graph();
     for deme in graph.demes().iter() {
-        let name = demes_deme_name(deme);
+        let name = unsafe { demes_deme_name(deme) };
         let deme_ptr = unsafe { demes_graph_deme_from_name(&graph, name) };
         assert!(!deme_ptr.is_null());
-        let name_from_ptr = demes_deme_name(unsafe { &*deme_ptr });
+        let name_from_ptr = unsafe { demes_deme_name(deme_ptr) };
         let str_from_name = unsafe { CStr::from_ptr(name) }.to_str().unwrap();
         let str_from_name_from_ptr = unsafe { CStr::from_ptr(name_from_ptr) }.to_str().unwrap();
         assert_eq!(str_from_name, str_from_name_from_ptr);
@@ -1774,11 +2021,12 @@ fn test_deme_from_name() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_deme_iterator() {
     let graph = basic_valid_graph();
-    let deme_iterator = demes_graph_deme_iterator(&graph);
+    let deme_iterator = unsafe { demes_graph_deme_iterator(&graph) };
     assert!(!deme_iterator.is_null());
-    let mut deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+    let mut deme = unsafe { demes_deme_iterator_next(deme_iterator) };
     let mut ndemes = 0;
     while !deme.is_null() {
         assert_eq!(
@@ -1786,65 +2034,67 @@ fn test_deme_iterator() {
             graph.get_deme(ndemes).unwrap()
         );
         ndemes += 1;
-        deme = demes_deme_iterator_next(unsafe { deme_iterator.as_mut() }.unwrap());
+        deme = unsafe { demes_deme_iterator_next(deme_iterator) };
     }
     unsafe { demes_deme_iterator_deallocate(deme_iterator) };
     assert_eq!(ndemes, graph.num_demes())
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_epoch_iterator() {
     let graph = basic_valid_graph();
     let deme = &graph.demes()[0];
     let epochs = deme.epochs().to_vec();
     let mut epochs_from_iterator = vec![];
-    let epoch_iterator = demes_deme_epoch_iterator(deme);
+    let epoch_iterator = unsafe { demes_deme_epoch_iterator(deme) };
     assert!(!epoch_iterator.is_null());
     // SAFETY: iterator is not NULL
-    let mut epoch = demes_epoch_iterator_next(unsafe { epoch_iterator.as_mut() }.unwrap());
+    let mut epoch = unsafe { demes_epoch_iterator_next(epoch_iterator) };
     while !epoch.is_null() {
         // SAFETY: epoch is not NULL
         epochs_from_iterator.push(*unsafe { epoch.as_ref() }.unwrap());
-        epoch = demes_epoch_iterator_next(unsafe { epoch_iterator.as_mut() }.unwrap());
+        epoch = unsafe { demes_epoch_iterator_next(epoch_iterator) };
     }
     unsafe { demes_epoch_iterator_deallocate(epoch_iterator) };
     assert_eq!(epochs, epochs_from_iterator);
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_pulse_iterator() {
     let graph = basic_valid_graph();
     let pulses = graph.pulses().to_vec();
     assert!(!pulses.is_empty());
     let mut pulses_from_iterator = vec![];
-    let p = demes_graph_pulse_iterator(&graph);
+    let p = unsafe { demes_graph_pulse_iterator(&graph) };
     assert!(!p.is_null());
     // SAFETY: iterator is not NULL
-    let mut pulse = demes_pulse_iterator_next(unsafe { p.as_mut() }.unwrap());
+    let mut pulse = unsafe { demes_pulse_iterator_next(p) };
     while !pulse.is_null() {
         // SAFETY: pulse is not NULL
         pulses_from_iterator.push(unsafe { pulse.as_ref().unwrap().clone() });
-        pulse = demes_pulse_iterator_next(unsafe { p.as_mut() }.unwrap());
+        pulse = unsafe { demes_pulse_iterator_next(p) };
     }
     assert_eq!(pulses, pulses_from_iterator);
     unsafe { demes_pulse_iterator_deallocate(p) };
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_asymmetric_migration_iterator() {
     let graph = basic_valid_graph();
     let migrations = graph.migrations().to_vec();
     assert!(!migrations.is_empty());
     let mut migrations_from_iter = vec![];
-    let iterator = demes_graph_asymmetric_migration_iterator(&graph);
+    let iterator = unsafe { demes_graph_asymmetric_migration_iterator(&graph) };
     assert!(!iterator.is_null());
     // SAFETY: iterator is not NULL
-    let mut migration =
-        demes_asymmetric_migration_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+    let mut migration = unsafe { demes_asymmetric_migration_iterator_next(iterator) };
     while !migration.is_null() {
         // SAFETY: migration is not NULL
         migrations_from_iter.push(unsafe { migration.as_ref().unwrap().clone() });
-        migration = demes_asymmetric_migration_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+        migration = unsafe { demes_asymmetric_migration_iterator_next(iterator) };
     }
     assert_eq!(migrations, migrations_from_iter);
     // SAFETY: only deallocating one, ptr is not NULL
@@ -1852,14 +2102,14 @@ fn test_asymmetric_migration_iterator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_deme_ancestry_iterator() {
     let graph = basic_valid_graph();
     for deme in graph.demes() {
         // SAFETY: deme and graph have the same implicit lifetimes and are not NULL
         let iterator = unsafe { demes_deme_ancestor_iterator(deme, &graph) };
         // SAFETY: iterator is not NULL
-        let mut deme_ancestors =
-            demes_deme_ancestor_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+        let mut deme_ancestors = unsafe { demes_deme_ancestor_iterator_next(iterator) };
         let mut ancestors = vec![];
         let mut proportions = vec![];
         while !deme_ancestors.is_null() {
@@ -1873,8 +2123,7 @@ fn test_deme_ancestry_iterator() {
             );
             proportions.push(unsafe { deme_ancestors.as_ref() }.unwrap().proportion);
             // SAFETY: iterator is not NULL
-            deme_ancestors =
-                demes_deme_ancestor_iterator_next(unsafe { iterator.as_mut() }.unwrap());
+            deme_ancestors = unsafe { demes_deme_ancestor_iterator_next(iterator) };
         }
         // SAFETY: iterator is not NULL and we only deallocate it once
         unsafe { demes_deme_ancestor_iterator_deallocate(iterator) };
@@ -1891,6 +2140,7 @@ fn test_deme_ancestry_iterator() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_load_from_file() {
     let filename = "examples/browning_america.yaml";
     let file = std::fs::File::open(filename).unwrap();
@@ -1907,6 +2157,7 @@ fn test_load_from_file() {
     unsafe { demes_graph_deallocate(graph_from_file) };
 }
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_load_from_nonexistent_file() {
     let filename = "AGEWRGEVABEAGFACARHG";
     let c_filename = CString::new(filename.to_string()).unwrap();
@@ -1921,6 +2172,7 @@ fn test_load_from_nonexistent_file() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_load_from_null_file() {
     let mut graph_from_file: *mut Graph = std::ptr::null_mut();
     let mut error = FFIError::default();
@@ -1931,5 +2183,5 @@ fn test_load_from_null_file() {
     assert!(matches!(
         error.error,
         Some(ErrorDetails::UnexpectedNullPointer)
-    ))
+    ));
 }

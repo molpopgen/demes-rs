@@ -37,46 +37,38 @@ pub enum DemesError {
     /// Errors related to pulses
     PulseError(String),
     /// Errors coming from `serde_yaml`.
-    YamlError(serde_yaml::Error),
+    YamlError(OpaqueYamlError),
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]
     /// Errors coming from `serde_json`.
-    JsonError(serde_json::Error),
+    JsonError(OpaqueJSONError),
     #[cfg(feature = "toml")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "toml")))]
     /// Errors coming from `toml` during deserialization.
-    TomlDeError(toml::de::Error),
+    TomlDeError(OpaqueTOMLError),
     /// Errors related to low-level types
     ValueError(String),
     /// IO errors from the rust standard library
-    IOerror(std::io::Error),
+    IOerror(OpaqueIOError),
 }
 
-impl From<serde_yaml::Error> for DemesError {
-    fn from(value: serde_yaml::Error) -> Self {
-        Self::YamlError(value)
-    }
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct OpaqueYamlError(pub(crate) serde_yaml::Error);
 
-impl From<std::io::Error> for DemesError {
-    fn from(value: std::io::Error) -> Self {
-        Self::IOerror(value)
-    }
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct OpaqueIOError(pub(crate) std::io::Error);
 
 #[cfg(feature = "json")]
-impl From<serde_json::Error> for DemesError {
-    fn from(value: serde_json::Error) -> Self {
-        Self::JsonError(value)
-    }
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct OpaqueJSONError(pub(crate) serde_json::Error);
 
 #[cfg(feature = "toml")]
-impl From<toml::de::Error> for DemesError {
-    fn from(value: toml::de::Error) -> Self {
-        Self::TomlDeError(value)
-    }
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct OpaqueTOMLError(pub(crate) toml::de::Error);
 
 impl std::fmt::Display for DemesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -86,9 +78,9 @@ impl std::fmt::Display for DemesError {
             DemesError::GraphError(e) => write!(f, "graph error: {}", e),
             DemesError::MigrationError(e) => write!(f, "migration error: {}", e),
             DemesError::PulseError(e) => write!(f, "pulse error: {}", e),
-            DemesError::YamlError(e) => write!(f, "yaml error: {}", e),
+            DemesError::YamlError(e) => write!(f, "yaml error: {}", e.0),
             DemesError::ValueError(e) => write!(f, "value error: {}", e),
-            DemesError::IOerror(e) => write!(f, "io error: {}", e),
+            DemesError::IOerror(e) => write!(f, "io error: {}", e.0),
             #[cfg(feature = "json")]
             DemesError::JsonError(e) => write!(f, "JSON error: {e:?}"),
             #[cfg(feature = "toml")]

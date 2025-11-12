@@ -17,16 +17,35 @@
 //! [repository](https://github.com/molpopgen/demes-rs) for a fully
 //! worked out example.
 //!
-//! # Notes
+//! # Avoiding memory leaks
 //!
-//! The rust API stores all strings as [`String`], which is very different
-//! from the C pointer to [`std::ffi::c_char`].
-//! Therefore, most functions returning `* c_char` return a *copy* of the
-//! data stored by rust.
-//! It is up to the client code to free these returned data.
+//! Functions returning pointers to new allocations are documented as
+//! doing so.
+//! This crate provides functions to free those allocations and those
+//! functions are noted in the documentation of individual functions
+//! returning new allocations.
 //!
-//! Functions returning pointers all document if the return value must be
-//! freed and, if so, how to do so.
+//! We caution that documentation can be imperfect and that we may
+//! have missed documenting when a return value is managed by the
+//! calling environment.
+//! We strongly recommend using tools like `valgrind` to make sure
+//! that your code has no memory leaks.
+//!
+//! # Parent/child pointer relationships
+//!
+//! Many functions return pointers to objects whose memory is managed
+//! on the rust side.
+//! In other words, the return value is not a new allocation.
+//! It is important to make sure that parent objects remain valid
+//! when working with the return values (pointers to "child" objects).
+//!
+//! For example, obtaining a [`Deme`] from a [`Graph`] via
+//! [`demes_graph_deme`] and then deallocating the `Graph`
+//! by calling [`demes_graph_deallocate`] will result in undefined behavior
+//! when working with the `Deme`.
+//!
+//! These parent/child lifetime requirements behave exactly like one expects
+//! them to in languages like `C`.
 
 use std::ffi::{CStr, CString};
 
@@ -132,9 +151,13 @@ pub unsafe extern "C" fn demes_error_clear(error: *mut FFIError) {
 /// # Returns
 ///
 /// * The error message, if one exists .
+/// * A NULL pointer if there is no error.
+///
+/// # Notes
+///
+///   When a non-NULL value is returned it points to a new allocation.
 ///   The allocated memory **must** be freed via the [`demes_c_char_deallocate`] function,
 ///   else a memory leak will occur.
-/// * A NULL pointer if there is no error.
 ///
 /// # Safety
 ///
@@ -1052,6 +1075,12 @@ pub unsafe extern "C" fn demes_epoch_size_function(epoch: *const demes::Epoch) -
 /// # Safety
 ///
 /// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
+///
+/// # Notes
+///
+/// * The return value is a new allocation that must be
+///   freed by [`demes_c_char_deallocate`] in order to
+///   avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn demes_asymmetric_migration_source(
     migration: *const AsymmetricMigration,
@@ -1064,6 +1093,12 @@ pub unsafe extern "C" fn demes_asymmetric_migration_source(
 /// # Safety
 ///
 /// * `migration` must be a non-NULL pointer to an [`AsymmetricMigration`].
+///
+/// # Notes
+///
+/// * The return value is a new allocation that must be
+///   freed by [`demes_c_char_deallocate`] in order to
+///   avoid a memory leak.
 #[no_mangle]
 pub unsafe extern "C" fn demes_asymmetric_migration_dest(
     migration: *const AsymmetricMigration,

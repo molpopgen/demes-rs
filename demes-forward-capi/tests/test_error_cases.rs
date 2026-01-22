@@ -5,7 +5,11 @@ fn test_initialize_from_non_existant_file() {
     let graph = forward_graph_allocate();
     let filename = "no_way_this_exists";
     unsafe {
-        forward_graph_initialize_from_yaml_file(filename.as_ptr() as *const i8, 100.0, graph)
+        forward_graph_initialize_from_yaml_file(
+            filename.as_ptr() as *const std::ffi::c_char,
+            100.0,
+            graph,
+        )
     };
 
     let is_error = unsafe { forward_graph_is_error_state(graph) };

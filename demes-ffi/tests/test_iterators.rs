@@ -41,7 +41,7 @@ static GRAPH_YAML: &str = "
 fn test_iterators() {
     let mut graph: *mut demes_ffi::Graph = std::ptr::null_mut();
     let mut error = demes_ffi::FFIError::default();
-    let yaml: *mut i8 = std::ffi::CString::new(GRAPH_YAML)
+    let yaml: *mut std::ffi::c_char = std::ffi::CString::new(GRAPH_YAML)
         .expect("String must not contain nul bytes")
         .into_raw();
     assert_eq!(

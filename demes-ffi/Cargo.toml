@@ -3,6 +3,8 @@ name = "demes-ffi"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.66.1"
+description = "FFI for rust implementation of demes specification"
+license = "MIT"
 
 [lib]
 crate-type = ["lib", "staticlib"]

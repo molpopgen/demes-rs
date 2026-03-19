@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "demes"
-version = "0.7.0-alpha.0"
+version = "0.7.0"
 dependencies = [
  "regex",
  "serde",
@@ -24,7 +24,7 @@ dependencies = [
 
 [[package]]
 name = "demes-ffi"
-version = "0.1.0-alpha.0"
+version = "0.1.0"
 dependencies = [
  "demes",
  "serde",
@@ -34,14 +34,14 @@ dependencies = [
 
 [[package]]
 name = "demes-forward"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "demes",
 ]
 
 [[package]]
 name = "demes-forward-capi"
-version = "0.6.1"
+version = "0.6.0"
 dependencies = [
  "demes-forward",
  "libc",

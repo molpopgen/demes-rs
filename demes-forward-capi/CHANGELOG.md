@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-03-19
+
+### Bug Fixes
+
+- Correct ffi pointer casts for arm64/Linux ([#475](https://github.com/molpopgen/demes-rs/pull/475))
+
+### Features
+
+- Add support for TOML input ([#399](https://github.com/molpopgen/demes-rs/pull/399))
+
+### Miscellaneous Tasks
+
+- Various doc and ecosystem fixes ([#398](https://github.com/molpopgen/demes-rs/pull/398))
+- Update corrosion submodules ([#456](https://github.com/molpopgen/demes-rs/pull/456))
+
+### Refactor
+
+- Forward_graph_get_demes_graph now returns *mut c_char ([#383](https://github.com/molpopgen/demes-rs/pull/383))
+- [**breaking**] Change argument order for forward_graph_model_end_time ([#384](https://github.com/molpopgen/demes-rs/pull/384))
+- Manually implement std::error::Error ([#459](https://github.com/molpopgen/demes-rs/pull/459))
+
+### Testing
+
+- CI updates ([#396](https://github.com/molpopgen/demes-rs/pull/396))
+
 ## [0.5.0] - 2024-04-16
 
 ### Features

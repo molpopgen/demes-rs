@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-03-19
+
+### Bug Fixes
+
+- Improve handling of infinity for JSON input ([#401](https://github.com/molpopgen/demes-rs/pull/401))
+- TryFrom<UnresolvedGraph> for Graph now validates input ([#425](https://github.com/molpopgen/demes-rs/pull/425))
+
+### Documentation
+
+- Update ffi docs ([#432](https://github.com/molpopgen/demes-rs/pull/432))
+
+### Features
+
+- Store the input string in the Graph ([#387](https://github.com/molpopgen/demes-rs/pull/387))
+- Add support for TOML input ([#399](https://github.com/molpopgen/demes-rs/pull/399))
+- Update to demes::ffi ([#420](https://github.com/molpopgen/demes-rs/pull/420))
+- Add iterator types and fn to demes::ffi ([#421](https://github.com/molpopgen/demes-rs/pull/421))
+- Graph rescaling ([#415](https://github.com/molpopgen/demes-rs/pull/415))
+- Slicing history from Graph ([#434](https://github.com/molpopgen/demes-rs/pull/434))
+- Graph::deme_index ([#442](https://github.com/molpopgen/demes-rs/pull/442))
+- Ancestry proportions for a single Deme ([#439](https://github.com/molpopgen/demes-rs/pull/439))
+
+### Miscellaneous Tasks
+
+- Various doc and ecosystem fixes ([#398](https://github.com/molpopgen/demes-rs/pull/398))
+- Update demes-spec ([#445](https://github.com/molpopgen/demes-rs/pull/445))
+- Update corrosion submodules ([#456](https://github.com/molpopgen/demes-rs/pull/456))
+- Bump rust-toolchain to 1.91.0 ([#464](https://github.com/molpopgen/demes-rs/pull/464))
+
+### Refactor
+
+- Extract size change details to internal function ([#390](https://github.com/molpopgen/demes-rs/pull/390))
+- Change internal representation of DOI info in Graph ([#404](https://github.com/molpopgen/demes-rs/pull/404))
+- Remove unnecessary custom iterator types ([#405](https://github.com/molpopgen/demes-rs/pull/405))
+- Remove reduntant internal functions to validate epoch end times ([#406](https://github.com/molpopgen/demes-rs/pull/406))
+- Change internal storage of toplevel metadata ([#410](https://github.com/molpopgen/demes-rs/pull/410))
+- Remove serde(flatten) from Metadata.metadata ([#411](https://github.com/molpopgen/demes-rs/pull/411))
+- Simplify handling of toplevel graph defaults ([#412](https://github.com/molpopgen/demes-rs/pull/412))
+- Change layout of internal UnresolvedDeme type ([#413](https://github.com/molpopgen/demes-rs/pull/413))
+- UnresolvedGraph::resolve now consumes self ([#416](https://github.com/molpopgen/demes-rs/pull/416))
+- Remove some vec allocations in slice ops ([#440](https://github.com/molpopgen/demes-rs/pull/440))
+- Redefine scaling factor to match common use ([#448](https://github.com/molpopgen/demes-rs/pull/448))
+- Manually implement std::error::Error ([#459](https://github.com/molpopgen/demes-rs/pull/459))
+- [**breaking**] Move demes-ffi to a new crate ([#466](https://github.com/molpopgen/demes-rs/pull/466))
+- [**breaking**] Do not export other crates via DemesError ([#471](https://github.com/molpopgen/demes-rs/pull/471))
+
+### Styling
+
+- Fix lints from rust 1.78 ([#395](https://github.com/molpopgen/demes-rs/pull/395))
+- Use if let to destructure single patterns ([#414](https://github.com/molpopgen/demes-rs/pull/414))
+- Rustc 1.83.0 lints ([#449](https://github.com/molpopgen/demes-rs/pull/449))
+- Fix clippy lints ([#453](https://github.com/molpopgen/demes-rs/pull/453))
+- Deny broken intra doc links ([#454](https://github.com/molpopgen/demes-rs/pull/454))
+
+### Testing
+
+- Add tests of Graph::description ([#407](https://github.com/molpopgen/demes-rs/pull/407))
+- Add tests of Deme equality ([#408](https://github.com/molpopgen/demes-rs/pull/408))
+- Add end2end test of builder with metadata ([#422](https://github.com/molpopgen/demes-rs/pull/422))
+- Add ffi tests of loading from file ([#431](https://github.com/molpopgen/demes-rs/pull/431))
+
 ## [0.6.0] - 2024-04-16
 
 ### Documentation

@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-03-19
+
+### Features
+
+- Add support for TOML input ([#399](https://github.com/molpopgen/demes-rs/pull/399))
+
+### Miscellaneous Tasks
+
+- Fix markdown formatting in docs ([#400](https://github.com/molpopgen/demes-rs/pull/400))
+- Bump rust-toolchain to 1.91.0 ([#464](https://github.com/molpopgen/demes-rs/pull/464))
+
+### Refactor
+
+- Manually implement std::error::Error ([#459](https://github.com/molpopgen/demes-rs/pull/459))
+- [**breaking**] Move demes-ffi to a new crate ([#466](https://github.com/molpopgen/demes-rs/pull/466))
+
+### Styling
+
+- Fix lints from rust 1.78 ([#395](https://github.com/molpopgen/demes-rs/pull/395))
+- Use if let to destructure single patterns ([#414](https://github.com/molpopgen/demes-rs/pull/414))
+- Add elided lifetime name to internal fn ([#417](https://github.com/molpopgen/demes-rs/pull/417))
+- Rustc 1.83.0 lints ([#449](https://github.com/molpopgen/demes-rs/pull/449))
+- Deny broken intra doc links ([#454](https://github.com/molpopgen/demes-rs/pull/454))
+
+### Testing
+
+- Refactor fns used in testing ([#428](https://github.com/molpopgen/demes-rs/pull/428))
+- Test ancestry proportions from ancestors ([#438](https://github.com/molpopgen/demes-rs/pull/438))
+- Fix test setup so that pulses affect calculation ([#443](https://github.com/molpopgen/demes-rs/pull/443))
+
 ## [0.5.0] - 2024-04-16
 
 ### Features

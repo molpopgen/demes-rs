@@ -444,7 +444,7 @@ impl std::fmt::Display for TimeUnits {
         match self {
             TimeUnits::Generations => write!(f, "generations"),
             TimeUnits::Years => write!(f, "years"),
-            TimeUnits::Custom(custom) => write!(f, "{}", &custom),
+            TimeUnits::Custom(custom) => write!(f, "{}", custom),
         }
     }
 }

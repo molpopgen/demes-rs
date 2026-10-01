@@ -2,16 +2,15 @@
 name = "demes"
 build = "build.rs"
 version = "0.7.0"
-edition = "2021"
 license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"
 repository = "https://github.com/molpopgen/demes-rs"
-rust-version = "1.66.1"
+edition.workspace = true
+rust-version.workspace = true
 
-[lints.rust]
-# Added for rust 1.80.0
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doc_cfg)'] }
+[lints]
+workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
@@ -21,10 +20,10 @@ rustdoc-args = ["--cfg", "doc_cfg"]
 json = ["serde_json"]
 
 [dependencies]
-serde = { version = "~1", features = ["derive", "rc"] }
-serde_yaml = "~0.9"
-serde_json = {version = "1.0.114", optional = true, features=["float_roundtrip"]}
-toml = {version = "0.7.3", optional = true}
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
 
 [dependencies.regex]
 version = "~1"

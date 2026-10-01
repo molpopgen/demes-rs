@@ -21,7 +21,6 @@
 //! ```
 
 #![warn(missing_docs)]
-#![deny(rustdoc::broken_intra_doc_links)]
 
 mod current_size;
 mod error;

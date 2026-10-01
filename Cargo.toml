@@ -7,6 +7,23 @@ members = [
     "demes-forward-capi"
 ]
 
+[workspace.package]
+edition = "2021"
+rust-version = "1.66.1"
+
+[workspace.dependencies]
+serde = { version = "~1", features = ["derive", "rc"] }
+serde_yaml = "~0.9"
+serde_json = {version = "1.0.114", features=["float_roundtrip"]}
+toml = { version = "0.7.3" }
+
+[workspace.lints.rust]
+# Added for rust 1.80.0
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doc_cfg)'] }
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = { level = "deny" }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [profile.release]
 lto = "fat"

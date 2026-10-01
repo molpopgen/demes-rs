@@ -36,7 +36,6 @@
 //! * `json`: enables reading/writing a [`Graph`] in JSON format.
 
 #![warn(missing_docs)]
-#![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 mod macros;

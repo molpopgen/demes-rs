@@ -2159,19 +2159,17 @@ fn deme_name_exists<F: FnOnce(String) -> DemesError>(
 /// Top-level defaults
 #[derive(Default, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(missing_docs)]
 pub struct GraphDefaults {
     #[allow(missing_docs)]
     #[serde(default = "UnresolvedEpoch::default")]
-    #[allow(missing_docs)]
     pub epoch: UnresolvedEpoch,
     #[serde(default = "UnresolvedMigration::default")]
     #[allow(missing_docs)]
     pub migration: UnresolvedMigration,
     #[serde(default = "UnresolvedPulse::default")]
-    #[allow(missing_docs)]
     pub pulse: UnresolvedPulse,
     #[serde(default = "TopLevelDemeDefaults::default")]
-    #[allow(missing_docs)]
     pub deme: TopLevelDemeDefaults,
 }
 

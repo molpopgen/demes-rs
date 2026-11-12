@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-11-12
+
+### Miscellaneous Tasks
+
+- Reorganize workspace ([#486](https://github.com/molpopgen/demes-rs/pull/486))
+- Remove implicit cargo features ([#488](https://github.com/molpopgen/demes-rs/pull/488))
+
 ## [0.1.0] - 2026-03-19
 
 ### Bug Fixes

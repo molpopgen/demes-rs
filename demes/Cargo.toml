@@ -17,7 +17,7 @@ all-features = true
 rustdoc-args = ["--cfg", "doc_cfg"]
 
 [features]
-json = ["serde_json"]
+json = ["dep:serde_json"]
 
 [dependencies]
 serde = { workspace = true }

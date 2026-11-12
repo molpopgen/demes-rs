@@ -1,7 +1,7 @@
 [package]
 name = "demes"
 build = "build.rs"
-version = "0.7.0"
+version = "0.7.1"
 license = "MIT"
 description = "rust implementation of demes specification"
 homepage = "https://github.com/molpopgen/demes-rs"

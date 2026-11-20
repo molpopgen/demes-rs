@@ -22,5 +22,5 @@ workspace = true
 # strip = true
 
 [dependencies]
-demes-forward = {version = "0.6.0", path = "../demes-forward"}
+demes-forward = {version = "0.7.0", path = "../demes-forward"}
 libc = "~0.2"

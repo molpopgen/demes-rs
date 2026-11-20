@@ -56,7 +56,7 @@ mod process_json;
 
 use std::io::Read;
 
-pub use builder::{BuilderError, GraphBuilder};
+pub use builder::GraphBuilder;
 pub use cloning_rate::{CloningRate, InputCloningRate};
 pub use deme_size::{DemeSize, InputDemeSize};
 pub use error::DemesError;

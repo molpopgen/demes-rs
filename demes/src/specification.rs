@@ -2351,18 +2351,27 @@ pub struct Metadata {
     metadata: std::collections::BTreeMap<String, serde_yaml::Value>,
 }
 
-impl TryFrom<std::collections::BTreeMap<String, serde_yaml::Value>> for Metadata {
+#[repr(transparent)]
+pub(crate) struct MetadataIntermediate(std::collections::BTreeMap<String, serde_yaml::Value>);
+
+impl MetadataIntermediate {
+    pub fn into_metadata(self) -> Metadata {
+        Metadata { metadata: self.0 }
+    }
+}
+
+impl TryFrom<&str> for MetadataIntermediate {
     type Error = DemesError;
 
-    fn try_from(
-        value: std::collections::BTreeMap<String, serde_yaml::Value>,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value: std::collections::BTreeMap<String, serde_yaml::Value> =
+            serde_yaml::from_str(value).map_err(|e| DemesError::YamlError(OpaqueYamlError(e)))?;
         if value.is_empty() {
             Err(DemesError::GraphError(
                 "toplevel metadata must mot be empty".to_string(),
             ))
         } else {
-            Ok(Metadata { metadata: value })
+            Ok(Self(value))
         }
     }
 }
@@ -2391,10 +2400,13 @@ impl Metadata {
     }
 
     /// Return the metadata as YAML
-    pub fn as_yaml_string(&self) -> Result<String, serde_yaml::Error> {
+    pub fn as_yaml_string(&self) -> Result<String, DemesError> {
         serde_yaml::to_string(self.as_raw_ref())
+            .map_err(|e| DemesError::YamlError(OpaqueYamlError(e)))
     }
 
+    // NOTE: this fn must never become part of the public API
+    // due to exposing API from serde_yaml.
     pub(crate) fn as_raw_ref(&self) -> &std::collections::BTreeMap<String, serde_yaml::Value> {
         &self.metadata
     }
@@ -3303,7 +3315,7 @@ impl Graph {
     ///
     /// # Error
     ///
-    /// Will return an error if `serde_yaml::to_string`
+    /// Will return an error if the attempted conversion
     /// returns an error.
     pub fn as_string(&self) -> Result<String, DemesError> {
         match serde_yaml::to_string(self) {
@@ -3319,7 +3331,7 @@ impl Graph {
     ///
     /// # Error
     ///
-    /// Will return an error if `serde_json::to_string`
+    /// Will return an error if the attempted conversion
     /// returns an error.
     #[cfg(feature = "json")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "json")))]

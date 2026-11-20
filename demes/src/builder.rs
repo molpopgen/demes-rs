@@ -1,3 +1,4 @@
+use crate::error::OpaqueYamlError;
 use crate::specification::Graph;
 use crate::specification::GraphDefaults;
 use crate::specification::UnresolvedDeme;
@@ -10,40 +11,6 @@ use crate::InputProportion;
 use crate::InputTime;
 use crate::TimeUnits;
 use crate::UnresolvedMigration;
-
-/// Error type raised by [`GraphBuilder`]
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum BuilderError {
-    /// Error type when defaults fail to serialize
-    SerdeYamlError(serde_yaml::Error),
-    /// Error propagated from the main
-    /// graph resolution logic.
-    DemesError(crate::DemesError),
-}
-
-impl From<serde_yaml::Error> for BuilderError {
-    fn from(value: serde_yaml::Error) -> Self {
-        Self::SerdeYamlError(value)
-    }
-}
-
-impl From<crate::DemesError> for BuilderError {
-    fn from(value: crate::DemesError) -> Self {
-        Self::DemesError(value)
-    }
-}
-
-impl std::fmt::Display for BuilderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BuilderError::DemesError(e) => write!(f, "demes error: {e:?}"),
-            BuilderError::SerdeYamlError(e) => write!(f, "yaml error: {e:?}"),
-        }
-    }
-}
-
-impl std::error::Error for BuilderError {}
 
 /// This type allows building a [`Graph`](crate::Graph) using code
 /// rather then using text input.
@@ -229,7 +196,7 @@ impl GraphBuilder {
     ///
     /// # Errors
     ///
-    /// * [`BuilderError`] if serialization to YAML fails.
+    /// * [`DemesError`] if serialization to YAML fails.
     ///
     /// # Example
     ///
@@ -245,12 +212,11 @@ impl GraphBuilder {
     pub fn set_toplevel_metadata<T: serde::Serialize>(
         &mut self,
         metadata: &T,
-    ) -> Result<(), BuilderError> {
-        let yaml = serde_yaml::to_string(metadata)?;
-        let md: std::collections::BTreeMap<String, serde_yaml::Value> =
-            serde_yaml::from_str(&yaml)?;
-        let metadata = crate::Metadata::try_from(md)?;
-        self.metadata = Some(metadata);
+    ) -> Result<(), DemesError> {
+        let yaml = serde_yaml::to_string(metadata)
+            .map_err(|e| DemesError::YamlError(OpaqueYamlError(e)))?;
+        let metadata = crate::MetadataIntermediate::try_from(yaml.as_str())?;
+        self.metadata = Some(metadata.into_metadata());
         Ok(())
     }
 }

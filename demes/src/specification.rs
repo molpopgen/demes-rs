@@ -102,7 +102,7 @@ fn size_at_details<F: Into<f64>>(
 ///       end_size: 100
 /// ";
 /// let graph = demes::loads(yaml).unwrap();
-/// let deme = graph.get_deme_from_name("deme").unwrap();
+/// let deme = graph.get_deme("deme").unwrap();
 /// assert_eq!(deme.num_epochs(), 2);
 /// let last_epoch = deme.get_epoch(1).unwrap();
 /// assert!(matches!(last_epoch.size_function(),
@@ -132,7 +132,7 @@ fn size_at_details<F: Into<f64>>(
 ///       size_function: linear
 /// ";
 /// let graph = demes::loads(yaml).unwrap();
-/// let deme = graph.get_deme_from_name("deme").unwrap();
+/// let deme = graph.get_deme("deme").unwrap();
 /// let last_epoch = deme.get_epoch(1).unwrap();
 /// assert!(matches!(last_epoch.size_function(),
 ///                  demes::SizeFunction::Linear));
@@ -1451,12 +1451,6 @@ impl Deme {
     pub fn end_time(&self) -> Time {
         assert!(!self.epochs.is_empty());
         self.epochs[self.epochs.len() - 1].end_time()
-    }
-
-    /// Hash map of ancestor name to ancestor deme
-    #[deprecated(note = "Use Deme::ancestor_names and/or Deme::ancestor_indexes instead")]
-    pub fn ancestors(&self) -> &DemeMap {
-        &self.ancestor_map
     }
 
     /// Resolved start size
@@ -3170,21 +3164,6 @@ impl Graph {
     /// The number of [`Deme`](crate::Deme) instances in the graph.
     pub fn num_demes(&self) -> usize {
         self.demes.len()
-    }
-
-    /// Obtain a reference to a [`Deme`](crate::Deme) by its name.
-    ///
-    /// # Returns
-    ///
-    /// `Some(&Deme)` if `name` exists, `None` otherwise.
-    ///
-    /// # Examples
-    ///
-    /// See [`here`](crate::SizeFunction).
-    #[deprecated(note = "Use Graph::get_deme instead")]
-    pub fn get_deme_from_name(&self, name: &str) -> Option<&Deme> {
-        let id = DemeId::from(name);
-        self.get_deme(id)
     }
 
     /// Get the [`Deme`](crate::Deme) at identifier `id`.
